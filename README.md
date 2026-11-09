@@ -7,8 +7,8 @@ runner is BLAKE3-Servil's `tools/runner/runner.py`, on a dedicated Mac
 
 ## To run a job
 
-1. Push the commits the job names (the runner fetches branches alone, so
-   a pull request's head goes up as `candidate/<topic>` first).
+1. Push the commits the job names: a branch's, or a pull request's head
+   (the runner fetches pull requests' heads too, from forks as well).
 2. Take the next free number and write `jobs/NNNN-name.json`. The job
    kinds and their fields are the docstring at the top of
    [`runner.py`](https://github.com/servil-software-factory/BLAKE3/blob/next/tools/runner/runner.py):
