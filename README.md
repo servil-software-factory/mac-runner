@@ -2,8 +2,7 @@
 
 Push a job file into `jobs/`; a Mac runs it and pushes its results into
 `results/`. Nothing here is built or run by this repository itself: the
-runner is BLAKE3-Servil's `tools/runner/runner.py`, on a dedicated Mac
-(the M6 Mini) and, when it is on, on the M4 Max.
+runner is BLAKE3-Servil's `tools/runner/runner.py`, on the team's Macs.
 
 ## To run a job
 
