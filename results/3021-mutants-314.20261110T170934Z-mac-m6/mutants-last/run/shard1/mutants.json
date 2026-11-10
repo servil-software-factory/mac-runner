@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/stream.rs\n+++ replace Storage::run_waiting -> bool with true\n@@ -349,23 +349,17 @@\n             lefts: (0..ENTRIES).map(|_| OwnLine(AtomicUsize::new(0))).collect(),\n         }\n     }\n \n     /// Hash one of the stream's tasks no thread has taken: whether there\n     /// was one. A waiting caller's own help, the one way a lone task runs\n     /// while every worker is parked (only collect wakes one for it).\n     fn run_waiting(&self) -> bool {\n-        match self.source.take_task() {\n-            Some(task) => {\n-                crate::lanes::run_task(&task);\n-                true\n-            }\n-            None => false,\n-        }\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The ring's byte at `at`.\n     fn ring_at(&self, at: usize) -> *mut u8 {\n         debug_assert!(at <= RING_BYTES);\n         // Sound: `at` is in the ring.\n         unsafe { self.ring.add(at) }\n     }\n",
+    "file": "src/stream.rs",
+    "function": {
+      "function_name": "Storage::run_waiting",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 364
+        },
+        "start": {
+          "column": 5,
+          "line": 353
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/stream.rs:357:9: replace Storage::run_waiting -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 363
+      },
+      "start": {
+        "column": 9,
+        "line": 357
+      }
+    }
+  },
+  {
+    "diff": "--- src/stream.rs\n+++ replace Storage::run_waiting -> bool with false\n@@ -349,23 +349,17 @@\n             lefts: (0..ENTRIES).map(|_| OwnLine(AtomicUsize::new(0))).collect(),\n         }\n     }\n \n     /// Hash one of the stream's tasks no thread has taken: whether there\n     /// was one. A waiting caller's own help, the one way a lone task runs\n     /// while every worker is parked (only collect wakes one for it).\n     fn run_waiting(&self) -> bool {\n-        match self.source.take_task() {\n-            Some(task) => {\n-                crate::lanes::run_task(&task);\n-                true\n-            }\n-            None => false,\n-        }\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The ring's byte at `at`.\n     fn ring_at(&self, at: usize) -> *mut u8 {\n         debug_assert!(at <= RING_BYTES);\n         // Sound: `at` is in the ring.\n         unsafe { self.ring.add(at) }\n     }\n",
+    "file": "src/stream.rs",
+    "function": {
+      "function_name": "Storage::run_waiting",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 364
+        },
+        "start": {
+          "column": 5,
+          "line": 353
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/stream.rs:357:9: replace Storage::run_waiting -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 363
+      },
+      "start": {
+        "column": 9,
+        "line": 357
+      }
+    }
+  },
+  {
+    "diff": "--- src/stream.rs\n+++ replace Stream<'env, D>::hand_over_piece with ()\n@@ -802,27 +802,17 @@\n         }\n     }\n \n     /// Entry `entry`, a piece of a long message, `len` bytes at `input`\n     /// from chunk `counter`: a task of its own, a whole subtree at its\n     /// offset, handed over.\n     #[inline(always)]\n     fn hand_over_piece(&mut self, entry: usize, input: *const u8, len: usize, counter: u64) {\n-        self.s.lefts[entry].store(1, Ordering::Relaxed);\n-        // Sound: the bytes stay in place until the entry is handed back.\n-        let bytes = unsafe { core::slice::from_raw_parts(input, len) };\n-        let task = Task {\n-            key: self.key,\n-            flags: self.flags,\n-            out: self.s.pieces_out[entry].0.0.get() as *mut u8,\n-            left: &*self.s.lefts[entry],\n-            ..Task::of(bytes, counter)\n-        };\n-        self.hand_over(&task);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The ring offset of `len` free bytes at a 64-byte boundary (whole,\n     /// before the ring's end), reserved: waits, handing places back and\n     /// hashing tasks, until entries in flight free them.\n     fn reserve(&mut self, len: usize) -> usize {\n         let (at, taken) = room(self.head, RING_BYTES, len);\n         while !has_room(self.head, self.tail, RING_BYTES, taken) {\n",
+    "file": "src/stream.rs",
+    "function": {
+      "function_name": "Stream<'env, D>::hand_over_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 821
+        },
+        "start": {
+          "column": 5,
+          "line": 805
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/stream.rs:810:9: replace Stream<'env, D>::hand_over_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 820
+      },
+      "start": {
+        "column": 9,
+        "line": 810
+      }
+    }
+  },
+  {
+    "diff": "--- src/stream.rs\n+++ replace Stream<'env, D>::reclaim -> bool with true\n@@ -935,31 +935,17 @@\n \n     /// The GPU's tasks still in flight, taken back and published again for\n     /// the pool's workers (`crate::gpu::Gpu::reclaim`): whether there were\n     /// any. Out of line, as finish's last resort.\n     #[cfg(blake3_gpu)]\n     #[cold]\n     #[inline(never)]\n     fn reclaim(&mut self) -> bool {\n-        let Some(gpu) = self.s.gpu.as_ref() else { return false };\n-        let mut back = arrayvec::ArrayVec::<crate::gpu::Held, { crate::gpu::HELD }>::new();\n-        if !gpu.reclaim(|t| back.push(t)) {\n-            return false;\n-        }\n-        for t in back {\n-            // Sound: the piece stays in the GPU ring, and its output and\n-            // count in place, until its count is zero.\n-            let bytes = unsafe { core::slice::from_raw_parts(t.input, PIECE) };\n-            let task = Task { key: self.key, flags: self.flags, out: t.out, left: t.left, ..Task::of(bytes, t.counter) };\n-            self.hand_over(&task);\n-        }\n-        #[cfg(test)]\n-        crate::gpu::test::RECLAIMS.fetch_add(1, Ordering::Relaxed);\n-        true\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// A new entry of `len` bytes, waiting for room when every entry is in\n     /// flight.\n     #[inline(always)]\n     fn add_entry(&mut self, len: usize, kind: Kind, ring_end: usize) -> usize {\n         if self.next - self.delivered == ENTRIES {\n             self.wait_for_room();\n",
+    "file": "src/stream.rs",
+    "function": {
+      "function_name": "Stream<'env, D>::reclaim",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 958
+        },
+        "start": {
+          "column": 5,
+          "line": 936
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/stream.rs:943:9: replace Stream<'env, D>::reclaim -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 957
+      },
+      "start": {
+        "column": 9,
+        "line": 943
+      }
+    }
+  }
+]
