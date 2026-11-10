@@ -1,0 +1,66 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace finalize_each with ()\n@@ -111,81 +111,17 @@\n /// messages of up to 1024 bytes fed by [`update_each`].\n ///\n /// # Key-dependent timing\n ///\n /// Selected hashers may use different secret keys. Key values and key equality\n /// select neither the finalization path nor its amount of work.\n /// See the [key-independence contract](crate#key-dependent-timing).\n pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n-    assert_eq!(which.len(), out.len(), \"one digest per message named\");\n-    debug_assert!(which.iter().enumerate().all(|(at, i)| !which[..at].contains(i)), \"each finalized index is distinct\");\n-    #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n-    if which.len() >= 16 && matches!(Platform::detect(), Platform::AVX512) {\n-        #[cfg(all(test, feature = \"std\"))]\n-        crate::counted(crate::Counted::OutputGroupTurn);\n-        for (which, out) in which.chunks(16).zip(out.chunks_mut(16)) {\n-            if which.len() == 16 {\n-                let hashed = {\n-                    let inputs: Option<arrayvec::ArrayVec<_, 16>> = which.iter().map(|&i| crate::ffi_output::input(&hashers[i])).collect();\n-                    match inputs {\n-                        Some(inputs) => {\n-                            // Sound: the detected platform supplies AVX-512F+VL;\n-                            // borrowed descriptors keep every block/CV readable.\n-                            unsafe { crate::ffi_output::hash_group::<16>(inputs.as_slice().try_into().unwrap(), out) };\n-                            true\n-                        }\n-                        None => false,\n-                    }\n-                };\n-                if hashed {\n-                    for &i in which {\n-                        hashers[i].reset(None);\n-                    }\n-                    continue;\n-                }\n-            }\n-            finish_each(hashers, which, out);\n-        }\n-        return;\n-    }\n-    // AArch64: the messages of up to a chunk that a turn left whole in\n-    // their stages (`Hasher::gather_part`) hash side by side by their\n-    // blocks, as a collection's small items do (`hash_by_blocks`: the NEON\n-    // lanes, or one SME2 call for a table of equal whole blocks). The\n-    // plain ones only: their key is the IV, the same for all, and a keyed\n-    // hasher's key is its own and secret, so it finishes alone (BLAKE3\n-    // #312). Which hashers qualify is their public shape: mode and length.\n-    #[cfg(blake3_neon)]\n-    {\n-        let whole_in_stage = |h: &Hasher| h.staged <= CHUNK_LEN && h.core.count() == 0 && h.core.initial_chunk_counter == 0 && h.core.chunk_state.flags == 0;\n-        if which.iter().filter(|&&i| whole_in_stage(&hashers[i])).nth(1).is_some() {\n-            let platform = Platform::detect();\n-            // BY_BLOCKS_AT_ONCE of them at a time, their places on the\n-            // stack: a finish allocates nothing.\n-            let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();\n-            while small.peek().is_some() {\n-                let part: arrayvec::ArrayVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();\n-                let bytes: arrayvec::ArrayVec<&[u8], BY_BLOCKS_AT_ONCE> = part.iter().map(|&k| hashers[which[k]].staged_bytes()).collect();\n-                let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];\n-                hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n-                for (&k, digest) in part.iter().zip(&digests) {\n-                    out[k] = *digest;\n-                }\n-            }\n-            for (&i, out) in which.iter().zip(out.iter_mut()) {\n-                if !whole_in_stage(&hashers[i]) {\n-                    *out = *hashers[i].take_output().root_hash().as_bytes();\n-                }\n-                hashers[i].reset(None);\n-            }\n-            return;\n-        }\n-    }\n-    finish_each(hashers, which, out);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Each hasher `which` names finished in place and reset, its digest into\n /// `out`: the path every message takes but a sixteen-lane group.\n fn finish_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n     for (&i, out) in which.iter().zip(out) {\n         *out = *hashers[i].take_output().root_hash().as_bytes();\n         hashers[i].reset(None);\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 184
+        },
+        "start": {
+          "column": 1,
+          "line": 105
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:119:5: replace finalize_each with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 38,
+        "line": 183
+      },
+      "start": {
+        "column": 5,
+        "line": 119
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace hash_held with ()\n@@ -308,31 +308,17 @@\n \n /// Hash the whole groups `held` names, one in each of those hashers'\n /// stages, and pass each group's subtree to its hasher's core. The plain\n /// hashers' groups hash together; a keyed or key-derivation hasher's group\n /// hashes alone, since its key is secret and must not decide the work\n /// (BLAKE3 #312): the mode alone, public, groups them.\n #[cfg(feature = \"std\")]\n fn hash_held(hashers: &mut [Hasher], held: &[usize]) {\n-    #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n-    if independent_lanes(hashers, held) {\n-        return;\n-    }\n-    // Plain's key is the IV, the same for every plain hasher.\n-    let mut plain = arrayvec::ArrayVec::<usize, TABLE>::new();\n-    plain.extend(held.iter().copied().filter(|&i| hashers[i].core.chunk_state.flags == 0));\n-    if !plain.is_empty() {\n-        hash_cohort::<TABLE>(hashers, &plain);\n-    }\n-    for &i in held {\n-        if hashers[i].core.chunk_state.flags != 0 {\n-            hash_cohort::<1>(hashers, &[i]);\n-        }\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Parent blocks supplied by a full staged message's pairs of CVs.\n const STAGE_PARENTS: usize = ALONE_CHUNKS / 2;\n \n /// Contiguous parent inputs retain the kernels' direct path. Both CV\n /// levels live on the stack; ping-pong leaves the final two children in\n /// the other buffer. Block supplies the existing 64-byte alignment.\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "hash_held",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 331
+        },
+        "start": {
+          "column": 1,
+          "line": 309
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:316:5: replace hash_held with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 330
+      },
+      "start": {
+        "column": 5,
+        "line": 316
+      }
+    }
+  }
+]
