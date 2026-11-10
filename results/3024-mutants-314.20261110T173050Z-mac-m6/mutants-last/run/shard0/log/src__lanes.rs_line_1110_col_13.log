@@ -1,0 +1,110 @@
+
+*** src/lanes.rs:1110:13: replace sources::Source::with -> Source with Default::default()
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace sources::Source::with -> Source with Default::default()
+@@ -1102,41 +1102,17 @@
+ 
+         /// Whether the source carries tasks (a stream's, a pipeline's), not
+         /// a caller's jobs.
+         fn carries_tasks(&self) -> bool {
+             !self.places.is_empty() || !self.actions.is_empty()
+         }
+ 
+         fn with(len: usize, actions: usize) -> Source {
+-            Source {
+-                #[cfg(all(test, blake3_gpu))]
+-                gpu_batch_reserved: core::sync::atomic::AtomicBool::new(false),
+-                claimed: OwnLine(AtomicUsize::new(0)),
+-                // Each place holds a whole task from the start, so a
+-                // publication writes its task's header and the members it
+-                // holds alone (`push`).
+-                places: (0..len)
+-                    .map(|_| Place {
+-                        task: UnsafeCell::new(MaybeUninit::new(Task::of(&[], 0))),
+-                        #[cfg(any(test, debug_assertions))]
+-                        uncopied: core::sync::atomic::AtomicBool::new(false),
+-                    })
+-                    .collect(),
+-                actions: (0..actions)
+-                    .map(|_| Action {
+-                        run: AtomicPtr::new(core::ptr::null_mut()),
+-                        context: AtomicPtr::new(core::ptr::null_mut()),
+-                        members: AtomicUsize::new(0),
+-                    })
+-                    .collect(),
+-                job: AtomicPtr::new(core::ptr::null_mut()),
+-                base: AtomicUsize::new(0),
+-                finish: crate::finish::Finish::new(),
+-            }
++            Default::default() /* ~ changed by cargo-mutants ~ */
+         }
+ 
+         /// Register for the workers: the slot, or None when all are taken.
+         pub(crate) fn register(&'static self) -> Option<usize> {
+             let ptr = self as *const Source as *mut Source;
+             let slot = (0..SLOTS).find(|&i| REGISTERED[i].compare_exchange(core::ptr::null_mut(), ptr, Ordering::SeqCst, Ordering::Relaxed).is_ok())?;
+             ACTIVE.fetch_or(1 << slot, Ordering::SeqCst);
+             Some(slot)
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.8.0+dev --features=serde,zeroize
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.8.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[69777]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.8.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[69976]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil` (build script) generated 1 warning
+   Compiling blake3-servil v0.8.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `sources::Source: Default` is not satisfied
+    --> src/lanes.rs:1110:13
+     |
+1110 |             Default::default() /* ~ changed by cargo-mutants ~ */
+     |             ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `Default` is not implemented for `sources::Source`
+    --> src/lanes.rs:1045:5
+     |
+1045 |     pub(crate) struct Source {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `lanes::sources::Source: Default` is not satisfied
+    --> src/lanes.rs:1110:13
+     |
+1110 |             Default::default() /* ~ changed by cargo-mutants ~ */
+     |             ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `Default` is not implemented for `lanes::sources::Source`
+    --> src/lanes.rs:1045:5
+     |
+1045 |     pub(crate) struct Source {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.8.0+dev' '--features=serde,zeroize' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

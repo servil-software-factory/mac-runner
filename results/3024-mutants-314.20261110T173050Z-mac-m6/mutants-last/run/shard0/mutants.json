@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::with -> Source with Default::default()\n@@ -1102,41 +1102,17 @@\n \n         /// Whether the source carries tasks (a stream's, a pipeline's), not\n         /// a caller's jobs.\n         fn carries_tasks(&self) -> bool {\n             !self.places.is_empty() || !self.actions.is_empty()\n         }\n \n         fn with(len: usize, actions: usize) -> Source {\n-            Source {\n-                #[cfg(all(test, blake3_gpu))]\n-                gpu_batch_reserved: core::sync::atomic::AtomicBool::new(false),\n-                claimed: OwnLine(AtomicUsize::new(0)),\n-                // Each place holds a whole task from the start, so a\n-                // publication writes its task's header and the members it\n-                // holds alone (`push`).\n-                places: (0..len)\n-                    .map(|_| Place {\n-                        task: UnsafeCell::new(MaybeUninit::new(Task::of(&[], 0))),\n-                        #[cfg(any(test, debug_assertions))]\n-                        uncopied: core::sync::atomic::AtomicBool::new(false),\n-                    })\n-                    .collect(),\n-                actions: (0..actions)\n-                    .map(|_| Action {\n-                        run: AtomicPtr::new(core::ptr::null_mut()),\n-                        context: AtomicPtr::new(core::ptr::null_mut()),\n-                        members: AtomicUsize::new(0),\n-                    })\n-                    .collect(),\n-                job: AtomicPtr::new(core::ptr::null_mut()),\n-                base: AtomicUsize::new(0),\n-                finish: crate::finish::Finish::new(),\n-            }\n+            Default::default() /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Register for the workers: the slot, or None when all are taken.\n         pub(crate) fn register(&'static self) -> Option<usize> {\n             let ptr = self as *const Source as *mut Source;\n             let slot = (0..SLOTS).find(|&i| REGISTERED[i].compare_exchange(core::ptr::null_mut(), ptr, Ordering::SeqCst, Ordering::Relaxed).is_ok())?;\n             ACTIVE.fetch_or(1 << slot, Ordering::SeqCst);\n             Some(slot)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::with",
+      "return_type": "-> Source",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1135
+        },
+        "start": {
+          "column": 9,
+          "line": 1109
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1110:13: replace sources::Source::with -> Source with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1134
+      },
+      "start": {
+        "column": 13,
+        "line": 1110
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::push with ()\n@@ -1203,49 +1203,17 @@\n                 noted(Noted::WakeTry);\n                 pool.park.wake_one();\n             }\n         }\n \n         /// Write `task` to the next place in order and make it visible (the\n         /// SME2 thread woken for it where there is one).\n         fn push(&self, task: &Task) {\n-            let p = self.finish.published.load(Ordering::Relaxed);\n-            // Every build: a task written over one not yet claimed would\n-            // be lost (at the cost of a load and a comparison).\n-            assert!(p - self.claimed.load(Ordering::Relaxed) < self.places.len(), \"a source's places hold every task not yet taken\");\n-            let place = p % self.places.len();\n-            let slot = &self.places[place];\n-            #[cfg(any(test, debug_assertions))]\n-            assert!(!slot.uncopied.swap(true, Ordering::SeqCst), \"a publication met a task claimed and not yet copied (BLAKE3 #302)\");\n-            // Sound: the place's last task was copied out by its claimer\n-            // (the publisher's contract): no claimer is still to read it;\n-            // and the place holds an initialized task (`new`).\n-            let to = unsafe { (*slot.task.get()).assume_init_mut() };\n-            // The header and the members the task holds, alone: a task of\n-            // four 4 KiB messages moves 312 of its 1,640 bytes, a piece of\n-            // a long message 120. Every field is named here, so a field\n-            // added to Task fails to compile until it is written too.\n-            let Task { action, input, len, counter, batch, key, flags, out, left, members, member } = task;\n-            to.action = *action;\n-            to.input = *input;\n-            to.len = *len;\n-            to.counter = *counter;\n-            to.batch = *batch;\n-            to.key = *key;\n-            to.flags = *flags;\n-            to.out = *out;\n-            to.left = *left;\n-            to.members = *members;\n-            to.member[..*members].copy_from_slice(&member[..*members]);\n-            self.finish.published.store(p + 1, Ordering::Release);\n-            core::sync::atomic::fence(Ordering::SeqCst);\n-            if pool().sme2 {\n-                wake_sme2();\n-            }\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n         /// caller's own: the number `finished` must reach when it is done.\n         pub(crate) fn publish_job(&self, job: *mut Job<'static>, pieces: usize, own: usize) -> usize {\n             let base = self.finish.published.load(Ordering::Relaxed);\n             debug_assert_eq!(self.finish.finished_count(), base, \"the last job is finished\");\n             self.job.store(job, Ordering::Relaxed);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::push",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1244
+        },
+        "start": {
+          "column": 9,
+          "line": 1208
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1211:13: replace sources::Source::push with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1243
+      },
+      "start": {
+        "column": 13,
+        "line": 1211
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::help -> bool with true\n@@ -1442,23 +1442,17 @@\n             self.finish.wait(self.finish.published.load(Ordering::SeqCst), help);\n         }\n \n         /// Hash one of this source's tasks no worker has taken: whether\n         /// there was one. A waiting producer's own help, the one way a task\n         /// runs where the pool has no workers (one CPU) or every worker is\n         /// parked.\n         pub(crate) fn help(&'static self) -> bool {\n-            match self.take_task() {\n-                Some(task) => {\n-                    crate::lanes::run_task(&task);\n-                    true\n-                }\n-                None => false,\n-            }\n+            true /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Wait until `finished` reaches `target`: polling for\n         /// SPIN_BEFORE_SLEEP, then parked until the worker finishing the\n         /// last piece unparks this thread.\n         pub(crate) fn wait(&self, target: usize) {\n             let started = now();\n             let mut yielded = started;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::help",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1457
+        },
+        "start": {
+          "column": 9,
+          "line": 1445
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1450:13: replace sources::Source::help -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1456
+      },
+      "start": {
+        "column": 13,
+        "line": 1450
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::help -> bool with false\n@@ -1442,23 +1442,17 @@\n             self.finish.wait(self.finish.published.load(Ordering::SeqCst), help);\n         }\n \n         /// Hash one of this source's tasks no worker has taken: whether\n         /// there was one. A waiting producer's own help, the one way a task\n         /// runs where the pool has no workers (one CPU) or every worker is\n         /// parked.\n         pub(crate) fn help(&'static self) -> bool {\n-            match self.take_task() {\n-                Some(task) => {\n-                    crate::lanes::run_task(&task);\n-                    true\n-                }\n-                None => false,\n-            }\n+            false /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Wait until `finished` reaches `target`: polling for\n         /// SPIN_BEFORE_SLEEP, then parked until the worker finishing the\n         /// last piece unparks this thread.\n         pub(crate) fn wait(&self, target: usize) {\n             let started = now();\n             let mut yielded = started;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::help",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1457
+        },
+        "start": {
+          "column": 9,
+          "line": 1445
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1450:13: replace sources::Source::help -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1456
+      },
+      "start": {
+        "column": 13,
+        "line": 1450
+      }
+    }
+  }
+]
