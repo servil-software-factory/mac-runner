@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::push with ()\n@@ -1099,48 +1099,17 @@\n                 noted(Noted::WakeTry);\n                 pool().park.wake_one();\n             }\n         }\n \n         /// Write `task` to the next place in order and make it visible (the\n         /// SME2 thread woken for it where there is one).\n         fn push(&self, task: &Task) {\n-            let p = self.finish.published.load(Ordering::Relaxed);\n-            // Every build: a task written over one not yet claimed would\n-            // be lost (at the cost of a load and a comparison).\n-            assert!(p - self.claimed.load(Ordering::Relaxed) < self.places.len(), \"a source's places hold every task not yet taken\");\n-            let place = p % self.places.len();\n-            let slot = &self.places[place];\n-            #[cfg(any(test, debug_assertions))]\n-            assert!(!slot.uncopied.swap(true, Ordering::SeqCst), \"a publication met a task claimed and not yet copied (BLAKE3 #302)\");\n-            // Sound: the place's last task was copied out by its claimer\n-            // (the publisher's contract): no claimer is still to read it;\n-            // and the place holds an initialized task (`new`).\n-            let to = unsafe { (*slot.task.get()).assume_init_mut() };\n-            // The header and the members the task holds, alone: a task of\n-            // four 4 KiB messages moves 312 of its 1,640 bytes, a piece of\n-            // a long message 120. Every field is named here, so a field\n-            // added to Task fails to compile until it is written too.\n-            let Task { input, len, counter, batch, key, flags, out, left, members, member } = task;\n-            to.input = *input;\n-            to.len = *len;\n-            to.counter = *counter;\n-            to.batch = *batch;\n-            to.key = *key;\n-            to.flags = *flags;\n-            to.out = *out;\n-            to.left = *left;\n-            to.members = *members;\n-            to.member[..*members].copy_from_slice(&member[..*members]);\n-            self.finish.published.store(p + 1, Ordering::Release);\n-            core::sync::atomic::fence(Ordering::SeqCst);\n-            if pool().sme2 {\n-                wake_sme2();\n-            }\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n         /// caller's own: the number `finished` must reach when it is done.\n         pub(crate) fn publish_job(&self, job: *mut Job<'static>, pieces: usize, own: usize) -> usize {\n             let base = self.finish.published.load(Ordering::Relaxed);\n             debug_assert_eq!(self.finish.finished_count(), base, \"the last job is finished\");\n             self.job.store(job, Ordering::Relaxed);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::push",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1139
+        },
+        "start": {
+          "column": 9,
+          "line": 1104
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1107:13: replace sources::Source::push with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1138
+      },
+      "start": {
+        "column": 13,
+        "line": 1107
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::take_claimed -> Option<Item> with None\n@@ -1157,52 +1157,17 @@\n         pub(crate) fn take(&self) -> Option<Item> {\n             self.take_claimed(|| {})\n         }\n \n         /// `take`, with `claimed` run between a task's claim and its copy\n         /// (a test holds a claimer there).\n         #[inline(always)]\n         fn take_claimed(&self, claimed: impl FnOnce()) -> Option<Item> {\n-            let mut c = self.claimed.load(Ordering::Acquire);\n-            loop {\n-                let p = self.finish.published.load(Ordering::Acquire);\n-                if c >= p {\n-                    return None;\n-                }\n-                // Read after the publication Acquire: the fixture reserved\n-                // its batch before publishing this task.\n-                #[cfg(all(test, blake3_gpu))]\n-                if self.gpu_batch_reserved.load(Ordering::SeqCst) {\n-                    return None;\n-                }\n-                // A job's pieces go in runs, consecutive, sized to the work\n-                // left (guided self-scheduling): each worker reads its input\n-                // front to back, so a mapped file from storage meets the\n-                // kernel's readahead stream by stream (official's I/O\n-                // pattern), and runs shrink to one piece near the end for\n-                // balance. A stream's tasks go one at a time.\n-                let n = if self.places.is_empty() { Self::run_len(p - c, pool().threads) } else { 1 };\n-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n-                    Ok(_) if self.places.is_empty() => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n-                    Ok(_) => {\n-                        claimed();\n-                        let slot = &self.places[c % self.places.len()];\n-                        // Sound: this thread alone claimed the publication\n-                        // in this place, written before `published` passed\n-                        // it; its publisher writes the place again only\n-                        // after this copy (the publisher's contract).\n-                        let task = unsafe { (*slot.task.get()).assume_init_read() };\n-                        #[cfg(any(test, debug_assertions))]\n-                        slot.uncopied.store(false, Ordering::SeqCst);\n-                        return Some(Item::Task(task));\n-                    }\n-                    Err(now) => c = now,\n-                }\n-            }\n+            None /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Establish the GPU-claim precondition of its finish/reclaim test.\n         /// The first successful GPU claim restores ordinary CPU service.\n         #[cfg(all(test, blake3_gpu))]\n         pub(crate) fn reserve_gpu_batch_for_test(&self) {\n             self.gpu_batch_reserved.store(true, Ordering::SeqCst);\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take_claimed",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1201
+        },
+        "start": {
+          "column": 9,
+          "line": 1161
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1165:13: replace sources::Source::take_claimed -> Option<Item> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1200
+      },
+      "start": {
+        "column": 13,
+        "line": 1165
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::take_claimed -> Option<Item> with Some(Default::default())\n@@ -1157,52 +1157,17 @@\n         pub(crate) fn take(&self) -> Option<Item> {\n             self.take_claimed(|| {})\n         }\n \n         /// `take`, with `claimed` run between a task's claim and its copy\n         /// (a test holds a claimer there).\n         #[inline(always)]\n         fn take_claimed(&self, claimed: impl FnOnce()) -> Option<Item> {\n-            let mut c = self.claimed.load(Ordering::Acquire);\n-            loop {\n-                let p = self.finish.published.load(Ordering::Acquire);\n-                if c >= p {\n-                    return None;\n-                }\n-                // Read after the publication Acquire: the fixture reserved\n-                // its batch before publishing this task.\n-                #[cfg(all(test, blake3_gpu))]\n-                if self.gpu_batch_reserved.load(Ordering::SeqCst) {\n-                    return None;\n-                }\n-                // A job's pieces go in runs, consecutive, sized to the work\n-                // left (guided self-scheduling): each worker reads its input\n-                // front to back, so a mapped file from storage meets the\n-                // kernel's readahead stream by stream (official's I/O\n-                // pattern), and runs shrink to one piece near the end for\n-                // balance. A stream's tasks go one at a time.\n-                let n = if self.places.is_empty() { Self::run_len(p - c, pool().threads) } else { 1 };\n-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n-                    Ok(_) if self.places.is_empty() => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n-                    Ok(_) => {\n-                        claimed();\n-                        let slot = &self.places[c % self.places.len()];\n-                        // Sound: this thread alone claimed the publication\n-                        // in this place, written before `published` passed\n-                        // it; its publisher writes the place again only\n-                        // after this copy (the publisher's contract).\n-                        let task = unsafe { (*slot.task.get()).assume_init_read() };\n-                        #[cfg(any(test, debug_assertions))]\n-                        slot.uncopied.store(false, Ordering::SeqCst);\n-                        return Some(Item::Task(task));\n-                    }\n-                    Err(now) => c = now,\n-                }\n-            }\n+            Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Establish the GPU-claim precondition of its finish/reclaim test.\n         /// The first successful GPU claim restores ordinary CPU service.\n         #[cfg(all(test, blake3_gpu))]\n         pub(crate) fn reserve_gpu_batch_for_test(&self) {\n             self.gpu_batch_reserved.store(true, Ordering::SeqCst);\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take_claimed",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1201
+        },
+        "start": {
+          "column": 9,
+          "line": 1161
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1165:13: replace sources::Source::take_claimed -> Option<Item> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1200
+      },
+      "start": {
+        "column": 13,
+        "line": 1165
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace - with + in sources::Source::take_claimed\n@@ -1175,17 +1175,17 @@\n                     return None;\n                 }\n                 // A job's pieces go in runs, consecutive, sized to the work\n                 // left (guided self-scheduling): each worker reads its input\n                 // front to back, so a mapped file from storage meets the\n                 // kernel's readahead stream by stream (official's I/O\n                 // pattern), and runs shrink to one piece near the end for\n                 // balance. A stream's tasks go one at a time.\n-                let n = if self.places.is_empty() { Self::run_len(p - c, pool().threads) } else { 1 };\n+                let n = if self.places.is_empty() { Self::run_len(p + /* ~ changed by cargo-mutants ~ */ c, pool().threads) } else { 1 };\n                 match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n                     Ok(_) if self.places.is_empty() => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n                     Ok(_) => {\n                         claimed();\n                         let slot = &self.places[c % self.places.len()];\n                         // Sound: this thread alone claimed the publication\n                         // in this place, written before `published` passed\n                         // it; its publisher writes the place again only\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take_claimed",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1201
+        },
+        "start": {
+          "column": 9,
+          "line": 1161
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1183:69: replace - with + in sources::Source::take_claimed",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 70,
+        "line": 1183
+      },
+      "start": {
+        "column": 69,
+        "line": 1183
+      }
+    }
+  }
+]
