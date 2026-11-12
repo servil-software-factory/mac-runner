@@ -1,0 +1,258 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::take_claimed -> Option<Item> with None\n@@ -1157,52 +1157,17 @@\n         pub(crate) fn take(&self) -> Option<Item> {\n             self.take_claimed(|| {})\n         }\n \n         /// `take`, with `claimed` run between a task's claim and its copy\n         /// (a test holds a claimer there).\n         #[inline(always)]\n         fn take_claimed(&self, claimed: impl FnOnce()) -> Option<Item> {\n-            let mut c = self.claimed.load(Ordering::Acquire);\n-            loop {\n-                let p = self.finish.published.load(Ordering::Acquire);\n-                if c >= p {\n-                    return None;\n-                }\n-                // Read after the publication Acquire: the fixture reserved\n-                // its batch before publishing this task.\n-                #[cfg(all(test, blake3_gpu))]\n-                if self.gpu_batch_reserved.load(Ordering::SeqCst) {\n-                    return None;\n-                }\n-                // A job's pieces go in runs, consecutive, sized to the work\n-                // left (guided self-scheduling): each worker reads its input\n-                // front to back, so a mapped file from storage meets the\n-                // kernel's readahead stream by stream (official's I/O\n-                // pattern), and runs shrink to one piece near the end for\n-                // balance. A stream's tasks go one at a time.\n-                let n = if self.places.is_empty() { Self::run_len(p - c, pool().threads) } else { 1 };\n-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n-                    Ok(_) if self.places.is_empty() => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n-                    Ok(_) => {\n-                        claimed();\n-                        let slot = &self.places[c % self.places.len()];\n-                        // Sound: this thread alone claimed the publication\n-                        // in this place, written before `published` passed\n-                        // it; its publisher writes the place again only\n-                        // after this copy (the publisher's contract).\n-                        let task = unsafe { (*slot.task.get()).assume_init_read() };\n-                        #[cfg(any(test, debug_assertions))]\n-                        slot.uncopied.store(false, Ordering::SeqCst);\n-                        return Some(Item::Task(task));\n-                    }\n-                    Err(now) => c = now,\n-                }\n-            }\n+            None /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Establish the GPU-claim precondition of its finish/reclaim test.\n         /// The first successful GPU claim restores ordinary CPU service.\n         #[cfg(all(test, blake3_gpu))]\n         pub(crate) fn reserve_gpu_batch_for_test(&self) {\n             self.gpu_batch_reserved.store(true, Ordering::SeqCst);\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take_claimed",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1201
+        },
+        "start": {
+          "column": 9,
+          "line": 1161
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1165:13: replace sources::Source::take_claimed -> Option<Item> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1200
+      },
+      "start": {
+        "column": 13,
+        "line": 1165
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace + with - in sources::Source::take_claimed\n@@ -1176,17 +1176,17 @@\n                 }\n                 // A job's pieces go in runs, consecutive, sized to the work\n                 // left (guided self-scheduling): each worker reads its input\n                 // front to back, so a mapped file from storage meets the\n                 // kernel's readahead stream by stream (official's I/O\n                 // pattern), and runs shrink to one piece near the end for\n                 // balance. A stream's tasks go one at a time.\n                 let n = if self.places.is_empty() { Self::run_len(p - c, pool().threads) } else { 1 };\n-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n+                match self.claimed.compare_exchange_weak(c, c - /* ~ changed by cargo-mutants ~ */ n, Ordering::AcqRel, Ordering::Acquire) {\n                     Ok(_) if self.places.is_empty() => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n                     Ok(_) => {\n                         claimed();\n                         let slot = &self.places[c % self.places.len()];\n                         // Sound: this thread alone claimed the publication\n                         // in this place, written before `published` passed\n                         // it; its publisher writes the place again only\n                         // after this copy (the publisher's contract).\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take_claimed",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1201
+        },
+        "start": {
+          "column": 9,
+          "line": 1161
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1184:63: replace + with - in sources::Source::take_claimed",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 64,
+        "line": 1184
+      },
+      "start": {
+        "column": 63,
+        "line": 1184
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::take_stream_task -> Option<Task> with None\n@@ -1430,22 +1430,17 @@\n                 }\n                 source.finished(n);\n             }\n         }\n     }\n \n     /// A task from any stream (the SME2 thread takes these alone).\n     pub(crate) fn take_stream_task() -> Option<Task> {\n-        let mut found = None;\n-        find(|source| {\n-            found = if !source.places.is_empty() { source.take_task() } else { None };\n-            found.is_some()\n-        });\n-        found\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Whether any source has work waiting (`streams`: any stream).\n     pub(crate) fn visible(streams: bool) -> bool {\n         find(|source| (!streams || !source.places.is_empty()) && source.waiting() > 0)\n     }\n \n     #[cfg(test)]\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::take_stream_task",
+      "return_type": "-> Option<Task>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1444
+        },
+        "start": {
+          "column": 5,
+          "line": 1436
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1438:9: replace sources::take_stream_task -> Option<Task> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1443
+      },
+      "start": {
+        "column": 9,
+        "line": 1438
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete field key from struct Task expression in Task::members\n@@ -1715,17 +1715,17 @@\n             members: 0,\n             member: [NO_MEMBER; MEMBERS],\n         }\n     }\n \n     /// An empty task of short messages (with `batch`, batches of messages\n     /// of that length) in the mode of `key` and `flags`.\n     pub(crate) fn members(key: &crate::CVWords, flags: u8, batch: Option<usize>) -> Task {\n-        Task { key: *key, flags, batch, ..Task::of(&[], 0) }\n+        Task {  /* ~ changed by cargo-mutants ~ */ flags, batch, ..Task::of(&[], 0) }\n     }\n \n     /// Hash on `platform` into `out`: for a subtree of two chunks or more at\n     /// chunk zero (it may be the whole message), its pair of child chaining\n     /// values; for any other, its chaining value (first 32 bytes). Then\n     /// count down.\n     /// By reference: a task is 1,640 bytes, and by value each call it was\n     /// not inlined into copied it whole.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Task::members",
+      "return_type": "-> Task",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1724
+        },
+        "start": {
+          "column": 5,
+          "line": 1720
+        }
+      }
+    },
+    "genre": "StructField",
+    "name": "src/lanes.rs:1723:16: delete field key from struct Task expression in Task::members",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 26,
+        "line": 1723
+      },
+      "start": {
+        "column": 16,
+        "line": 1723
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete field flags from struct Task expression in Task::members\n@@ -1715,17 +1715,17 @@\n             members: 0,\n             member: [NO_MEMBER; MEMBERS],\n         }\n     }\n \n     /// An empty task of short messages (with `batch`, batches of messages\n     /// of that length) in the mode of `key` and `flags`.\n     pub(crate) fn members(key: &crate::CVWords, flags: u8, batch: Option<usize>) -> Task {\n-        Task { key: *key, flags, batch, ..Task::of(&[], 0) }\n+        Task { key: *key,  /* ~ changed by cargo-mutants ~ */ batch, ..Task::of(&[], 0) }\n     }\n \n     /// Hash on `platform` into `out`: for a subtree of two chunks or more at\n     /// chunk zero (it may be the whole message), its pair of child chaining\n     /// values; for any other, its chaining value (first 32 bytes). Then\n     /// count down.\n     /// By reference: a task is 1,640 bytes, and by value each call it was\n     /// not inlined into copied it whole.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Task::members",
+      "return_type": "-> Task",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1724
+        },
+        "start": {
+          "column": 5,
+          "line": 1720
+        }
+      }
+    },
+    "genre": "StructField",
+    "name": "src/lanes.rs:1723:27: delete field flags from struct Task expression in Task::members",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 1723
+      },
+      "start": {
+        "column": 27,
+        "line": 1723
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete field batch from struct Task expression in Task::members\n@@ -1715,17 +1715,17 @@\n             members: 0,\n             member: [NO_MEMBER; MEMBERS],\n         }\n     }\n \n     /// An empty task of short messages (with `batch`, batches of messages\n     /// of that length) in the mode of `key` and `flags`.\n     pub(crate) fn members(key: &crate::CVWords, flags: u8, batch: Option<usize>) -> Task {\n-        Task { key: *key, flags, batch, ..Task::of(&[], 0) }\n+        Task { key: *key, flags,  /* ~ changed by cargo-mutants ~ */ ..Task::of(&[], 0) }\n     }\n \n     /// Hash on `platform` into `out`: for a subtree of two chunks or more at\n     /// chunk zero (it may be the whole message), its pair of child chaining\n     /// values; for any other, its chaining value (first 32 bytes). Then\n     /// count down.\n     /// By reference: a task is 1,640 bytes, and by value each call it was\n     /// not inlined into copied it whole.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Task::members",
+      "return_type": "-> Task",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1724
+        },
+        "start": {
+          "column": 5,
+          "line": 1720
+        }
+      }
+    },
+    "genre": "StructField",
+    "name": "src/lanes.rs:1723:34: delete field batch from struct Task expression in Task::members",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 1723
+      },
+      "start": {
+        "column": 34,
+        "line": 1723
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace > with >= in Task::run\n@@ -1725,17 +1725,17 @@\n \n     /// Hash on `platform` into `out`: for a subtree of two chunks or more at\n     /// chunk zero (it may be the whole message), its pair of child chaining\n     /// values; for any other, its chaining value (first 32 bytes). Then\n     /// count down.\n     /// By reference: a task is 1,640 bytes, and by value each call it was\n     /// not inlined into copied it whole.\n     pub(crate) fn run(&self, platform: Platform) {\n-        if self.members > 0 {\n+        if self.members >= /* ~ changed by cargo-mutants ~ */ 0 {\n             self.run_members(platform);\n             // Sound: the stream keeps `left` in place until it is zero.\n             unsafe { &*self.left }.fetch_sub(self.members, Ordering::Release);\n             return;\n         }\n         // A task without members is a piece of a long message: a stream's\n         // batch parts are always members (Stream::add_part adds one to the\n         // task it opens, and only an opened task is handed over).\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Task::run",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1753
+        },
+        "start": {
+          "column": 5,
+          "line": 1726
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1733:25: replace > with >= in Task::run",
+    "package": "blake3-servil",
+    "replacement": ">=",
+    "span": {
+      "end": {
+        "column": 26,
+        "line": 1733
+      },
+      "start": {
+        "column": 25,
+        "line": 1733
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace > with >= in Task::run\n@@ -1739,17 +1739,17 @@\n         // A task without members is a piece of a long message: a stream's\n         // batch parts are always members (Stream::add_part adds one to the\n         // task it opens, and only an opened task is handed over).\n         assert!(self.batch.is_none(), \"a task of batch parts has members\");\n         // Sound: the stream keeps these in place until `left` is zero.\n         let bytes = unsafe { core::slice::from_raw_parts(self.input, self.len) };\n         // Sound: a subtree's `out` is one 64-byte block.\n         let out = unsafe { &mut *(self.out as *mut [u8; crate::BLOCK_LEN]) };\n-        if self.counter == 0 && self.len > CHUNK_LEN {\n+        if self.counter == 0 && self.len >= /* ~ changed by cargo-mutants ~ */ CHUNK_LEN {\n             *out = crate::compress_subtree_to_parent_node(bytes, 0, &self.key, 0, self.flags, platform);\n         } else {\n             out[..crate::OUT_LEN].copy_from_slice(&crate::hash_all_at_once(bytes, &self.key, self.counter, self.flags, platform).chaining_value());\n         }\n         unsafe { &*self.left }.fetch_sub(1, Ordering::Release);\n     }\n }\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Task::run",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1753
+        },
+        "start": {
+          "column": 5,
+          "line": 1726
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1747:42: replace > with >= in Task::run",
+    "package": "blake3-servil",
+    "replacement": ">=",
+    "span": {
+      "end": {
+        "column": 43,
+        "line": 1747
+      },
+      "start": {
+        "column": 42,
+        "line": 1747
+      }
+    }
+  }
+]
