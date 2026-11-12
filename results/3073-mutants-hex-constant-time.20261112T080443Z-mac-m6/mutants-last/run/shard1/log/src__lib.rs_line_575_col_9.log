@@ -1,0 +1,95 @@
+
+*** src/lib.rs:575:9: replace Hash::from_hex -> Result<Self, HexError> with Ok(Default::default())
+
+*** mutation diff:
+--- src/lib.rs
++++ replace Hash::from_hex -> Result<Self, HexError> with Ok(Default::default())
+@@ -567,44 +567,17 @@
+     /// For 64 hexadecimal characters, the call's time and memory accesses
+     /// are the same whatever they are: each is decoded by arithmetic, all
+     /// 64 always. An input that is refused is then searched for the
+     /// character the error names.
+     ///
+     /// Note that `Hash` also implements `FromStr`, so `Hash::from_hex("...")`
+     /// is equivalent to `"...".parse()`.
+     pub fn from_hex(hex: impl AsRef<[u8]>) -> Result<Self, HexError> {
+-        /// (the character's value, 0xff where it is a hex character and 0
+-        /// where not), with no branch: a difference below its range's size
+-        /// leaves the subtraction negative, whose sign fills the mask.
+-        fn hex_val(byte: u8) -> (u8, u8) {
+-            let digit = byte.wrapping_sub(b'0');
+-            let letter = (byte | 0x20).wrapping_sub(b'a');
+-            let is_digit = ((digit as i16 - 10) >> 8) as u8;
+-            let is_letter = ((letter as i16 - 6) >> 8) as u8;
+-            ((digit & is_digit) | (letter.wrapping_add(10) & is_letter), is_digit | is_letter)
+-        }
+-        let hex_bytes: &[u8] = hex.as_ref();
+-        if hex_bytes.len() != OUT_LEN * 2 {
+-            return Err(HexError(HexErrorInner::InvalidLen(hex_bytes.len())));
+-        }
+-        let mut hash_bytes: [u8; OUT_LEN] = [0; OUT_LEN];
+-        let mut all = 0xff;
+-        for i in 0..OUT_LEN {
+-            let (high, high_is) = hex_val(hex_bytes[2 * i]);
+-            let (low, low_is) = hex_val(hex_bytes[2 * i + 1]);
+-            hash_bytes[i] = high << 4 | low;
+-            all &= high_is & low_is;
+-        }
+-        if all != 0xff {
+-            // Refused: the first character that is none, for the error.
+-            let byte = *hex_bytes.iter().find(|&&b| hex_val(b).1 == 0).expect("a refused input holds a character that is no hex character");
+-            return Err(HexError(HexErrorInner::InvalidByte(byte)));
+-        }
+-        Ok(Hash::from(hash_bytes))
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl From<[u8; OUT_LEN]> for Hash {
+     #[inline]
+     fn from(bytes: [u8; OUT_LEN]) -> Self {
+         Self::from_bytes(bytes)
+     }
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.8.0+dev --features=serde,zeroize
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.8.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[39325]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.8.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[39330]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil` (build script) generated 1 warning
+   Compiling blake3-servil v0.8.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+error[E0277]: the trait bound `Hash: Default` is not satisfied
+   --> src/lib.rs:575:12
+    |
+575 |         Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+    |            ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `Hash`
+    |
+help: consider annotating `Hash` with `#[derive(Default)]`
+    |
+504 + #[derive(Default)]
+505 | pub struct Hash([u8; OUT_LEN]);
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.8.0+dev' '--features=serde,zeroize' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
