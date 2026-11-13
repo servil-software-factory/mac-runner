@@ -1,0 +1,141 @@
+
+*** src/pipeline.rs:226:9: replace Rooms::room_ptr -> *mut u8 with Default::default()
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace Rooms::room_ptr -> *mut u8 with Default::default()
+@@ -218,18 +218,17 @@
+             let align = backing.as_ptr().align_offset(64);
+             unsafe { backing.as_mut_ptr().add(align) }
+         };
+         Rooms { buf, _backing: backing, count, refs: (0..count).map(|_| OwnLine(AtomicUsize::new(0))).collect(), caller_held: OwnLine(AtomicUsize::new(0)) }
+     }
+ 
+     #[inline(always)]
+     fn room_ptr(&self, index: usize) -> *mut u8 {
+-        debug_assert!(index < self.count);
+-        unsafe { self.buf.add(index * ROOM_LEN) }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn init_taken(&self, idx: u32) {
+         self.refs[idx as usize].store(ROOM_CREDITS, Ordering::Relaxed);
+         self.caller_held.fetch_add(1, Ordering::Relaxed);
+     }
+ 
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+warning: unused variable: `index`
+   --> src/pipeline.rs:225:24
+    |
+225 |     fn room_ptr(&self, index: usize) -> *mut u8 {
+    |                        ^^^^^ help: if this is intentional, prefix it with an underscore: `_index`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `buf` is never read
+   --> src/pipeline.rs:202:5
+    |
+201 | struct Rooms {
+    |        ----- field in this struct
+202 |     buf: *mut u8,
+    |     ^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib) generated 2 warnings (run `cargo fix --lib -p blake3-servil` to apply 1 suggestion)
+warning: `blake3-servil` (lib test) generated 2 warnings (2 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 3.31s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev --lib --tests
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: unused variable: `index`
+   --> src/pipeline.rs:225:24
+    |
+225 |     fn room_ptr(&self, index: usize) -> *mut u8 {
+    |                        ^^^^^ help: if this is intentional, prefix it with an underscore: `_index`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `buf` is never read
+   --> src/pipeline.rs:202:5
+    |
+201 | struct Rooms {
+    |        ----- field in this struct
+202 |     buf: *mut u8,
+    |     ^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib) generated 2 warnings (run `cargo fix --lib -p blake3-servil` to apply 1 suggestion)
+warning: `blake3-servil` (lib test) generated 2 warnings (2 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.02s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID 9e218c81-4b46-41ca-8319-845530bda928 with nextest profile: mutants
+    Starting 101 tests across 9 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+       START [         ] (  1/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+        PASS [   0.010s] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+        PASS [   0.010s] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  3/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        PASS [   0.040s] (  3/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+       START [         ] (  4/101) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::test_every_multithreaded_call_inside_guard_pages --nocapture
+        PASS [   0.026s] (  4/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+       START [         ] (  5/101) blake3-servil forms_test::test_hash_each_multithreaded
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::test_hash_each_multithreaded --nocapture
+     SIGSEGV [   0.009s] (  5/101) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+  stdout ───
+
+    running 1 test
+
+    (test aborted with signal 11: SIGSEGV)
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGTERM [   0.003s] (  6/101) blake3-servil forms_test::test_hash_each_multithreaded
+────────────
+     Summary [   0.049s] 6/101 tests run: 4 passed, 2 failed, 0 skipped
+warning: 95/101 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)

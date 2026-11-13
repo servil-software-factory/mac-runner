@@ -1,0 +1,104 @@
+
+*** src/pipeline.rs:850:9: replace Pipeline<T, B>::poll_room -> Poll<Room> with Poll::from(Default::default())
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace Pipeline<T, B>::poll_room -> Poll<Room> with Poll::from(Default::default())
+@@ -842,49 +842,17 @@
+                     self.local_free_rooms.push_back(i as u32);
+                 }
+             }
+         }
+         self.pop_cached_room()
+     }
+ 
+     fn poll_room(&mut self, cx: &mut Context<'_>) -> Poll<Room> {
+-        if let Some(r) = self.try_take_room() {
+-            return Poll::Ready(r);
+-        }
+-        self.reap();
+-        self.flush_sealed_short_rooms();
+-        self.publish_open();
+-        if let Some(r) = self.try_take_room() {
+-            return Poll::Ready(r);
+-        }
+-        self.assert_room_can_progress();
+-        if in_block_on() {
+-            while self.shared().storage.source.run_waiting_action() {
+-                if let Some(r) = self.try_take_room() {
+-                    return Poll::Ready(r);
+-                }
+-            }
+-            if block_on_spinning() {
+-                if self.source_slot.is_some() {
+-                    self.shared().storage.source.wake_for_waiting();
+-                }
+-                return Poll::Pending;
+-            }
+-        }
+-        self.shared().storage.waker.register(cx);
+-        if let Some(r) = self.try_take_room() {
+-            self.shared().storage.waker.clear();
+-            return Poll::Ready(r);
+-        }
+-        self.assert_room_can_progress();
+-        if self.source_slot.is_some() {
+-            self.shared().storage.source.wake_for_waiting();
+-        }
+-        Poll::Pending
++        Poll::from(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn make_room(&self, index: u32) -> Room {
+         let storage = self.shared().storage;
+         Room { pipeline_id: self.id, index, offset: 0, commits: 0, ptr: storage.rooms.room_ptr(index as usize), storage }
+     }
+ 
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-2/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2)
+error[E0283]: type annotations needed
+   --> src/pipeline.rs:850:9
+    |
+850 |         Poll::from(Default::default()) /* ~ changed by cargo-mutants ~ */
+    |         ^^^^ cannot infer type for type parameter `T` declared on the trait `From`
+    |
+    = note: multiple `impl`s satisfying `Poll<Room>: From<_>` found in the `core` crate:
+            - impl<T> From<T> for Poll<T>;
+            - impl<T> From<T> for T;
+
+For more information about this error, try `rustc --explain E0283`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0283]: type annotations needed
+   --> src/pipeline.rs:850:9
+    |
+850 |         Poll::from(Default::default()) /* ~ changed by cargo-mutants ~ */
+    |         ^^^^ cannot infer type for type parameter `T` declared on the trait `From`
+    |
+    = note: multiple `impl`s satisfying `std::task::Poll<Room>: From<_>` found in the `core` crate:
+            - impl<T> From<T> for T;
+            - impl<T> From<T> for std::task::Poll<T>;
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
