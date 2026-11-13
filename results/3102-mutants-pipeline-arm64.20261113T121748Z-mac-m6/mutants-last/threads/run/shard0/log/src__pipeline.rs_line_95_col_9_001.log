@@ -1,0 +1,69 @@
+
+*** src/pipeline.rs:95:9: replace Ring<X>::pop_front -> Option<X> with Some(Default::default())
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace Ring<X>::pop_front -> Option<X> with Some(Default::default())
+@@ -87,23 +87,17 @@
+         debug_assert!(self.len < cap, "Ring capacity exceeded");
+         let idx = (self.head + self.len) % cap;
+         self.buf[idx].write(item);
+         self.len += 1;
+     }
+ 
+     #[inline(always)]
+     fn pop_front(&mut self) -> Option<X> {
+-        if self.len == 0 {
+-            return None;
+-        }
+-        let item = unsafe { self.buf[self.head].assume_init_read() };
+-        self.head = (self.head + 1) % self.buf.len();
+-        self.len -= 1;
+-        Some(item)
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<X> Drop for Ring<X> {
+     fn drop(&mut self) {
+         while self.pop_front().is_some() {}
+     }
+ }
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `X: Default` is not satisfied
+  --> src/pipeline.rs:95:14
+   |
+95 |         Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+   |              ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `X`
+   |
+help: consider restricting type parameter `X` with trait `Default`
+   |
+64 | impl<X: std::default::Default> Ring<X> {
+   |       +++++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
