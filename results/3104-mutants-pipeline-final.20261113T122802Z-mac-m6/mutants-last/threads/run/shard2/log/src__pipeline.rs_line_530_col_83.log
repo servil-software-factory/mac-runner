@@ -1,0 +1,67 @@
+
+*** src/pipeline.rs:530:83: replace + with - in fold_multi_cvs
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace + with - in fold_multi_cvs
+@@ -522,17 +522,17 @@
+                 self.storage.loan_completed[slot].0.store(desc.loan_epoch, Ordering::Release);
+             }
+             self.slot_done[slot].swap(true, Ordering::SeqCst);
+             self.storage.waker.notify_after_seqcst();
+         }
+     }
+ }
+ 
+-fn fold_multi_cvs(key: &CVWords, flags: u8, cvs: &[[u8; OUT_LEN]; MAX_SLOT_PIECES + 1], pieces: usize) -> Hash {
++fn fold_multi_cvs(key: &CVWords, flags: u8, cvs: &[[u8; OUT_LEN]; MAX_SLOT_PIECES - /* ~ changed by cargo-mutants ~ */ 1], pieces: usize) -> Hash {
+     let platform = Platform::detect();
+     let parent = |l: &CVBytes, r: &CVBytes| crate::hasher::parent_output(l, r, key, flags, platform);
+     debug_assert!(pieces >= 2);
+     let mut stack: arrayvec::ArrayVec<CVBytes, 8> = arrayvec::ArrayVec::new();
+     let cv0 = parent(&cvs[0], &cvs[1]).chaining_value();
+     stack.push(cv0);
+     for (idx, cv) in (1..pieces).zip(&cvs[2..=pieces]) {
+         let n = idx as u64;
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-2/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2)
+error[E0308]: mismatched types
+   --> src/pipeline.rs:519:62
+    |
+519 |             let hash = fold_multi_cvs(&self.key, self.flags, cvs, desc.pieces);
+    |                        --------------                        ^^^ expected an array with a size of 63, found one with a size of 65
+    |                        |
+    |                        arguments to this function are incorrect
+    |
+note: function defined here
+   --> src/pipeline.rs:530:4
+    |
+530 | fn fold_multi_cvs(key: &CVWords, flags: u8, cvs: &[[u8; OUT_LEN]; MAX_SLOT_PIECES - /* ~ changed by cargo-mutants ~ */ 1], pieces: ...
+    |    ^^^^^^^^^^^^^^                           -----------------------------------------------------------------------------
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

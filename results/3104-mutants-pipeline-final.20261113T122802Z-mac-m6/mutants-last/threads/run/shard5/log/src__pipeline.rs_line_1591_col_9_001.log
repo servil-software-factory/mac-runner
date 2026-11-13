@@ -1,0 +1,83 @@
+
+*** src/pipeline.rs:1591:9: replace <impl Future for MessageFut<'_, T, B>>::poll -> Poll<Message> with Poll::from_iter([Default::default()])
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace <impl Future for MessageFut<'_, T, B>>::poll -> Poll<Message> with Poll::from_iter([Default::default()])
+@@ -1583,29 +1583,17 @@
+ 
+ impl<T, B> Unpin for MessageFut<'_, T, B> {}
+ 
+ impl<T, B> Future for MessageFut<'_, T, B> {
+     type Output = Message;
+ 
+     #[inline(always)]
+     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {
+-        let this = &mut *self;
+-        let slot = match this.pipe.free_slots.pop_front() {
+-            Some(s) => s,
+-            None => match this.pipe.poll_message(cx) {
+-                Poll::Ready(s) => s,
+-                Poll::Pending => return Poll::Pending,
+-            },
+-        };
+-        let sm = &mut this.pipe.slots[slot as usize];
+-        sm.tag = this.tag.take();
+-        sm.kind = SlotKind::OpenEmpty;
+-        this.pipe.open_messages += 1;
+-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })
++        Poll::from_iter([Default::default()]) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ struct RoomFut<'a, T, B> {
+     pipe: &'a mut Pipeline<T, B>,
+ }
+ 
+ impl<T, B> Unpin for RoomFut<'_, T, B> {}
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-5/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5)
+error[E0599]: no variant, associated function, or constant named `from_iter` found for enum `Poll<T>` in the current scope
+    --> src/pipeline.rs:1591:15
+     |
+1591 |         Poll::from_iter([Default::default()]) /* ~ changed by cargo-mutants ~ */
+     |               ^^^^^^^^^ variant, associated function, or constant not found in `Poll<_>`
+     |
+note: if you're trying to build a new `Poll<_>`, consider using `async_iter::async_iter::<impl Poll<Option<T>>>::async_gen_ready` which returns `Poll<Option<_>>`
+    --> /rustc/6eeff9a52c3e35c4c4cbf5651f342dcd2191866f/library/core/src/async_iter/async_iter.rs:122:4
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0599]: no variant, associated function, or constant named `from_iter` found for enum `std::task::Poll<T>` in the current scope
+    --> src/pipeline.rs:1591:15
+     |
+1591 |         Poll::from_iter([Default::default()]) /* ~ changed by cargo-mutants ~ */
+     |               ^^^^^^^^^ variant, associated function, or constant not found in `std::task::Poll<_>`
+     |
+note: if you're trying to build a new `std::task::Poll<_>`, consider using `async_iter::async_iter::<impl std::task::Poll<Option<T>>>::async_gen_ready` which returns `std::task::Poll<Option<_>>`
+    --> /rustc/6eeff9a52c3e35c4c4cbf5651f342dcd2191866f/library/core/src/async_iter/async_iter.rs:122:4
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
