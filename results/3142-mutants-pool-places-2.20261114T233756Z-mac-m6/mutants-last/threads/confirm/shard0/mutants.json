@@ -1,0 +1,955 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace << with >>\n@@ -609,17 +609,17 @@\n         return sme2_prefix(len, threads);\n     }\n     let _ = (turn, len, threads);\n     0\n }\n \n /// The longest piece of the SME2 thread's prefix: the flat walk's largest\n /// subtree, which it hashes on SME2 alone.\n-const MAX_PREFIX_PIECE_LEN: usize = 1 << 20;\n+const MAX_PREFIX_PIECE_LEN: usize = 1 >> /* ~ changed by cargo-mutants ~ */ 20;\n \n /// The SME2 thread's share of an input that `threads` threads hash,\n /// itself included: its speed over theirs, about 1.65 NEON threads' worth\n /// (M4 Max and the VM on it: the best split of 1 to 64 MiB put 62% on SME2\n /// beside one NEON thread, 38% beside three, 12% beside fifteen;\n /// probe/sme2-thread, job 187).\n /// A share below MAX_PIECE_LEN is no prefix: too little SME2 work to pay\n /// for the turn and the streaming session (VM, servil mt 256 KiB over\n",
+    "file": "src/lanes.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:617:39: replace << with >>",
+    "package": "blake3-servil",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 617
+      },
+      "start": {
+        "column": 39,
+        "line": 617
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace << with >>\n@@ -937,17 +937,17 @@\n     /// The size classes a thread learns in: jobs of 2^19 to 2^27 bytes\n     /// and over, by their length's highest bit; shorter jobs with the\n     /// first, and jobs of FAR_LEN or more are every thread's unasked.\n     const CLASSES: usize = 9;\n \n     /// A job of this many bytes or more is every thread's: 256 MiB, more\n     /// than any cache holds, where the caller's place alone was never the\n     /// faster (2x EPYC 7443, 256 MiB written and hashed: 25 against 21 ms).\n-    pub(crate) const FAR_LEN: usize = 1 << 28;\n+    pub(crate) const FAR_LEN: usize = 1 >> /* ~ changed by cargo-mutants ~ */ 28;\n \n     fn class(len: usize) -> usize {\n         ((usize::BITS - 1 - len.max(1).leading_zeros()) as usize).clamp(19, 19 + CLASSES - 1) - 19\n     }\n \n     std::thread_local! {\n         static LEARNED: core::cell::Cell<[[Learned; CLASSES]; 3]> = const { core::cell::Cell::new([[Learned { job: 0, rate: [0; 2], last: None, round: None, longer: 0 }; CLASSES]; 3]) };\n         /// The thread's last learning job: its kind and class, and when it ended.\n",
+    "file": "src/lanes.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:945:41: replace << with >>",
+    "package": "blake3-servil",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 43,
+        "line": 945
+      },
+      "start": {
+        "column": 41,
+        "line": 945
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Plan::near -> bool with false\n@@ -994,17 +994,17 @@\n             }\n             let reach = LEARNED.with(|l| l.get()[kind as usize][class(len)].choose());\n             let threads = if reach == Reach::Near { (near + 1).min(all) } else { all };\n             Plan { threads, learning: Some((kind, len, reach, now())) }\n         }\n \n         /// Whether the job stays with the caller's place.\n         pub(crate) fn near(&self) -> bool {\n-            matches!(self.learning, Some((_, _, Reach::Near, _)))\n+            false /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// The job is done: the thread learns from it.\n         pub(crate) fn done(&self) {\n             if let Some((kind, len, reach, started)) = self.learning {\n                 let ended = now();\n                 let nanos = cost(\n                     ended - started,\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Plan::near",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1003
+        },
+        "start": {
+          "column": 9,
+          "line": 1000
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1002:13: replace places::Plan::near -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 66,
+        "line": 1002
+      },
+      "start": {
+        "column": 13,
+        "line": 1002
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Plan::done with ()\n@@ -999,30 +999,17 @@\n \n         /// Whether the job stays with the caller's place.\n         pub(crate) fn near(&self) -> bool {\n             matches!(self.learning, Some((_, _, Reach::Near, _)))\n         }\n \n         /// The job is done: the thread learns from it.\n         pub(crate) fn done(&self) {\n-            if let Some((kind, len, reach, started)) = self.learning {\n-                let ended = now();\n-                let nanos = cost(\n-                    ended - started,\n-                    LAST.with(|l| l.replace(Some((kind, class(len), ended))))\n-                        .filter(|&(k, c, _)| k == kind && c == class(len))\n-                        .map(|(_, _, last)| ended - last),\n-                );\n-                LEARNED.with(|l| {\n-                    let mut all = l.get();\n-                    all[kind as usize][class(len)].record(reach, nanos, len);\n-                    l.set(all);\n-                });\n-            }\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n     }\n \n     /// The most CPUs a set names: the kernel's own limit.\n     const CPUS: usize = 1024;\n     type Set = [u64; CPUS / 64];\n \n     /// A CPU the process may run on: its number, its last-level cache\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Plan::done",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1021
+        },
+        "start": {
+          "column": 9,
+          "line": 1005
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1007:13: replace places::Plan::done with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1020
+      },
+      "start": {
+        "column": 13,
+        "line": 1007
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in places::Plan::done\n@@ -1004,17 +1004,17 @@\n \n         /// The job is done: the thread learns from it.\n         pub(crate) fn done(&self) {\n             if let Some((kind, len, reach, started)) = self.learning {\n                 let ended = now();\n                 let nanos = cost(\n                     ended - started,\n                     LAST.with(|l| l.replace(Some((kind, class(len), ended))))\n-                        .filter(|&(k, c, _)| k == kind && c == class(len))\n+                        .filter(|&(k, c, _)| k == kind || /* ~ changed by cargo-mutants ~ */ c == class(len))\n                         .map(|(_, _, last)| ended - last),\n                 );\n                 LEARNED.with(|l| {\n                     let mut all = l.get();\n                     all[kind as usize][class(len)].record(reach, nanos, len);\n                     l.set(all);\n                 });\n             }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Plan::done",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1021
+        },
+        "start": {
+          "column": 9,
+          "line": 1005
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1012:56: replace && with || in places::Plan::done",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 58,
+        "line": 1012
+      },
+      "start": {
+        "column": 56,
+        "line": 1012
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace == with != in places::Plan::done\n@@ -1004,17 +1004,17 @@\n \n         /// The job is done: the thread learns from it.\n         pub(crate) fn done(&self) {\n             if let Some((kind, len, reach, started)) = self.learning {\n                 let ended = now();\n                 let nanos = cost(\n                     ended - started,\n                     LAST.with(|l| l.replace(Some((kind, class(len), ended))))\n-                        .filter(|&(k, c, _)| k == kind && c == class(len))\n+                        .filter(|&(k, c, _)| k != /* ~ changed by cargo-mutants ~ */ kind && c == class(len))\n                         .map(|(_, _, last)| ended - last),\n                 );\n                 LEARNED.with(|l| {\n                     let mut all = l.get();\n                     all[kind as usize][class(len)].record(reach, nanos, len);\n                     l.set(all);\n                 });\n             }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Plan::done",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1021
+        },
+        "start": {
+          "column": 9,
+          "line": 1005
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1012:48: replace == with != in places::Plan::done",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 50,
+        "line": 1012
+      },
+      "start": {
+        "column": 48,
+        "line": 1012
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace == with != in places::Plan::done\n@@ -1004,17 +1004,17 @@\n \n         /// The job is done: the thread learns from it.\n         pub(crate) fn done(&self) {\n             if let Some((kind, len, reach, started)) = self.learning {\n                 let ended = now();\n                 let nanos = cost(\n                     ended - started,\n                     LAST.with(|l| l.replace(Some((kind, class(len), ended))))\n-                        .filter(|&(k, c, _)| k == kind && c == class(len))\n+                        .filter(|&(k, c, _)| k == kind && c != /* ~ changed by cargo-mutants ~ */ class(len))\n                         .map(|(_, _, last)| ended - last),\n                 );\n                 LEARNED.with(|l| {\n                     let mut all = l.get();\n                     all[kind as usize][class(len)].record(reach, nanos, len);\n                     l.set(all);\n                 });\n             }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Plan::done",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1021
+        },
+        "start": {
+          "column": 9,
+          "line": 1005
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1012:61: replace == with != in places::Plan::done",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 63,
+        "line": 1012
+      },
+      "start": {
+        "column": 61,
+        "line": 1012
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace % with + in places::assign\n@@ -1083,17 +1083,17 @@\n         });\n         let place = |cache: usize| caches.iter().position(|&c| c == cache).expect(\"every CPU's cache is listed\");\n         let mut order: Vec<(usize, Cpu)> = cpus.iter().map(|&c| (place(c.cache), c)).collect();\n         order.sort_by_key(|&(place, c)| (place, c.cpu));\n         let words = workers.div_ceil(64).max(1);\n         let mut places = Places {\n             of_cpu: std::vec![0u8; CPUS].into(),\n             cpus: std::vec![[0u64; CPUS / 64]; caches.len()].into(),\n-            of_worker: (0..workers).map(|k| order[(k + 1) % order.len()].0 as u8).collect(),\n+            of_worker: (0..workers).map(|k| order[(k + 1) + /* ~ changed by cargo-mutants ~ */ order.len()].0 as u8).collect(),\n             near: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n             beside: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n             count: std::vec![0usize; caches.len()].into(),\n         };\n         let mut socket_of = std::vec![0usize; caches.len()];\n         for &(place, c) in &order {\n             places.of_cpu[c.cpu] = place as u8;\n             places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::assign",
+      "return_type": "-> Option<Places>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1115
+        },
+        "start": {
+          "column": 5,
+          "line": 1065
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1091:59: replace % with + in places::assign",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 60,
+        "line": 1091
+      },
+      "start": {
+        "column": 59,
+        "line": 1091
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace % with + in places::assign\n@@ -1091,17 +1091,17 @@\n             of_worker: (0..workers).map(|k| order[(k + 1) % order.len()].0 as u8).collect(),\n             near: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n             beside: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n             count: std::vec![0usize; caches.len()].into(),\n         };\n         let mut socket_of = std::vec![0usize; caches.len()];\n         for &(place, c) in &order {\n             places.of_cpu[c.cpu] = place as u8;\n-            places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);\n+            places.cpus[place][c.cpu / 64] |= 1 << (c.cpu + /* ~ changed by cargo-mutants ~ */ 64);\n             socket_of[place] = c.socket;\n         }\n         for k in 0..workers {\n             let place = places.of_worker[k] as usize;\n             places.count[place] += 1;\n             for q in 0..caches.len() {\n                 if q == place {\n                     places.near[q][k / 64] |= 1 << (k % 64);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::assign",
+      "return_type": "-> Option<Places>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1115
+        },
+        "start": {
+          "column": 5,
+          "line": 1065
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1099:59: replace % with + in places::assign",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 60,
+        "line": 1099
+      },
+      "start": {
+        "column": 59,
+        "line": 1099
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace % with + in places::assign\n@@ -1099,17 +1099,17 @@\n             places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);\n             socket_of[place] = c.socket;\n         }\n         for k in 0..workers {\n             let place = places.of_worker[k] as usize;\n             places.count[place] += 1;\n             for q in 0..caches.len() {\n                 if q == place {\n-                    places.near[q][k / 64] |= 1 << (k % 64);\n+                    places.near[q][k / 64] |= 1 << (k + /* ~ changed by cargo-mutants ~ */ 64);\n                 }\n                 if socket_of[q] == socket_of[place] {\n                     places.beside[q][k / 64] |= 1 << (k % 64);\n                 }\n             }\n         }\n         Some(places)\n     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::assign",
+      "return_type": "-> Option<Places>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1115
+        },
+        "start": {
+          "column": 5,
+          "line": 1065
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1107:55: replace % with + in places::assign",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 56,
+        "line": 1107
+      },
+      "start": {
+        "column": 55,
+        "line": 1107
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace % with + in places::assign\n@@ -1102,17 +1102,17 @@\n         for k in 0..workers {\n             let place = places.of_worker[k] as usize;\n             places.count[place] += 1;\n             for q in 0..caches.len() {\n                 if q == place {\n                     places.near[q][k / 64] |= 1 << (k % 64);\n                 }\n                 if socket_of[q] == socket_of[place] {\n-                    places.beside[q][k / 64] |= 1 << (k % 64);\n+                    places.beside[q][k / 64] |= 1 << (k + /* ~ changed by cargo-mutants ~ */ 64);\n                 }\n             }\n         }\n         Some(places)\n     }\n \n     #[cfg(target_os = \"linux\")]\n     unsafe extern \"C\" {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::assign",
+      "return_type": "-> Option<Places>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1115
+        },
+        "start": {
+          "column": 5,
+          "line": 1065
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1110:57: replace % with + in places::assign",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 58,
+        "line": 1110
+      },
+      "start": {
+        "column": 57,
+        "line": 1110
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::read -> Option<Vec<Cpu>> with None\n@@ -1120,31 +1120,17 @@\n         fn sched_getaffinity(pid: i32, len: usize, set: *mut Set) -> i32;\n         fn sched_setaffinity(pid: i32, len: usize, set: *const Set) -> i32;\n     }\n \n     /// The CPUs this process may run on, as the system describes them:\n     /// None where it does not (a file missing, a call refused).\n     #[cfg(target_os = \"linux\")]\n     fn read() -> Option<Vec<Cpu>> {\n-        #[cfg(test)]\n-        if let Some(pretended) = test::PRETENDED.get() {\n-            return Some(pretended.clone());\n-        }\n-        let mut allowed: Set = [0; CPUS / 64];\n-        // Sound: the set is `len` writable bytes.\n-        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n-            return None;\n-        }\n-        let number =\n-            |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n-        (0..CPUS)\n-            .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n-            .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n-            .collect()\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n             // Sound: no arguments, no memory.\n             let cpu = unsafe { sched_getcpu() };\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1128:9: replace places::read -> Option<Vec<Cpu>> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 1142
+      },
+      "start": {
+        "column": 9,
+        "line": 1128
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::read -> Option<Vec<Cpu>> with Some(vec![])\n@@ -1120,31 +1120,17 @@\n         fn sched_getaffinity(pid: i32, len: usize, set: *mut Set) -> i32;\n         fn sched_setaffinity(pid: i32, len: usize, set: *const Set) -> i32;\n     }\n \n     /// The CPUs this process may run on, as the system describes them:\n     /// None where it does not (a file missing, a call refused).\n     #[cfg(target_os = \"linux\")]\n     fn read() -> Option<Vec<Cpu>> {\n-        #[cfg(test)]\n-        if let Some(pretended) = test::PRETENDED.get() {\n-            return Some(pretended.clone());\n-        }\n-        let mut allowed: Set = [0; CPUS / 64];\n-        // Sound: the set is `len` writable bytes.\n-        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n-            return None;\n-        }\n-        let number =\n-            |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n-        (0..CPUS)\n-            .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n-            .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n-            .collect()\n+        Some(vec![]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n             // Sound: no arguments, no memory.\n             let cpu = unsafe { sched_getcpu() };\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1128:9: replace places::read -> Option<Vec<Cpu>> with Some(vec![])",
+    "package": "blake3-servil",
+    "replacement": "Some(vec![])",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 1142
+      },
+      "start": {
+        "column": 9,
+        "line": 1128
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::read -> Option<Vec<Cpu>> with Some(vec![Default::default()])\n@@ -1120,31 +1120,17 @@\n         fn sched_getaffinity(pid: i32, len: usize, set: *mut Set) -> i32;\n         fn sched_setaffinity(pid: i32, len: usize, set: *const Set) -> i32;\n     }\n \n     /// The CPUs this process may run on, as the system describes them:\n     /// None where it does not (a file missing, a call refused).\n     #[cfg(target_os = \"linux\")]\n     fn read() -> Option<Vec<Cpu>> {\n-        #[cfg(test)]\n-        if let Some(pretended) = test::PRETENDED.get() {\n-            return Some(pretended.clone());\n-        }\n-        let mut allowed: Set = [0; CPUS / 64];\n-        // Sound: the set is `len` writable bytes.\n-        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n-            return None;\n-        }\n-        let number =\n-            |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n-        (0..CPUS)\n-            .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n-            .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n-            .collect()\n+        Some(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n             // Sound: no arguments, no memory.\n             let cpu = unsafe { sched_getcpu() };\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1128:9: replace places::read -> Option<Vec<Cpu>> with Some(vec![Default::default()])",
+    "package": "blake3-servil",
+    "replacement": "Some(vec![Default::default()])",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 1142
+      },
+      "start": {
+        "column": 9,
+        "line": 1128
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace / with % in places::read\n@@ -1124,17 +1124,17 @@\n     /// The CPUs this process may run on, as the system describes them:\n     /// None where it does not (a file missing, a call refused).\n     #[cfg(target_os = \"linux\")]\n     fn read() -> Option<Vec<Cpu>> {\n         #[cfg(test)]\n         if let Some(pretended) = test::PRETENDED.get() {\n             return Some(pretended.clone());\n         }\n-        let mut allowed: Set = [0; CPUS / 64];\n+        let mut allowed: Set = [0; CPUS % /* ~ changed by cargo-mutants ~ */ 64];\n         // Sound: the set is `len` writable bytes.\n         if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n             return None;\n         }\n         let number =\n             |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n         (0..CPUS)\n             .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1132:41: replace / with % in places::read",
+    "package": "blake3-servil",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 42,
+        "line": 1132
+      },
+      "start": {
+        "column": 41,
+        "line": 1132
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace != with == in places::read\n@@ -1126,17 +1126,17 @@\n     #[cfg(target_os = \"linux\")]\n     fn read() -> Option<Vec<Cpu>> {\n         #[cfg(test)]\n         if let Some(pretended) = test::PRETENDED.get() {\n             return Some(pretended.clone());\n         }\n         let mut allowed: Set = [0; CPUS / 64];\n         // Sound: the set is `len` writable bytes.\n-        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n+        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } == /* ~ changed by cargo-mutants ~ */ 0 {\n             return None;\n         }\n         let number =\n             |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n         (0..CPUS)\n             .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1134:87: replace != with == in places::read",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 1134
+      },
+      "start": {
+        "column": 87,
+        "line": 1134
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace == with != in places::read\n@@ -1132,17 +1132,17 @@\n         let mut allowed: Set = [0; CPUS / 64];\n         // Sound: the set is `len` writable bytes.\n         if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n             return None;\n         }\n         let number =\n             |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n         (0..CPUS)\n-            .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n+            .filter(|c| allowed[c / 64] >> (c % 64) & 1 != /* ~ changed by cargo-mutants ~ */ 1)\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1140:57: replace == with != in places::read",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 59,
+        "line": 1140
+      },
+      "start": {
+        "column": 57,
+        "line": 1140
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace & with | in places::read\n@@ -1132,17 +1132,17 @@\n         let mut allowed: Set = [0; CPUS / 64];\n         // Sound: the set is `len` writable bytes.\n         if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n             return None;\n         }\n         let number =\n             |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n         (0..CPUS)\n-            .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n+            .filter(|c| allowed[c / 64] >> (c % 64) | /* ~ changed by cargo-mutants ~ */ 1 == 1)\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1140:53: replace & with | in places::read",
+    "package": "blake3-servil",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 54,
+        "line": 1140
+      },
+      "start": {
+        "column": 53,
+        "line": 1140
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace >> with << in places::read\n@@ -1132,17 +1132,17 @@\n         let mut allowed: Set = [0; CPUS / 64];\n         // Sound: the set is `len` writable bytes.\n         if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n             return None;\n         }\n         let number =\n             |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n         (0..CPUS)\n-            .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n+            .filter(|c| allowed[c / 64] << /* ~ changed by cargo-mutants ~ */ (c % 64) & 1 == 1)\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1140:41: replace >> with << in places::read",
+    "package": "blake3-servil",
+    "replacement": "<<",
+    "span": {
+      "end": {
+        "column": 43,
+        "line": 1140
+      },
+      "start": {
+        "column": 41,
+        "line": 1140
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace / with % in places::read\n@@ -1132,17 +1132,17 @@\n         let mut allowed: Set = [0; CPUS / 64];\n         // Sound: the set is `len` writable bytes.\n         if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n             return None;\n         }\n         let number =\n             |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n         (0..CPUS)\n-            .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n+            .filter(|c| allowed[c % /* ~ changed by cargo-mutants ~ */ 64] >> (c % 64) & 1 == 1)\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1140:35: replace / with % in places::read",
+    "package": "blake3-servil",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 36,
+        "line": 1140
+      },
+      "start": {
+        "column": 35,
+        "line": 1140
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace % with + in places::read\n@@ -1132,17 +1132,17 @@\n         let mut allowed: Set = [0; CPUS / 64];\n         // Sound: the set is `len` writable bytes.\n         if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n             return None;\n         }\n         let number =\n             |cpu: usize, file: &str| std::fs::read_to_string(std::format!(\"/sys/devices/system/cpu/cpu{cpu}/{file}\")).ok()?.trim().parse::<usize>().ok();\n         (0..CPUS)\n-            .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n+            .filter(|c| allowed[c / 64] >> (c + /* ~ changed by cargo-mutants ~ */ 64) & 1 == 1)\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::read",
+      "return_type": "-> Option<Vec<Cpu>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1143
+        },
+        "start": {
+          "column": 5,
+          "line": 1124
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1140:47: replace % with + in places::read",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 1140
+      },
+      "start": {
+        "column": 47,
+        "line": 1140
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::here -> usize with 0\n@@ -1139,23 +1139,17 @@\n         (0..CPUS)\n             .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(places) = PLACES.get() {\n-            // Sound: no arguments, no memory.\n-            let cpu = unsafe { sched_getcpu() };\n-            return usize::try_from(cpu).ok().and_then(|c| places.of_cpu.get(c)).map_or(0, |&p| p as usize);\n-        }\n-        0\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Read the machine's caches and give each of the `workers` workers\n     /// a place: the first worker's work, once it has started the others\n     /// (two files a CPU, 2 ms on a machine of 96). Each worker moves to\n     /// its place when it next finds nothing to do (`take`), and every\n     /// parked worker is woken once so that it does; until the places are\n     /// set, wakes and jobs are as on a machine without them.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::here",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1154
+        },
+        "start": {
+          "column": 5,
+          "line": 1145
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1147:9: replace places::here -> usize with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1153
+      },
+      "start": {
+        "column": 9,
+        "line": 1147
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::here -> usize with 1\n@@ -1139,23 +1139,17 @@\n         (0..CPUS)\n             .filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1)\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n     }\n \n     /// The calling thread's place (0 where none are set).\n     fn here() -> usize {\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(places) = PLACES.get() {\n-            // Sound: no arguments, no memory.\n-            let cpu = unsafe { sched_getcpu() };\n-            return usize::try_from(cpu).ok().and_then(|c| places.of_cpu.get(c)).map_or(0, |&p| p as usize);\n-        }\n-        0\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Read the machine's caches and give each of the `workers` workers\n     /// a place: the first worker's work, once it has started the others\n     /// (two files a CPU, 2 ms on a machine of 96). Each worker moves to\n     /// its place when it next finds nothing to do (`take`), and every\n     /// parked worker is woken once so that it does; until the places are\n     /// set, wakes and jobs are as on a machine without them.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::here",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1154
+        },
+        "start": {
+          "column": 5,
+          "line": 1145
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1147:9: replace places::here -> usize with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1153
+      },
+      "start": {
+        "column": 9,
+        "line": 1147
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::settle with ()\n@@ -1155,30 +1155,17 @@\n \n     /// Read the machine's caches and give each of the `workers` workers\n     /// a place: the first worker's work, once it has started the others\n     /// (two files a CPU, 2 ms on a machine of 96). Each worker moves to\n     /// its place when it next finds nothing to do (`take`), and every\n     /// parked worker is woken once so that it does; until the places are\n     /// set, wakes and jobs are as on a machine without them.\n     pub(crate) fn settle(workers: usize) {\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(cpus) = read()\n-            // Sound: no arguments, no memory.\n-            && let Some(places) = assign(&cpus, usize::try_from(unsafe { sched_getcpu() }).unwrap_or(0), workers)\n-            && PLACES.set(places).is_ok()\n-        {\n-            let places = PLACES.get().expect(\"just set\");\n-            let park = &pool().park;\n-            park.set_places(places.near.clone(), places.beside.clone(), here);\n-            SETTLED.store(true, Ordering::SeqCst);\n-            park.wake_all();\n-        }\n-        let _ = workers;\n-        SETTLED.store(true, Ordering::SeqCst);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The workers of the calling thread's place, where workers have\n     /// places and its place has any.\n     pub(crate) fn near_workers() -> Option<usize> {\n         PLACES.get()?.near_of(here())\n     }\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::settle",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1177
+        },
+        "start": {
+          "column": 5,
+          "line": 1156
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1163:9: replace places::settle with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 47,
+        "line": 1176
+      },
+      "start": {
+        "column": 9,
+        "line": 1163
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::near_workers -> Option<usize> with None\n@@ -1174,17 +1174,17 @@\n         }\n         let _ = workers;\n         SETTLED.store(true, Ordering::SeqCst);\n     }\n \n     /// The workers of the calling thread's place, where workers have\n     /// places and its place has any.\n     pub(crate) fn near_workers() -> Option<usize> {\n-        PLACES.get()?.near_of(here())\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Whether `settle` has run.\n     pub(crate) fn settled() -> bool {\n         SETTLED.load(Ordering::SeqCst)\n     }\n \n     /// Whether the places are settled (true too where there will be\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::near_workers",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1183
+        },
+        "start": {
+          "column": 5,
+          "line": 1179
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1182:9: replace places::near_workers -> Option<usize> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 38,
+        "line": 1182
+      },
+      "start": {
+        "column": 9,
+        "line": 1182
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::settled -> bool with false\n@@ -1179,17 +1179,17 @@\n     /// The workers of the calling thread's place, where workers have\n     /// places and its place has any.\n     pub(crate) fn near_workers() -> Option<usize> {\n         PLACES.get()?.near_of(here())\n     }\n \n     /// Whether `settle` has run.\n     pub(crate) fn settled() -> bool {\n-        SETTLED.load(Ordering::SeqCst)\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Whether the places are settled (true too where there will be\n     /// none); if they are, worker `me` moves to its place.\n     pub(crate) fn take(me: usize) -> bool {\n         if !settled() {\n             return false;\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::settled",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1188
+        },
+        "start": {
+          "column": 5,
+          "line": 1185
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1187:9: replace places::settled -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 39,
+        "line": 1187
+      },
+      "start": {
+        "column": 9,
+        "line": 1187
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::take -> bool with true\n@@ -1185,28 +1185,17 @@\n     /// Whether `settle` has run.\n     pub(crate) fn settled() -> bool {\n         SETTLED.load(Ordering::SeqCst)\n     }\n \n     /// Whether the places are settled (true too where there will be\n     /// none); if they are, worker `me` moves to its place.\n     pub(crate) fn take(me: usize) -> bool {\n-        if !settled() {\n-            return false;\n-        }\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(places) = PLACES.get() {\n-            let set = &places.cpus[places.of_worker[me] as usize];\n-            // Sound: the set is `len` readable bytes. A failure leaves\n-            // the worker where the system puts it.\n-            unsafe { sched_setaffinity(0, core::mem::size_of::<Set>(), set) };\n-        }\n-        let _ = me;\n-        true\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[cfg(test)]\n     pub(crate) mod test {\n         use super::*;\n \n         /// The CPUs a test has the pool read in place of the machine's\n         /// (set before the test's first pool call: each test is a process\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::take",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1205
+        },
+        "start": {
+          "column": 5,
+          "line": 1190
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1193:9: replace places::take -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 1204
+      },
+      "start": {
+        "column": 9,
+        "line": 1193
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::take -> bool with false\n@@ -1185,28 +1185,17 @@\n     /// Whether `settle` has run.\n     pub(crate) fn settled() -> bool {\n         SETTLED.load(Ordering::SeqCst)\n     }\n \n     /// Whether the places are settled (true too where there will be\n     /// none); if they are, worker `me` moves to its place.\n     pub(crate) fn take(me: usize) -> bool {\n-        if !settled() {\n-            return false;\n-        }\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(places) = PLACES.get() {\n-            let set = &places.cpus[places.of_worker[me] as usize];\n-            // Sound: the set is `len` readable bytes. A failure leaves\n-            // the worker where the system puts it.\n-            unsafe { sched_setaffinity(0, core::mem::size_of::<Set>(), set) };\n-        }\n-        let _ = me;\n-        true\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[cfg(test)]\n     pub(crate) mod test {\n         use super::*;\n \n         /// The CPUs a test has the pool read in place of the machine's\n         /// (set before the test's first pool call: each test is a process\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::take",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1205
+        },
+        "start": {
+          "column": 5,
+          "line": 1190
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1193:9: replace places::take -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 1204
+      },
+      "start": {
+        "column": 9,
+        "line": 1193
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in places::take\n@@ -1185,17 +1185,17 @@\n     /// Whether `settle` has run.\n     pub(crate) fn settled() -> bool {\n         SETTLED.load(Ordering::SeqCst)\n     }\n \n     /// Whether the places are settled (true too where there will be\n     /// none); if they are, worker `me` moves to its place.\n     pub(crate) fn take(me: usize) -> bool {\n-        if !settled() {\n+        if  /* ~ changed by cargo-mutants ~ */settled() {\n             return false;\n         }\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n             let set = &places.cpus[places.of_worker[me] as usize];\n             // Sound: the set is `len` readable bytes. A failure leaves\n             // the worker where the system puts it.\n             unsafe { sched_setaffinity(0, core::mem::size_of::<Set>(), set) };\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::take",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1205
+        },
+        "start": {
+          "column": 5,
+          "line": 1190
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:1193:12: delete ! in places::take",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 1193
+      },
+      "start": {
+        "column": 12,
+        "line": 1193
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in stays\n@@ -1801,17 +1801,17 @@\n             }\n         }\n     }\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(placed: bool) -> bool {\n-    sources::visible(false) || (!placed && places::settled())\n+    sources::visible(false) || ( /* ~ changed by cargo-mutants ~ */placed && places::settled())\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1810
+        },
+        "start": {
+          "column": 1,
+          "line": 1806
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:1809:33: delete ! in stays",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 34,
+        "line": 1809
+      },
+      "start": {
+        "column": 33,
+        "line": 1809
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace << with >>\n@@ -1863,17 +1863,17 @@\n \n     static REGISTERED: [AtomicPtr<Source>; SLOTS] = [const { AtomicPtr::new(core::ptr::null_mut()) }; SLOTS];\n     static ACTIVE: AtomicU64 = AtomicU64::new(0);\n     /// Streams open: workers spin a while for more work only when some are.\n     static OPEN: OwnLine<AtomicUsize> = OwnLine(AtomicUsize::new(0));\n \n     /// Bit 63 of an action's `arg`: whether the SME2 thread runs it under\n     /// the SME2 turn (a subtree of 16 KiB or more) rather than on NEON.\n-    pub(crate) const ACTION_SME2: u64 = 1 << 63;\n+    pub(crate) const ACTION_SME2: u64 = 1 >> /* ~ changed by cargo-mutants ~ */ 63;\n \n     /// A pipeline's item in a source: three atomic words read before the\n     /// claimer's CAS (`take_claimed`) and rewritten only after `claimed`\n     /// has passed it (`publish_actions`), so no claimer copies non-atomic\n     /// memory after its claim (BLAKE3 #302).\n     struct Action {\n         run: AtomicPtr<()>,\n         context: AtomicPtr<()>,\n",
+    "file": "src/lanes.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1871:43: replace << with >>",
+    "package": "blake3-servil",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 45,
+        "line": 1871
+      },
+      "start": {
+        "column": 43,
+        "line": 1871
+      }
+    }
+  }
+]

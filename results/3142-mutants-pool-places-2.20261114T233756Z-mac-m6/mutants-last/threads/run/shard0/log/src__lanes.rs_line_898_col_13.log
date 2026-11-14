@@ -1,0 +1,90 @@
+
+*** src/lanes.rs:898:13: replace places::Learned::choose -> Reach with Default::default()
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace places::Learned::choose -> Reach with Default::default()
+@@ -890,29 +890,17 @@
+         /// Whether the next job is of a trial: the first two, or a
+         /// round's last TRIAL jobs.
+         fn trying(&self) -> bool {
+             self.job < 2 * TRIAL || self.job > self.round_end() - TRIAL
+         }
+ 
+         /// The reach of the next job.
+         pub(crate) fn choose(&self) -> Reach {
+-            if self.job < TRIAL {
+-                Reach::All
+-            } else {
+-                // The round's reach, and the other in its trial. (Before
+-                // the first round, in near's first trial: as a trial in
+-                // a round of all's.)
+-                let round = self.round.unwrap_or(Reach::All);
+-                match (self.trying(), round) {
+-                    (false, _) => round,
+-                    (true, Reach::Near) => Reach::All,
+-                    (true, Reach::All) => Reach::Near,
+-                }
+-            }
++            Default::default() /* ~ changed by cargo-mutants ~ */
+         }
+ 
+         /// The job [`Learned::choose`] gave `reach` took `nanos` for `len` bytes.
+         pub(crate) fn record(&mut self, reach: Reach, nanos: u64, len: usize) {
+             let rate = u32::try_from(nanos.saturating_mul(1024) / len.max(1) as u64).unwrap_or(u32::MAX);
+             let trying = self.trying();
+             let kept = &mut self.rate[reach as usize];
+             // A reach's first job after the other's is not counted: it
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `Reach: Default` is not satisfied
+   --> src/lanes.rs:898:13
+    |
+898 |             Default::default() /* ~ changed by cargo-mutants ~ */
+    |             ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `Reach`
+    |
+help: consider annotating `Reach` with `#[derive(Default)]`
+    |
+811 +     #[derive(Default)]
+812 |     pub(crate) enum Reach {
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `places::Reach: Default` is not satisfied
+   --> src/lanes.rs:898:13
+    |
+898 |             Default::default() /* ~ changed by cargo-mutants ~ */
+    |             ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `places::Reach`
+    |
+help: consider annotating `places::Reach` with `#[derive(Default)]`
+    |
+811 +     #[derive(Default)]
+812 |     pub(crate) enum Reach {
+    |
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
