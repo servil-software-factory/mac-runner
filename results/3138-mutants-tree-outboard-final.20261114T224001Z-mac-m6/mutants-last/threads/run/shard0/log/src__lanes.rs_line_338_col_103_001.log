@@ -1,0 +1,85 @@
+
+*** src/lanes.rs:338:103: replace * with / in subtree_children
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace * with / in subtree_children
+@@ -330,17 +330,17 @@
+ }
+ 
+ /// The two child chaining values of the subtree `input` at chunk
+ /// `counter`, over the machine's threads: what
+ /// `compress_subtree_to_parent_node` returns for a whole subtree.
+ /// Requires a power-of-two number of chunks, at least MIN_SPLIT_LEN
+ /// bytes, and `counter` a multiple
+ /// of that number, as `Hasher::update` hands out.
+-pub(crate) fn subtree_children(input: &[u8], key: &crate::CVWords, counter: u64, flags: u8) -> [u8; 2 * crate::OUT_LEN] {
++pub(crate) fn subtree_children(input: &[u8], key: &crate::CVWords, counter: u64, flags: u8) -> [u8; 2 / /* ~ changed by cargo-mutants ~ */ crate::OUT_LEN] {
+     assert!(input.len().is_power_of_two() && input.len() >= MIN_SPLIT_LEN, "a whole subtree of at least MIN_SPLIT_LEN bytes");
+     assert_eq!(counter % (input.len() / CHUNK_LEN) as u64, 0, "a subtree starts at a multiple of its chunk count");
+     let Some((pool, _caller)) = spare_pool() else { return crate::compress_subtree_to_parent_node(input, 0, key, counter, flags, pool_platform()) };
+     tree_cvs(pool, input, key, counter, flags, |pieces, cvs| {
+         merge_to_children(pieces, cvs, key, flags);
+         let mut children = [0u8; 2 * crate::OUT_LEN];
+         children[..crate::OUT_LEN].copy_from_slice(&cvs[0]);
+         children[crate::OUT_LEN..].copy_from_slice(&cvs[1]);
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0308]: mismatched types
+   --> src/lanes.rs:341:60
+    |
+338 | ...ey: &crate::CVWords, counter: u64, flags: u8) -> [u8; 2 / /* ~ changed by cargo-mutants ~ */ crate::OUT_LEN] {
+    |                                                     ----------------------------------------------------------- expected `[u8; 0]` because of return type
+...
+341 | ...lse { return crate::compress_subtree_to_parent_node(input, 0, key, counter, flags, pool_platform()) };
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected an array with a size of 0, found one with a size of 64
+
+error[E0308]: mismatched types
+   --> src/lanes.rs:342:5
+    |
+338 |   pub(crate) fn subtree_children(input: &[u8], key: &crate::CVWords, counter: u64, flags: u8) -> [u8; 2 / /* ~ changed by cargo-mutants ~ */ crate::OUT_LEN] {
+    |                                                                                                  ----------------------------------------------------------- expected `[u8; 0]` because of return type
+...
+342 | /     tree_cvs(pool, input, key, counter, flags, |pieces, cvs| {
+343 | |         merge_to_children(pieces, cvs, key, flags);
+344 | |         let mut children = [0u8; 2 * crate::OUT_LEN];
+345 | |         children[..crate::OUT_LEN].copy_from_slice(&cvs[0]);
+346 | |         children[crate::OUT_LEN..].copy_from_slice(&cvs[1]);
+347 | |         children
+348 | |     })
+    | |______^ expected an array with a size of 0, found one with a size of 64
+
+error[E0308]: mismatched types
+   --> src/lib.rs:387:119
+    |
+387 | ...T_LEN, children: crate::lanes::subtree_children };
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected an array with a size of 64, found one with a size of 0
+    |
+    = note: expected fn pointer `for<'a, 'b> fn(&'a _, &'b _, _, _) -> [u8; 64]`
+                  found fn item `for<'a, 'b> fn(&'a _, &'b _, _, _) -> [u8; 0] {subtree_children}`
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `blake3-servil` (lib) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 3 previous errors
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

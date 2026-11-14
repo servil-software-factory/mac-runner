@@ -1,0 +1,125 @@
+
+*** src/pipeline.rs:286:9: replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))
+@@ -278,62 +278,17 @@
+         for slot in &FREE_STORAGES {
+             if slot.load(Ordering::Relaxed).is_null() && slot.compare_exchange(core::ptr::null_mut(), raw, Ordering::Release, Ordering::Relaxed).is_ok() {
+                 return;
+             }
+         }
+     }
+ 
+     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize, key: &CVWords, flags: u8) -> &'static PipeStorage {
+-        let mut skipped: arrayvec::ArrayVec<&'static PipeStorage, FREE_STORAGES_CAP> = arrayvec::ArrayVec::new();
+-        let mut chosen: Option<&'static PipeStorage> = None;
+-        for slot in &FREE_STORAGES {
+-            if !slot.load(Ordering::Relaxed).is_null() {
+-                let p = slot.swap(core::ptr::null_mut(), Ordering::AcqRel);
+-                if !p.is_null() {
+-                    let st = unsafe { &*p };
+-                    if st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups {
+-                        chosen = Some(st);
+-                        break;
+-                    }
+-                    skipped.push(st);
+-                }
+-            }
+-        }
+-        for st in skipped {
+-            Self::release(st);
+-        }
+-        if let Some(st) = chosen {
+-            for g in &st.groups[..groups] {
+-                let t = unsafe { &mut *g.task.get() };
+-                t.key = *key;
+-                t.flags = flags;
+-            }
+-            return st;
+-        }
+-        let actions = actions.max(1024);
+-        let messages = messages.max(64);
+-        let groups = groups.max(64);
+-        let dummy = GroupMemberMeta { room: NONE };
+-        Box::leak(Box::new(PipeStorage {
+-            source: Source::with_actions(actions),
+-            waker: WakerSlot::new(),
+-            rooms: Rooms::new(rooms),
+-            groups: (0..groups)
+-                .map(|_| MemberGroup {
+-                    task: UnsafeCell::new(Task::members(key, flags, None)),
+-                    metas: UnsafeCell::new([dummy; MEMBERS]),
+-                    epoch: UnsafeCell::new(0),
+-                    completed_epoch: OwnLine(AtomicU64::new(0)),
+-                })
+-                .collect(),
+-            loan_completed: (0..messages).map(|_| OwnLine(AtomicU64::new(0))).collect(),
+-            saved_loan_epoch: UnsafeCell::new(1),
+-            saved_group_epoch: UnsafeCell::new(1),
+-        }))
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.
+ #[must_use = "commit from the room; a dropped Room gives back what is left of it"]
+ pub struct Room {
+     pipeline_id: u64,
+     index: u32,
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-3/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3)
+error[E0277]: the trait bound `PipeStorage: Default` is not satisfied
+   --> src/pipeline.rs:286:28
+    |
+286 |         Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+    |                            ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `PipeStorage`
+   --> src/pipeline.rs:257:1
+    |
+257 | struct PipeStorage {
+    | ^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `pipeline::PipeStorage: Default` is not satisfied
+   --> src/pipeline.rs:286:28
+    |
+286 |         Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+    |                            ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `pipeline::PipeStorage`
+   --> src/pipeline.rs:257:1
+    |
+257 | struct PipeStorage {
+    | ^^^^^^^^^^^^^^^^^^
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

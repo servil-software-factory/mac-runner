@@ -1,0 +1,91 @@
+
+*** src/lanes.rs:254:5: replace spare_pool -> Option<(&'static Pool, Caller<'static>)> with Some((Box::leak(Box::new(Default::default())), Default::default()))
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace spare_pool -> Option<(&'static Pool, Caller<'static>)> with Some((Box::leak(Box::new(Default::default())), Default::default()))
+@@ -246,20 +246,17 @@
+ /// maximum-sized piece per participant, at least two participants when
+ /// available; the same budget cuts the pieces and asks for the wakes.
+ /// Other kernels and work kinds keep their policy (experiment, #125).
+ fn tree_threads(len: usize, available: usize, degree: usize) -> usize {
+     if cfg!(all(target_arch = "x86_64", target_os = "linux")) && degree >= 16 { len.div_ceil(MAX_PIECE_LEN).max(2).min(available) } else { available }
+ }
+ 
+ fn spare_pool() -> Option<(&'static Pool, Caller<'static>)> {
+-    let pool = pool();
+-    let callers = pool.callers.fetch_add(1, Ordering::SeqCst) + 1;
+-    let caller = Caller(&pool.callers);
+-    (callers < pool.threads).then_some((pool, caller))
++    Some((Box::leak(Box::new(Default::default())), Default::default())) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// A call's cut and the chaining values its pieces produce, on the
+ /// calling thread, kept between calls: a job's pieces are read, and its
+ /// chaining values written, by the workers while the call runs, and the
+ /// call returns only once every piece is done, so the storage outlives
+ /// every access. The first call on a thread, or the first longer than
+ /// the storage holds, grows it; calls after that allocate nothing (#325:
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `Pool: Default` is not satisfied
+   --> src/lanes.rs:254:30
+    |
+254 |     Some((Box::leak(Box::new(Default::default())), Default::default())) /* ~ changed by cargo-mutants ~ */
+    |                              ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `Pool`
+   --> src/lanes.rs:726:1
+    |
+726 | struct Pool {
+    | ^^^^^^^^^^^
+
+error[E0277]: the trait bound `Caller<'_>: Default` is not satisfied
+   --> src/lanes.rs:254:52
+    |
+254 |     Some((Box::leak(Box::new(Default::default())), Default::default())) /* ~ changed by cargo-mutants ~ */
+    |                                                    ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `Caller<'_>`
+   --> src/lanes.rs:456:1
+    |
+456 | struct Caller<'a>(&'a AtomicUsize);
+    | ^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `lanes::Pool: Default` is not satisfied
+   --> src/lanes.rs:254:30
+    |
+254 |     Some((Box::leak(Box::new(Default::default())), Default::default())) /* ~ changed by cargo-mutants ~ */
+    |                              ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `lanes::Pool`
+   --> src/lanes.rs:726:1
+    |
+726 | struct Pool {
+    | ^^^^^^^^^^^
+
+error: could not compile `blake3-servil` (lib test) due to 2 previous errors
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

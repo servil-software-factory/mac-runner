@@ -1,0 +1,61 @@
+
+*** src/lanes.rs:227:5: replace hash_with_key -> Hash with Default::default()
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace hash_with_key -> Hash with Default::default()
+@@ -219,20 +219,17 @@
+ }
+ 
+ /// Hash `input` over the machine's threads in the mode of `key` and
+ /// `flags` (IV and 0 for plain hashing).
+ #[inline]
+ pub(crate) fn hash_with_key(input: &[u8], key: &crate::CVWords, flags: u8) -> Hash {
+     // The short path first and inline, so a small input costs what hash()
+     // costs; everything the pool needs is behind the call below.
+-    if input.len() < MIN_SPLIT_LEN {
+-        return crate::hash_serial(input, key, flags);
+-    }
+-    hash_over_pool(input, key, flags)
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[inline(never)]
+ fn hash_over_pool(input: &[u8], key: &crate::CVWords, flags: u8) -> Hash {
+     let Some((pool, _caller)) = spare_pool() else {
+         return crate::hash_serial(input, key, flags);
+     };
+     tree_cvs(pool, input, key, 0, flags, |pieces, cvs| merge_root(pieces, cvs, key, flags))
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `blake3_servil_core::Hash: Default` is not satisfied
+   --> src/lanes.rs:227:5
+    |
+227 |     Default::default() /* ~ changed by cargo-mutants ~ */
+    |     ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `blake3_servil_core::Hash`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

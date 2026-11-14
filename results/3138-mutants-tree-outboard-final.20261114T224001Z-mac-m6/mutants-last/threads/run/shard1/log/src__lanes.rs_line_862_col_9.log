@@ -1,0 +1,355 @@
+
+*** src/lanes.rs:862:9: replace Pool::run_job with ()
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace Pool::run_job with ()
+@@ -854,59 +854,17 @@
+ impl Pool {
+     /// Publish `work` of `pieces` pieces as this thread's job source, take
+     /// pieces on this thread until none remain, and return once every
+     /// piece is finished, on whichever thread took it. The caller first
+     /// hashes pieces `0..own` on `own_platform`, back to back (the SME2
+     /// thread's prefix; the workers' pieces start after it). A caller that
+     /// finds no source slot free hashes every piece itself.
+     fn run_job(&self, work: Work, pieces: usize, own: usize, own_platform: Platform) {
+-        crate::ran(crate::Ran::Pool);
+-        #[cfg(test)]
+-        WAKES_WANTED.with(|w| w.set(None));
+-        let job = Job { work };
+-        let source = sources::job_source();
+-        let slot = source.register();
+-        // Sound: the caller's frame outlives every access: it waits below,
+-        // and should it unwind before that (a bug in this crate), the
+-        // process ends rather than leaving workers reading a gone frame and
+-        // the next call waiting forever (the guard is forgotten once the
+-        // wait is over: nothing runs on the normal path).
+-        let ptr = &job as *const Job as *mut Job<'static>;
+-        let published = AbortOnUnwind;
+-        let target = source.publish_job(ptr, pieces, own);
+-        if slot.is_some() {
+-            // A worker for each piece past the caller's first (none for a
+-            // job of one past its own: a wake for none is nothing); for a
+-            // tree, within the wide kernel's thread budget.
+-            let wanted = match &job.work {
+-                Work::Tree { input, .. } => (pieces - own - 1).min(tree_threads(input.len(), self.threads, own_platform.simd_degree()).saturating_sub(1)),
+-                _ => pieces - own - 1,
+-            };
+-            #[cfg(test)]
+-            WAKES_WANTED.with(|w| w.set(Some(wanted)));
+-            self.wake_for(wanted);
+-        }
+-        for index in 0..own {
+-            // Sound: the workers' pieces start past these.
+-            unsafe { job.hash_piece(index, own_platform) };
+-        }
+-        source.finished(own);
+-        while let Some(sources::Item::Pieces(_, index, n)) = source.take() {
+-            // Sound: this thread took these, so it alone writes their slots.
+-            for i in index..index + n {
+-                unsafe { job.hash_piece(i, pool_platform()) };
+-            }
+-            source.finished(n);
+-        }
+-        source.wait(target);
+-        core::mem::forget(published);
+-        if let Some(slot) = slot {
+-            sources::Source::unregister(slot);
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Wake workers for `wanted` pieces of new work (crate::park).
+     pub(crate) fn wake_for(&self, wanted: usize) {
+         self.park.wake_for(wanted, self.workers());
+     }
+ 
+     /// The pool's workers: every thread but the calling one.
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+warning: unused variable: `work`
+   --> src/lanes.rs:861:23
+    |
+861 |     fn run_job(&self, work: Work, pieces: usize, own: usize, own_platform: Platform) {
+    |                       ^^^^ help: if this is intentional, prefix it with an underscore: `_work`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `pieces`
+   --> src/lanes.rs:861:35
+    |
+861 |     fn run_job(&self, work: Work, pieces: usize, own: usize, own_platform: Platform) {
+    |                                   ^^^^^^ help: if this is intentional, prefix it with an underscore: `_pieces`
+
+warning: unused variable: `own`
+   --> src/lanes.rs:861:50
+    |
+861 |     fn run_job(&self, work: Work, pieces: usize, own: usize, own_platform: Platform) {
+    |                                                  ^^^ help: if this is intentional, prefix it with an underscore: `_own`
+
+warning: unused variable: `own_platform`
+   --> src/lanes.rs:861:62
+    |
+861 |     fn run_job(&self, work: Work, pieces: usize, own: usize, own_platform: Platform) {
+    |                                                              ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_own_platform`
+
+warning: methods `finished_count` and `wait` are never used
+  --> src/finish.rs:63:19
+   |
+57 | impl Finish {
+   | ----------- methods in this implementation
+...
+63 |     pub(crate) fn finished_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^
+...
+88 |     pub(crate) fn wait(&self, target: usize, mut poll: impl FnMut() -> bool) {
+   |                   ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `AbortOnUnwind` is never constructed
+   --> src/lanes.rs:445:8
+    |
+445 | struct AbortOnUnwind;
+    |        ^^^^^^^^^^^^^
+
+warning: method `wake_for` is never used
+   --> src/lanes.rs:866:19
+    |
+854 | impl Pool {
+    | --------- method in this implementation
+...
+866 |     pub(crate) fn wake_for(&self, wanted: usize) {
+    |                   ^^^^^^^^
+
+warning: methods `publish_job` and `wait` are never used
+    --> src/lanes.rs:1087:23
+     |
+1005 |     impl Source {
+     |     ----------- methods in this implementation
+...
+1087 |         pub(crate) fn publish_job(&self, job: *mut Job<'static>, pieces: usize, own: usize) -> usize {
+     |                       ^^^^^^^^^^^
+...
+1182 |         pub(crate) fn wait(&self, target: usize) {
+     |                       ^^^^
+
+warning: function `keeps_polling` is never used
+    --> src/lanes.rs:1192:8
+     |
+1192 |     fn keeps_polling(started: std::time::Instant, yielded: &mut std::time::Instant) -> bool {
+     |        ^^^^^^^^^^^^^
+
+warning: function `split` is never used
+  --> src/park.rs:59:15
+   |
+59 | pub(crate) fn split(need: usize, fanout: usize) -> (usize, usize) {
+   |               ^^^^^
+
+warning: method `wake_for` is never used
+   --> src/park.rs:114:19
+    |
+ 64 | impl Park {
+    | --------- method in this implementation
+...
+114 |     pub(crate) fn wake_for(&self, wanted: usize, workers: usize) -> usize {
+    |                   ^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 11 warnings (run `cargo fix --lib -p blake3-servil` to apply 4 suggestions)
+warning: method `wake_for` is never used
+   --> src/lanes.rs:866:19
+    |
+854 | impl Pool {
+    | --------- method in this implementation
+...
+866 |     pub(crate) fn wake_for(&self, wanted: usize) {
+    |                   ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib test) generated 5 warnings (4 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 4.79s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev --lib --tests
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: unused variable: `work`
+   --> src/lanes.rs:861:23
+    |
+861 |     fn run_job(&self, work: Work, pieces: usize, own: usize, own_platform: Platform) {
+    |                       ^^^^ help: if this is intentional, prefix it with an underscore: `_work`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `pieces`
+   --> src/lanes.rs:861:35
+    |
+861 |     fn run_job(&self, work: Work, pieces: usize, own: usize, own_platform: Platform) {
+    |                                   ^^^^^^ help: if this is intentional, prefix it with an underscore: `_pieces`
+
+warning: unused variable: `own`
+   --> src/lanes.rs:861:50
+    |
+861 |     fn run_job(&self, work: Work, pieces: usize, own: usize, own_platform: Platform) {
+    |                                                  ^^^ help: if this is intentional, prefix it with an underscore: `_own`
+
+warning: unused variable: `own_platform`
+   --> src/lanes.rs:861:62
+    |
+861 |     fn run_job(&self, work: Work, pieces: usize, own: usize, own_platform: Platform) {
+    |                                                              ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_own_platform`
+
+warning: methods `finished_count` and `wait` are never used
+  --> src/finish.rs:63:19
+   |
+57 | impl Finish {
+   | ----------- methods in this implementation
+...
+63 |     pub(crate) fn finished_count(&self) -> usize {
+   |                   ^^^^^^^^^^^^^^
+...
+88 |     pub(crate) fn wait(&self, target: usize, mut poll: impl FnMut() -> bool) {
+   |                   ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `AbortOnUnwind` is never constructed
+   --> src/lanes.rs:445:8
+    |
+445 | struct AbortOnUnwind;
+    |        ^^^^^^^^^^^^^
+
+warning: method `wake_for` is never used
+   --> src/lanes.rs:866:19
+    |
+854 | impl Pool {
+    | --------- method in this implementation
+...
+866 |     pub(crate) fn wake_for(&self, wanted: usize) {
+    |                   ^^^^^^^^
+
+warning: methods `publish_job` and `wait` are never used
+    --> src/lanes.rs:1087:23
+     |
+1005 |     impl Source {
+     |     ----------- methods in this implementation
+...
+1087 |         pub(crate) fn publish_job(&self, job: *mut Job<'static>, pieces: usize, own: usize) -> usize {
+     |                       ^^^^^^^^^^^
+...
+1182 |         pub(crate) fn wait(&self, target: usize) {
+     |                       ^^^^
+
+warning: function `keeps_polling` is never used
+    --> src/lanes.rs:1192:8
+     |
+1192 |     fn keeps_polling(started: std::time::Instant, yielded: &mut std::time::Instant) -> bool {
+     |        ^^^^^^^^^^^^^
+
+warning: function `split` is never used
+  --> src/park.rs:59:15
+   |
+59 | pub(crate) fn split(need: usize, fanout: usize) -> (usize, usize) {
+   |               ^^^^^
+
+warning: method `wake_for` is never used
+   --> src/park.rs:114:19
+    |
+ 64 | impl Park {
+    | --------- method in this implementation
+...
+114 |     pub(crate) fn wake_for(&self, wanted: usize, workers: usize) -> usize {
+    |                   ^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 11 warnings (run `cargo fix --lib -p blake3-servil` to apply 4 suggestions)
+warning: method `wake_for` is never used
+   --> src/lanes.rs:866:19
+    |
+854 | impl Pool {
+    | --------- method in this implementation
+...
+866 |     pub(crate) fn wake_for(&self, wanted: usize) {
+    |                   ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib test) generated 5 warnings (4 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.03s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID ae24d4dd-7a2a-4e8b-8420-effa506f84f3 with nextest profile: mutants
+    Starting 101 tests across 9 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+       START [         ] (  1/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+        PASS [   0.020s] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+        PASS [   0.017s] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  3/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        PASS [   0.049s] (  3/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+       START [         ] (  4/101) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::test_every_multithreaded_call_inside_guard_pages --nocapture
+        FAIL [   0.019s] (  4/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+  stdout ───
+
+    running 1 test
+    test forms_test::packed_messages_hash_multithreaded_as_each_message_alone ... FAILED
+
+    failures:
+
+    failures:
+        forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 80 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'forms_test::packed_messages_hash_multithreaded_as_each_message_alone' (30670357) panicked at src/forms_test.rs:379:17:
+    assertion `left == right` failed: 32 B multithreaded, 40000 messages, message 0, plain
+      left: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+     right: [233, 134, 170, 72, 222, 142, 93, 217, 252, 23, 57, 225, 184, 233, 55, 148, 52, 161, 142, 251, 208, 128, 83, 151, 161, 252, 54, 85, 47, 152, 200, 60]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGTERM [   0.007s] (  5/101) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+────────────
+     Summary [   0.056s] 5/101 tests run: 3 passed, 2 failed, 0 skipped
+warning: 96/101 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
