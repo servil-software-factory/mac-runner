@@ -1,0 +1,502 @@
+
+*** src/lib.rs:350:5: replace initialize_multithreaded with ()
+
+*** mutation diff:
+--- src/lib.rs
++++ replace initialize_multithreaded with ()
+@@ -342,32 +342,17 @@
+ ///
+ /// ```
+ /// blake3_servil::initialize_multithreaded(None);
+ /// let message = vec![blake3_servil::throughput::Block::ZERO; (1 << 20) / 64];
+ /// let hash = blake3_servil::throughput::hash_multithreaded(blake3_servil::Mode::Plain, &message, 1 << 20);
+ /// assert_eq!(hash, blake3_servil::convenience::hash(&[0u8; 1 << 20]));
+ /// ```
+ pub fn initialize_multithreaded(threads: Option<core::num::NonZeroUsize>) {
+-    static STARTED: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+-    let cpus = || std::thread::available_parallelism().map_or(1, |n| n.get());
+-    let started = *STARTED.get_or_init(|| {
+-        let threads = threads.map_or_else(cpus, |n| n.get());
+-        initialize();
+-        lanes::initialize(threads);
+-        threads
+-    });
+-    lanes::prepare_thread();
+-    if let Some(threads) = threads {
+-        assert_eq!(
+-            started,
+-            threads.get(),
+-            "blake3-servil: the multithreaded calls were started with {started} threads; initialize_multithreaded cannot change that to {threads}"
+-        );
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Whether every worker of the multithreaded calls' pool is parked (false
+ /// before [`initialize_multithreaded`]). Undocumented and unstable, for
+ /// tests only: a test that needs the pool idle waits for this, not for a
+ /// sleep that a loaded machine could outlast.
+ #[doc(hidden)]
+ pub fn __all_workers_parked() -> bool {
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+warning: unused variable: `threads`
+   --> src/lib.rs:349:33
+    |
+349 | pub fn initialize_multithreaded(threads: Option<core::num::NonZeroUsize>) {
+    |                                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_threads`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `PREPARED_PIECES` is never used
+   --> src/lanes.rs:279:7
+    |
+279 | const PREPARED_PIECES: usize = 1024;
+    |       ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `prepare_thread` is never used
+   --> src/lanes.rs:290:15
+    |
+290 | pub(crate) fn prepare_thread() {
+    |               ^^^^^^^^^^^^^^
+
+warning: function `initialize` is never used
+   --> src/lanes.rs:745:15
+    |
+745 | pub(crate) fn initialize(threads: usize) {
+    |               ^^^^^^^^^^
+
+warning: function `mark_forked` is never used
+   --> src/lanes.rs:790:15
+    |
+790 | extern "C" fn mark_forked() {
+    |               ^^^^^^^^^^^
+
+warning: method `serve` is never used
+   --> src/lanes.rs:924:8
+    |
+854 | impl Pool {
+    | --------- method in this implementation
+...
+924 |     fn serve(&self, me: usize) -> ! {
+    |        ^^^^^
+
+warning: constant `SPIN` is never used
+   --> src/lanes.rs:946:7
+    |
+946 | const SPIN: std::time::Duration = std::time::Duration::from_micros(5);
+    |       ^^^^
+
+warning: function `spin_for_work` is never used
+   --> src/lanes.rs:949:4
+    |
+949 | fn spin_for_work() -> bool {
+    |    ^^^^^^^^^^^^^
+
+warning: function `spin_ends` is never used
+   --> src/lanes.rs:972:4
+    |
+972 | fn spin_ends(elapsed: std::time::Duration, open: impl FnOnce() -> bool) -> bool {
+    |    ^^^^^^^^^
+
+warning: function `sme2_main` is never used
+    --> src/lanes.rs:1641:4
+     |
+1641 | fn sme2_main() {
+     |    ^^^^^^^^^
+
+warning: function `sme2_serve` is never used
+    --> src/lanes.rs:1648:4
+     |
+1648 | fn sme2_serve() -> ! {
+     |    ^^^^^^^^^^
+
+warning: function `worker_main` is never used
+    --> src/lanes.rs:1707:4
+     |
+1707 | fn worker_main(me: usize) {
+     |    ^^^^^^^^^^^
+
+warning: function `pthread_atfork` is never used
+   --> src/lanes.rs:756:12
+    |
+756 |         fn pthread_atfork(prepare: Option<extern "C" fn()>, parent: Option<extern "C" fn()>, child: Option<extern "C" fn()>) -> i32;
+    |            ^^^^^^^^^^^^^^
+
+warning: field `0` is never read
+    --> src/lanes.rs:1044:16
+     |
+1044 |         Pieces(*const Job<'static>, usize, usize),
+     |         ------ ^^^^^^^^^^^^^^^^^^^
+     |         |
+     |         field in this variant
+     |
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+     |
+1044 -         Pieces(*const Job<'static>, usize, usize),
+1044 +         Pieces((), usize, usize),
+     |
+
+warning: method `carries_tasks` is never used
+    --> src/lanes.rs:1070:12
+     |
+1047 |     impl Source {
+     |     ----------- method in this implementation
+...
+1070 |         fn carries_tasks(&self) -> bool {
+     |            ^^^^^^^^^^^^^
+
+warning: function `open` is never used
+    --> src/lanes.rs:1280:19
+     |
+1280 |     pub(crate) fn open() -> bool {
+     |                   ^^^^
+
+warning: function `find` is never used
+    --> src/lanes.rs:1285:8
+     |
+1285 |     fn find(mut f: impl FnMut(&'static Source) -> bool) -> bool {
+     |        ^^^^
+
+warning: function `run_one` is never used
+    --> src/lanes.rs:1311:19
+     |
+1311 |     pub(crate) fn run_one() -> bool {
+     |                   ^^^^^^^
+
+warning: function `run_one_from` is never used
+    --> src/lanes.rs:1317:8
+     |
+1317 |     fn run_one_from(mut serve: impl FnMut(&'static Source, Item)) -> bool {
+     |        ^^^^^^^^^^^^
+
+warning: function `serve` is never used
+    --> src/lanes.rs:1327:8
+     |
+1327 |     fn serve(source: &'static Source, item: Item) {
+     |        ^^^^^
+
+warning: function `take_stream_item` is never used
+    --> src/lanes.rs:1349:19
+     |
+1349 |     pub(crate) fn take_stream_item() -> Option<Item> {
+     |                   ^^^^^^^^^^^^^^^^
+
+warning: function `visible` is never used
+    --> src/lanes.rs:1359:19
+     |
+1359 |     pub(crate) fn visible(streams: bool) -> bool {
+     |                   ^^^^^^^
+
+warning: constant `FANOUT` is never used
+  --> src/park.rs:55:18
+   |
+55 | pub(crate) const FANOUT: usize = 8;
+   |                  ^^^^^^
+
+warning: associated items `new`, `register`, `place`, `park_unless`, and `pay_owed` are never used
+   --> src/park.rs:65:19
+    |
+ 64 | impl Park {
+    | --------- associated items in this implementation
+ 65 |     pub(crate) fn new(workers: usize, fanout: usize) -> Park {
+    |                   ^^^
+...
+ 76 |     pub(crate) fn register(&self, me: usize) {
+    |                   ^^^^^^^^
+...
+ 81 |     fn place(&self, me: usize) -> (&AtomicU64, u64) {
+    |        ^^^^^
+...
+130 |     pub(crate) fn park_unless(&self, me: usize, visible: impl Fn() -> bool) -> bool {
+    |                   ^^^^^^^^^^^
+...
+155 |     pub(crate) fn pay_owed(&self) -> usize {
+    |                   ^^^^^^^^
+
+warning: method `park_unless` is never used
+   --> src/park.rs:130:19
+    |
+ 64 | impl Park {
+    | --------- method in this implementation
+...
+130 |     pub(crate) fn park_unless(&self, me: usize, visible: impl Fn() -> bool) -> bool {
+    |                   ^^^^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 24 warnings (run `cargo fix --lib -p blake3-servil` to apply 1 suggestion)
+warning: `blake3-servil` (lib test) generated 15 warnings (14 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 5.36s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev --lib --tests
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+warning: unused variable: `threads`
+   --> src/lib.rs:349:33
+    |
+349 | pub fn initialize_multithreaded(threads: Option<core::num::NonZeroUsize>) {
+    |                                 ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_threads`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `PREPARED_PIECES` is never used
+   --> src/lanes.rs:279:7
+    |
+279 | const PREPARED_PIECES: usize = 1024;
+    |       ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `prepare_thread` is never used
+   --> src/lanes.rs:290:15
+    |
+290 | pub(crate) fn prepare_thread() {
+    |               ^^^^^^^^^^^^^^
+
+warning: function `initialize` is never used
+   --> src/lanes.rs:745:15
+    |
+745 | pub(crate) fn initialize(threads: usize) {
+    |               ^^^^^^^^^^
+
+warning: function `mark_forked` is never used
+   --> src/lanes.rs:790:15
+    |
+790 | extern "C" fn mark_forked() {
+    |               ^^^^^^^^^^^
+
+warning: method `serve` is never used
+   --> src/lanes.rs:924:8
+    |
+854 | impl Pool {
+    | --------- method in this implementation
+...
+924 |     fn serve(&self, me: usize) -> ! {
+    |        ^^^^^
+
+warning: constant `SPIN` is never used
+   --> src/lanes.rs:946:7
+    |
+946 | const SPIN: std::time::Duration = std::time::Duration::from_micros(5);
+    |       ^^^^
+
+warning: function `spin_for_work` is never used
+   --> src/lanes.rs:949:4
+    |
+949 | fn spin_for_work() -> bool {
+    |    ^^^^^^^^^^^^^
+
+warning: function `spin_ends` is never used
+   --> src/lanes.rs:972:4
+    |
+972 | fn spin_ends(elapsed: std::time::Duration, open: impl FnOnce() -> bool) -> bool {
+    |    ^^^^^^^^^
+
+warning: function `sme2_main` is never used
+    --> src/lanes.rs:1641:4
+     |
+1641 | fn sme2_main() {
+     |    ^^^^^^^^^
+
+warning: function `sme2_serve` is never used
+    --> src/lanes.rs:1648:4
+     |
+1648 | fn sme2_serve() -> ! {
+     |    ^^^^^^^^^^
+
+warning: function `worker_main` is never used
+    --> src/lanes.rs:1707:4
+     |
+1707 | fn worker_main(me: usize) {
+     |    ^^^^^^^^^^^
+
+warning: function `pthread_atfork` is never used
+   --> src/lanes.rs:756:12
+    |
+756 |         fn pthread_atfork(prepare: Option<extern "C" fn()>, parent: Option<extern "C" fn()>, child: Option<extern "C" fn()>) -> i32;
+    |            ^^^^^^^^^^^^^^
+
+warning: field `0` is never read
+    --> src/lanes.rs:1044:16
+     |
+1044 |         Pieces(*const Job<'static>, usize, usize),
+     |         ------ ^^^^^^^^^^^^^^^^^^^
+     |         |
+     |         field in this variant
+     |
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+     |
+1044 -         Pieces(*const Job<'static>, usize, usize),
+1044 +         Pieces((), usize, usize),
+     |
+
+warning: method `carries_tasks` is never used
+    --> src/lanes.rs:1070:12
+     |
+1047 |     impl Source {
+     |     ----------- method in this implementation
+...
+1070 |         fn carries_tasks(&self) -> bool {
+     |            ^^^^^^^^^^^^^
+
+warning: function `open` is never used
+    --> src/lanes.rs:1280:19
+     |
+1280 |     pub(crate) fn open() -> bool {
+     |                   ^^^^
+
+warning: function `find` is never used
+    --> src/lanes.rs:1285:8
+     |
+1285 |     fn find(mut f: impl FnMut(&'static Source) -> bool) -> bool {
+     |        ^^^^
+
+warning: function `run_one` is never used
+    --> src/lanes.rs:1311:19
+     |
+1311 |     pub(crate) fn run_one() -> bool {
+     |                   ^^^^^^^
+
+warning: function `run_one_from` is never used
+    --> src/lanes.rs:1317:8
+     |
+1317 |     fn run_one_from(mut serve: impl FnMut(&'static Source, Item)) -> bool {
+     |        ^^^^^^^^^^^^
+
+warning: function `serve` is never used
+    --> src/lanes.rs:1327:8
+     |
+1327 |     fn serve(source: &'static Source, item: Item) {
+     |        ^^^^^
+
+warning: function `take_stream_item` is never used
+    --> src/lanes.rs:1349:19
+     |
+1349 |     pub(crate) fn take_stream_item() -> Option<Item> {
+     |                   ^^^^^^^^^^^^^^^^
+
+warning: function `visible` is never used
+    --> src/lanes.rs:1359:19
+     |
+1359 |     pub(crate) fn visible(streams: bool) -> bool {
+     |                   ^^^^^^^
+
+warning: constant `FANOUT` is never used
+  --> src/park.rs:55:18
+   |
+55 | pub(crate) const FANOUT: usize = 8;
+   |                  ^^^^^^
+
+warning: associated items `new`, `register`, `place`, `park_unless`, and `pay_owed` are never used
+   --> src/park.rs:65:19
+    |
+ 64 | impl Park {
+    | --------- associated items in this implementation
+ 65 |     pub(crate) fn new(workers: usize, fanout: usize) -> Park {
+    |                   ^^^
+...
+ 76 |     pub(crate) fn register(&self, me: usize) {
+    |                   ^^^^^^^^
+...
+ 81 |     fn place(&self, me: usize) -> (&AtomicU64, u64) {
+    |        ^^^^^
+...
+130 |     pub(crate) fn park_unless(&self, me: usize, visible: impl Fn() -> bool) -> bool {
+    |                   ^^^^^^^^^^^
+...
+155 |     pub(crate) fn pay_owed(&self) -> usize {
+    |                   ^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 24 warnings (run `cargo fix --lib -p blake3-servil` to apply 1 suggestion)
+warning: method `park_unless` is never used
+   --> src/park.rs:130:19
+    |
+ 64 | impl Park {
+    | --------- method in this implementation
+...
+130 |     pub(crate) fn park_unless(&self, me: usize, visible: impl Fn() -> bool) -> bool {
+    |                   ^^^^^^^^^^^
+
+warning: `blake3-servil` (lib test) generated 15 warnings (14 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.03s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID bd5fd4aa-465b-4bc6-a857-869b96d32763 with nextest profile: mutants
+    Starting 101 tests across 9 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+       START [         ] (  1/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+        PASS [   0.012s] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+        PASS [   0.016s] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  3/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        FAIL [   0.012s] (  3/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+  stdout ───
+
+    running 1 test
+    test forms_test::packed_messages_hash_multithreaded_as_each_message_alone ... FAILED
+
+    failures:
+
+    failures:
+        forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 80 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'forms_test::packed_messages_hash_multithreaded_as_each_message_alone' (29692956) panicked at src/lanes.rs:841:20:
+    initialize_multithreaded created the pool
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGTERM [   0.040s] (  4/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+────────────
+     Summary [   0.041s] 4/101 tests run: 2 passed, 2 failed, 0 skipped
+warning: 97/101 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)

@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/incremental.rs\n+++ replace Hasher::stage with ()\n@@ -178,19 +178,17 @@\n     /// The bytes gathered in the stage.\n     pub(crate) fn staged_bytes(&self) -> &[u8] {\n         // Sound: the first `staged` bytes of the stage were written (gather).\n         unsafe { core::slice::from_raw_parts(self.stage.as_ptr() as *const u8, self.staged) }\n     }\n \n     /// Copy `bytes` into the stage after what it holds.\n     pub(crate) fn stage(&mut self, bytes: &[u8]) {\n-        crate::counted(crate::Counted::Staged);\n-        self.stage[self.staged..self.staged + bytes.len()].write_copy_of_slice(bytes);\n-        self.staged += bytes.len();\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// `update`'s gathering: an update of STAGE_LEN or more from a 16 KiB\n     /// boundary of the message (or an empty stage) goes to the core whole;\n     /// shorter ones gather in the stage until it reaches the next boundary,\n     /// and the stage goes to the core as one update, its chunks side by\n     /// side in the lanes. A message of under 16 KiB is therefore whole in\n     /// the stage, where `finalize` hashes it as the one-shot call would.\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "Hasher::stage",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 189
+        },
+        "start": {
+          "column": 5,
+          "line": 184
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:186:9: replace Hasher::stage with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 36,
+        "line": 188
+      },
+      "start": {
+        "column": 9,
+        "line": 186
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace Hasher::gather_part -> &'a[u8] with Vec::leak(Vec::new())\n@@ -199,66 +199,17 @@\n         self\n     }\n \n     /// [`gather`](Hasher::gather), but with `hold`, a stage that fills a\n     /// whole group (from offset zero) is kept for the caller to hash with\n     /// others' (`held_group`), and the rest of `input`\n     /// returned; else nothing is left.\n     pub(crate) fn gather_part<'a>(&mut self, mut input: &'a [u8], pooled: Option<Pool>, hold: bool) -> &'a [u8] {\n-        self.core.assert_room(self.count(), input.len());\n-        while !input.is_empty() {\n-            // Whole groups skip the stage. So does a fresh hasher's first\n-            // chunk in a turn of many hashers (`hold`) on x86-64, where\n-            // `finalize_each` finishes the messages still in their chunk\n-            // states side by side (ffi_output::input). Everywhere else the\n-            // first chunk is staged: `finalize` then finds a short message\n-            // whole in the stage, on AArch64 `finalize_each` hashes those\n-            // side by side (each.rs), and a longer message's first chunk\n-            // joins its group of sixteen.\n-            let first_chunk_to_core = hold && !cfg!(blake3_neon) && self.core.count() + input.len() as u64 <= CHUNK_LEN as u64;\n-            if self.staged == 0 && first_chunk_to_core {\n-                self.core.update_pooled(input, pooled);\n-                return &[];\n-            }\n-            let at = (self.core.initial_chunk_counter * CHUNK_LEN as u64 + self.count()) % STAGE_LEN as u64;\n-            // On a 16 KiB boundary with nothing staged, the input's whole\n-            // groups go to the core as they lie; what follows them is\n-            // staged below, so the next groups start on a boundary too\n-            // (BLAKE3 #393: sent whole, an input's ragged end left the\n-            // core off the boundary, and every later piece hashed in the\n-            // narrow subtrees that fit there, at half the speed).\n-            if self.staged == 0 && at == 0 && input.len() >= STAGE_LEN {\n-                let groups = input.len() / STAGE_LEN * STAGE_LEN;\n-                // The loop's variant on this path: a group or more leaves the input.\n-                assert!(groups > 0, \"no whole group went to the core\");\n-                self.core.update_pooled(&input[..groups], pooled);\n-                input = &input[groups..];\n-                continue;\n-            }\n-            let to_boundary = STAGE_LEN - at as usize;\n-            let take = cmp::min(to_boundary, input.len());\n-            // The loop's variant: every pass stages at least one byte of\n-            // the input, which is not empty (`at` is below STAGE_LEN).\n-            assert!(take > 0, \"the stage took nothing\");\n-            self.stage(&input[..take]);\n-            input = &input[take..];\n-            if take < to_boundary {\n-                return &[];\n-            }\n-            if hold && self.held_group().is_some() {\n-                return input;\n-            }\n-            let staged = core::mem::replace(&mut self.staged, 0);\n-            // Sound: the first `staged` bytes were written; the core reads\n-            // them before the stage is written again.\n-            let bytes = unsafe { core::slice::from_raw_parts(self.stage.as_ptr() as *const u8, staged) };\n-            self.core.update_pooled(bytes, pooled);\n-        }\n-        &[]\n+        Vec::leak(Vec::new()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// A whole group in the stage, from offset zero: its first chunk's\n     /// counter and its bytes.\n     #[cfg(feature = \"std\")]\n     pub(crate) fn held_group(&self) -> Option<(u64, &[u8; STAGE_LEN])> {\n         (self.staged == STAGE_LEN && self.core.initial_chunk_counter == 0)\n             .then(|| (self.core.count() / CHUNK_LEN as u64, self.staged_bytes().try_into().unwrap()))\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "Hasher::gather_part",
+      "return_type": "-> &'a[u8]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 257
+        },
+        "start": {
+          "column": 5,
+          "line": 202
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:207:9: replace Hasher::gather_part -> &'a[u8] with Vec::leak(Vec::new())",
+    "package": "blake3-servil-core",
+    "replacement": "Vec::leak(Vec::new())",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 256
+      },
+      "start": {
+        "column": 9,
+        "line": 207
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace Hasher::gather_part -> &'a[u8] with Vec::leak(vec![0])\n@@ -199,66 +199,17 @@\n         self\n     }\n \n     /// [`gather`](Hasher::gather), but with `hold`, a stage that fills a\n     /// whole group (from offset zero) is kept for the caller to hash with\n     /// others' (`held_group`), and the rest of `input`\n     /// returned; else nothing is left.\n     pub(crate) fn gather_part<'a>(&mut self, mut input: &'a [u8], pooled: Option<Pool>, hold: bool) -> &'a [u8] {\n-        self.core.assert_room(self.count(), input.len());\n-        while !input.is_empty() {\n-            // Whole groups skip the stage. So does a fresh hasher's first\n-            // chunk in a turn of many hashers (`hold`) on x86-64, where\n-            // `finalize_each` finishes the messages still in their chunk\n-            // states side by side (ffi_output::input). Everywhere else the\n-            // first chunk is staged: `finalize` then finds a short message\n-            // whole in the stage, on AArch64 `finalize_each` hashes those\n-            // side by side (each.rs), and a longer message's first chunk\n-            // joins its group of sixteen.\n-            let first_chunk_to_core = hold && !cfg!(blake3_neon) && self.core.count() + input.len() as u64 <= CHUNK_LEN as u64;\n-            if self.staged == 0 && first_chunk_to_core {\n-                self.core.update_pooled(input, pooled);\n-                return &[];\n-            }\n-            let at = (self.core.initial_chunk_counter * CHUNK_LEN as u64 + self.count()) % STAGE_LEN as u64;\n-            // On a 16 KiB boundary with nothing staged, the input's whole\n-            // groups go to the core as they lie; what follows them is\n-            // staged below, so the next groups start on a boundary too\n-            // (BLAKE3 #393: sent whole, an input's ragged end left the\n-            // core off the boundary, and every later piece hashed in the\n-            // narrow subtrees that fit there, at half the speed).\n-            if self.staged == 0 && at == 0 && input.len() >= STAGE_LEN {\n-                let groups = input.len() / STAGE_LEN * STAGE_LEN;\n-                // The loop's variant on this path: a group or more leaves the input.\n-                assert!(groups > 0, \"no whole group went to the core\");\n-                self.core.update_pooled(&input[..groups], pooled);\n-                input = &input[groups..];\n-                continue;\n-            }\n-            let to_boundary = STAGE_LEN - at as usize;\n-            let take = cmp::min(to_boundary, input.len());\n-            // The loop's variant: every pass stages at least one byte of\n-            // the input, which is not empty (`at` is below STAGE_LEN).\n-            assert!(take > 0, \"the stage took nothing\");\n-            self.stage(&input[..take]);\n-            input = &input[take..];\n-            if take < to_boundary {\n-                return &[];\n-            }\n-            if hold && self.held_group().is_some() {\n-                return input;\n-            }\n-            let staged = core::mem::replace(&mut self.staged, 0);\n-            // Sound: the first `staged` bytes were written; the core reads\n-            // them before the stage is written again.\n-            let bytes = unsafe { core::slice::from_raw_parts(self.stage.as_ptr() as *const u8, staged) };\n-            self.core.update_pooled(bytes, pooled);\n-        }\n-        &[]\n+        Vec::leak(vec![0]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// A whole group in the stage, from offset zero: its first chunk's\n     /// counter and its bytes.\n     #[cfg(feature = \"std\")]\n     pub(crate) fn held_group(&self) -> Option<(u64, &[u8; STAGE_LEN])> {\n         (self.staged == STAGE_LEN && self.core.initial_chunk_counter == 0)\n             .then(|| (self.core.count() / CHUNK_LEN as u64, self.staged_bytes().try_into().unwrap()))\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "Hasher::gather_part",
+      "return_type": "-> &'a[u8]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 257
+        },
+        "start": {
+          "column": 5,
+          "line": 202
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:207:9: replace Hasher::gather_part -> &'a[u8] with Vec::leak(vec![0])",
+    "package": "blake3-servil-core",
+    "replacement": "Vec::leak(vec![0])",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 256
+      },
+      "start": {
+        "column": 9,
+        "line": 207
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace Hasher::gather_part -> &'a[u8] with Vec::leak(vec![1])\n@@ -199,66 +199,17 @@\n         self\n     }\n \n     /// [`gather`](Hasher::gather), but with `hold`, a stage that fills a\n     /// whole group (from offset zero) is kept for the caller to hash with\n     /// others' (`held_group`), and the rest of `input`\n     /// returned; else nothing is left.\n     pub(crate) fn gather_part<'a>(&mut self, mut input: &'a [u8], pooled: Option<Pool>, hold: bool) -> &'a [u8] {\n-        self.core.assert_room(self.count(), input.len());\n-        while !input.is_empty() {\n-            // Whole groups skip the stage. So does a fresh hasher's first\n-            // chunk in a turn of many hashers (`hold`) on x86-64, where\n-            // `finalize_each` finishes the messages still in their chunk\n-            // states side by side (ffi_output::input). Everywhere else the\n-            // first chunk is staged: `finalize` then finds a short message\n-            // whole in the stage, on AArch64 `finalize_each` hashes those\n-            // side by side (each.rs), and a longer message's first chunk\n-            // joins its group of sixteen.\n-            let first_chunk_to_core = hold && !cfg!(blake3_neon) && self.core.count() + input.len() as u64 <= CHUNK_LEN as u64;\n-            if self.staged == 0 && first_chunk_to_core {\n-                self.core.update_pooled(input, pooled);\n-                return &[];\n-            }\n-            let at = (self.core.initial_chunk_counter * CHUNK_LEN as u64 + self.count()) % STAGE_LEN as u64;\n-            // On a 16 KiB boundary with nothing staged, the input's whole\n-            // groups go to the core as they lie; what follows them is\n-            // staged below, so the next groups start on a boundary too\n-            // (BLAKE3 #393: sent whole, an input's ragged end left the\n-            // core off the boundary, and every later piece hashed in the\n-            // narrow subtrees that fit there, at half the speed).\n-            if self.staged == 0 && at == 0 && input.len() >= STAGE_LEN {\n-                let groups = input.len() / STAGE_LEN * STAGE_LEN;\n-                // The loop's variant on this path: a group or more leaves the input.\n-                assert!(groups > 0, \"no whole group went to the core\");\n-                self.core.update_pooled(&input[..groups], pooled);\n-                input = &input[groups..];\n-                continue;\n-            }\n-            let to_boundary = STAGE_LEN - at as usize;\n-            let take = cmp::min(to_boundary, input.len());\n-            // The loop's variant: every pass stages at least one byte of\n-            // the input, which is not empty (`at` is below STAGE_LEN).\n-            assert!(take > 0, \"the stage took nothing\");\n-            self.stage(&input[..take]);\n-            input = &input[take..];\n-            if take < to_boundary {\n-                return &[];\n-            }\n-            if hold && self.held_group().is_some() {\n-                return input;\n-            }\n-            let staged = core::mem::replace(&mut self.staged, 0);\n-            // Sound: the first `staged` bytes were written; the core reads\n-            // them before the stage is written again.\n-            let bytes = unsafe { core::slice::from_raw_parts(self.stage.as_ptr() as *const u8, staged) };\n-            self.core.update_pooled(bytes, pooled);\n-        }\n-        &[]\n+        Vec::leak(vec![1]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// A whole group in the stage, from offset zero: its first chunk's\n     /// counter and its bytes.\n     #[cfg(feature = \"std\")]\n     pub(crate) fn held_group(&self) -> Option<(u64, &[u8; STAGE_LEN])> {\n         (self.staged == STAGE_LEN && self.core.initial_chunk_counter == 0)\n             .then(|| (self.core.count() / CHUNK_LEN as u64, self.staged_bytes().try_into().unwrap()))\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "Hasher::gather_part",
+      "return_type": "-> &'a[u8]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 257
+        },
+        "start": {
+          "column": 5,
+          "line": 202
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:207:9: replace Hasher::gather_part -> &'a[u8] with Vec::leak(vec![1])",
+    "package": "blake3-servil-core",
+    "replacement": "Vec::leak(vec![1])",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 256
+      },
+      "start": {
+        "column": 9,
+        "line": 207
+      }
+    }
+  }
+]
