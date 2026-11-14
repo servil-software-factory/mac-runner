@@ -1,0 +1,162 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace finalize_each with ()\n@@ -57,81 +57,17 @@\n /// messages of up to 1024 bytes fed by [`update_each`].\n ///\n /// # Key-dependent timing\n ///\n /// Selected hashers may use different secret keys. Key values and key equality\n /// select neither the finalization path nor its amount of work.\n /// See the [key-independence contract](crate#key-dependent-timing).\n pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n-    assert_eq!(which.len(), out.len(), \"one digest per message named\");\n-    debug_assert!(which.iter().enumerate().all(|(at, i)| !which[..at].contains(i)), \"each finalized index is distinct\");\n-    #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n-    if which.len() >= 16 && matches!(Platform::detect(), Platform::AVX512) {\n-        #[cfg(all(test, feature = \"std\"))]\n-        crate::counted(crate::Counted::OutputGroupTurn);\n-        for (which, out) in which.chunks(16).zip(out.chunks_mut(16)) {\n-            if which.len() == 16 {\n-                let hashed = {\n-                    let inputs: Option<arrayvec::ArrayVec<_, 16>> = which.iter().map(|&i| crate::ffi_output::input(&hashers[i])).collect();\n-                    match inputs {\n-                        Some(inputs) => {\n-                            // Sound: the detected platform supplies AVX-512F+VL;\n-                            // borrowed descriptors keep every block/CV readable.\n-                            unsafe { crate::ffi_output::hash_group::<16>(inputs.as_slice().try_into().unwrap(), out) };\n-                            true\n-                        }\n-                        None => false,\n-                    }\n-                };\n-                if hashed {\n-                    for &i in which {\n-                        hashers[i].reset();\n-                    }\n-                    continue;\n-                }\n-            }\n-            finish_each(hashers, which, out);\n-        }\n-        return;\n-    }\n-    // AArch64: the messages of up to a chunk that a turn left whole in\n-    // their stages (`Hasher::gather_part`) hash side by side by their\n-    // blocks, as a collection's small items do (`hash_by_blocks`: the NEON\n-    // lanes, or one SME2 call for a table of equal whole blocks). The\n-    // plain ones only: their key is the IV, the same for all, and a keyed\n-    // hasher's key is its own and secret, so it finishes alone (BLAKE3\n-    // #312). Which hashers qualify is their public shape: mode and length.\n-    #[cfg(blake3_neon)]\n-    {\n-        let whole_in_stage = |h: &Hasher| h.staged <= CHUNK_LEN && h.core.count() == 0 && h.core.initial_chunk_counter == 0 && h.core.chunk_state.flags == 0;\n-        if which.iter().filter(|&&i| whole_in_stage(&hashers[i])).nth(1).is_some() {\n-            let platform = Platform::detect();\n-            // BY_BLOCKS_AT_ONCE of them at a time, their places on the\n-            // stack: a finish allocates nothing.\n-            let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();\n-            while small.peek().is_some() {\n-                let part: arrayvec::ArrayVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();\n-                let bytes: arrayvec::ArrayVec<&[u8], BY_BLOCKS_AT_ONCE> = part.iter().map(|&k| hashers[which[k]].staged_bytes()).collect();\n-                let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];\n-                hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n-                for (&k, digest) in part.iter().zip(&digests) {\n-                    out[k] = *digest;\n-                }\n-            }\n-            for (&i, out) in which.iter().zip(out.iter_mut()) {\n-                if !whole_in_stage(&hashers[i]) {\n-                    *out = *hashers[i].take_root_hash().as_bytes();\n-                }\n-                hashers[i].reset();\n-            }\n-            return;\n-        }\n-    }\n-    finish_each(hashers, which, out);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Each hasher `which` names finished in place and reset, its digest into\n /// `out`: the path every message takes but a sixteen-lane group.\n fn finish_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n     for (&i, out) in which.iter().zip(out) {\n         *out = *hashers[i].take_root_hash().as_bytes();\n         hashers[i].reset();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 130
+        },
+        "start": {
+          "column": 1,
+          "line": 51
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:65:5: replace finalize_each with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 38,
+        "line": 129
+      },
+      "start": {
+        "column": 5,
+        "line": 65
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ delete ! in finalize_each\n@@ -113,17 +113,17 @@\n                 let bytes: arrayvec::ArrayVec<&[u8], BY_BLOCKS_AT_ONCE> = part.iter().map(|&k| hashers[which[k]].staged_bytes()).collect();\n                 let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];\n                 hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n                 for (&k, digest) in part.iter().zip(&digests) {\n                     out[k] = *digest;\n                 }\n             }\n             for (&i, out) in which.iter().zip(out.iter_mut()) {\n-                if !whole_in_stage(&hashers[i]) {\n+                if  /* ~ changed by cargo-mutants ~ */whole_in_stage(&hashers[i]) {\n                     *out = *hashers[i].take_root_hash().as_bytes();\n                 }\n                 hashers[i].reset();\n             }\n             return;\n         }\n     }\n     finish_each(hashers, which, out);\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 130
+        },
+        "start": {
+          "column": 1,
+          "line": 51
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/each.rs:121:20: delete ! in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 121
+      },
+      "start": {
+        "column": 20,
+        "line": 121
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace finish_each with ()\n@@ -127,20 +127,17 @@\n         }\n     }\n     finish_each(hashers, which, out);\n }\n \n /// Each hasher `which` names finished in place and reset, its digest into\n /// `out`: the path every message takes but a sixteen-lane group.\n fn finish_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n-    for (&i, out) in which.iter().zip(out) {\n-        *out = *hashers[i].take_root_hash().as_bytes();\n-        hashers[i].reset();\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// A turn of pieces for many hashers, in caller order: each piece\n /// gathered into its hasher's stage; a stage that fills a whole group is\n /// held, and its hasher's later bytes (the rest of that piece, and its\n /// later pieces) wait, in order, until the held groups hash together, up\n /// to TABLE of them in one pass (one SME2 call for all; elsewhere a call\n /// per group, then each parent level in one call). A full table, a full\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finish_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 139
+        },
+        "start": {
+          "column": 1,
+          "line": 132
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:135:5: replace finish_each with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 138
+      },
+      "start": {
+        "column": 5,
+        "line": 135
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl Clone for Hasher>::clone_from with ()\n@@ -53,20 +53,17 @@\n     fn clone(&self) -> Self {\n         Self { core: self.core.clone(), staged: self.staged, stage: self.stage }\n     }\n \n     #[inline]\n     fn clone_from(&mut self, source: &Self) {\n         // The staged bytes, and the whole first block (`first_block`); the\n         // rest of the capacity is overwritten before it becomes input.\n-        let prefix = &source.stage[..source.staged.max(BLOCK_LEN)];\n-        self.core.clone_from(&source.core);\n-        self.staged = source.staged;\n-        self.stage[..prefix.len()].copy_from_slice(prefix);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// The bytes a Hasher gathers before they hash side by side: 16 chunks,\n /// the widest kernels' lanes.\n pub(crate) const STAGE_LEN: usize = 16 * CHUNK_LEN;\n \n /// The tree's state behind a [`Hasher`]: its chunk, and the chaining values\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl Clone for Hasher>::clone_from",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 65
+        },
+        "start": {
+          "column": 5,
+          "line": 57
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:61:9: replace <impl Clone for Hasher>::clone_from with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 60,
+        "line": 64
+      },
+      "start": {
+        "column": 9,
+        "line": 61
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace Hasher::from_core -> Self with Default::default()\n@@ -151,21 +151,17 @@\n         flags: chunk_state.flags,\n         platform: chunk_state.platform,\n         hooks: HasherHooks { key, flags: chunk_state.flags, chunk_platform: chunk_state.platform, platform, pooled },\n     }\n }\n \n impl Hasher {\n     pub(crate) fn from_core(core: HasherCore) -> Self {\n-        let mut hasher = Self { core, staged: 0, stage: [core::mem::MaybeUninit::uninit(); STAGE_LEN] };\n-        // The stage's first block starts as zeros (`first_block`).\n-        // Sound: the stage holds BLOCK_LEN bytes and more.\n-        unsafe { hasher.stage.as_mut_ptr().write_bytes(0, BLOCK_LEN) };\n-        hasher\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The stage's first block. While the message is a block or less and\n     /// whole in the stage, the bytes after it here are zero, so the block\n     /// is the padded one a kernel hashes (`finalize`). Kept so by every\n     /// writer: `from_core` and `reset` zero the block, `update` stores a\n     /// first block or less padded (pad_block), later bytes only follow the\n     /// ones before, and `clone_from` copies the whole block.\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "Hasher::from_core",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 164
+        },
+        "start": {
+          "column": 5,
+          "line": 158
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:159:9: replace Hasher::from_core -> Self with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 15,
+        "line": 163
+      },
+      "start": {
+        "column": 9,
+        "line": 159
+      }
+    }
+  }
+]

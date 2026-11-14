@@ -1,0 +1,59 @@
+
+*** src/lib.rs:407:9: replace throughput::update_multithreaded -> &'h mut crate::convenience::Hasher with Box::leak(Box::new(Default::default()))
+
+*** mutation diff:
+--- src/lib.rs
++++ replace throughput::update_multithreaded -> &'h mut crate::convenience::Hasher with Box::leak(Box::new(Default::default()))
+@@ -399,18 +399,17 @@
+     /// let input = vec![7u8; 3 << 20];
+     /// let mut hasher = Hasher::new(Mode::Plain, Some(input.len() as u64));
+     /// for piece in input.chunks(64 * 1024) {
+     ///     throughput::update_multithreaded(&mut hasher, piece);
+     /// }
+     /// assert_eq!(hasher.finalize(), blake3_servil::convenience::hash(&input));
+     /// ```
+     pub fn update_multithreaded<'h>(hasher: &'h mut crate::convenience::Hasher, input: &[u8]) -> &'h mut crate::convenience::Hasher {
+-        crate::lanes::require();
+-        hasher.update_on(input, POOL)
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// [`hash_many`], using other CPU cores where that is faster: the same
+     /// hashes, never slower.
+     ///
+     /// ```
+     /// # blake3_servil::initialize_multithreaded(None);
+     /// use blake3_servil::Mode;
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `blake3_servil_core::convenience::Hasher: Default` is not satisfied
+   --> src/lib.rs:407:28
+    |
+407 |         Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+    |                            ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `blake3_servil_core::convenience::Hasher`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
