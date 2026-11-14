@@ -1,0 +1,258 @@
+
+*** src/lanes.rs:365:5: replace hash_many_over_pool with ()
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace hash_many_over_pool with ()
+@@ -357,28 +357,17 @@
+     if outputs.len() < 2 || input.len() < MIN_SPLIT_LEN {
+         return crate::hash_many_serial(input, message_len, slot, key, flags, outputs);
+     }
+     hash_many_over_pool(input, message_len, slot, key, flags, outputs)
+ }
+ 
+ #[inline(never)]
+ fn hash_many_over_pool(input: &[u8], message_len: usize, slot: usize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::OUT_LEN]]) {
+-    assert_eq!(Some(input.len()), slot.checked_mul(outputs.len()), "input holds one slot per output");
+-    let Some((pool, _caller)) = spare_pool() else {
+-        return crate::hash_many_serial(input, message_len, slot, key, flags, outputs);
+-    };
+-    let count = outputs.len();
+-    with_scratch(
+-        |pieces| cut_messages(pieces, count, slot, pool.threads),
+-        |(), pieces, _| {
+-            let work = Work::Messages { input, message_len, slot, key: *key, flags, pieces, outputs: outputs.as_mut_ptr() };
+-            pool.run_job(work, pieces.len(), 0, pool_platform());
+-        },
+-    )
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// [`crate::each::hash_each_multithreaded`]'s pool job: the items under
+ /// MIN_SPLIT_LEN, cut into ranges of about [`next_piece_len`] of the
+ /// bytes that remain, each range hashed by one thread. An item of
+ /// MIN_SPLIT_LEN or more is set aside here (its digest zero, a stand-in)
+ /// and hashed by the caller over the whole pool after.
+ pub(crate) fn hash_each(key: &crate::CVWords, flags: u8, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+warning: unused variable: `input`
+   --> src/lanes.rs:364:24
+    |
+364 | fn hash_many_over_pool(input: &[u8], message_len: usize, slot: usize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::O...
+    |                        ^^^^^ help: if this is intentional, prefix it with an underscore: `_input`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `message_len`
+   --> src/lanes.rs:364:38
+    |
+364 | fn hash_many_over_pool(input: &[u8], message_len: usize, slot: usize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::O...
+    |                                      ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_message_len`
+
+warning: unused variable: `slot`
+   --> src/lanes.rs:364:58
+    |
+364 | ... &[u8], message_len: usize, slot: usize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |                                ^^^^ help: if this is intentional, prefix it with an underscore: `_slot`
+
+warning: unused variable: `key`
+   --> src/lanes.rs:364:71
+    |
+364 | ...age_len: usize, slot: usize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |                                 ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+
+warning: unused variable: `flags`
+   --> src/lanes.rs:364:93
+    |
+364 | ...ize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_flags`
+
+warning: unused variable: `outputs`
+   --> src/lanes.rs:364:104
+    |
+364 | ...ate::CVWords, flags: u8, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |                             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_outputs`
+
+warning: function `cut_messages` is never used
+   --> src/lanes.rs:420:4
+    |
+420 | fn cut_messages(pieces: &mut Vec<Piece>, count: usize, message_len: usize, threads: usize) {
+    |    ^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `Messages` is never constructed
+   --> src/lanes.rs:482:5
+    |
+468 | enum Work<'a> {
+    |      ---- variant in this enum
+...
+482 |     Messages { input: &'a [u8], message_len: usize, slot: usize, key: crate::CVWords, flags: u8, pieces: &'a [Piece], outputs: *mut...
+    |     ^^^^^^^^
+
+warning: variant `Messages` is never constructed
+   --> src/lanes.rs:482:5
+    |
+468 | enum Work<'a> {
+    |      ---- variant in this enum
+...
+482 |     Messages { input: &'a [u8], message_len: usize, slot: usize, key: crate::CVWords, flags: u8, pieces: &'a [Piece], outputs: *mut...
+    |     ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib) generated 8 warnings (run `cargo fix --lib -p blake3-servil` to apply 6 suggestions)
+warning: `blake3-servil` (lib test) generated 7 warnings (6 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 6.46s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev --lib --tests
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: unused variable: `input`
+   --> src/lanes.rs:364:24
+    |
+364 | fn hash_many_over_pool(input: &[u8], message_len: usize, slot: usize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::O...
+    |                        ^^^^^ help: if this is intentional, prefix it with an underscore: `_input`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `message_len`
+   --> src/lanes.rs:364:38
+    |
+364 | fn hash_many_over_pool(input: &[u8], message_len: usize, slot: usize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::O...
+    |                                      ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_message_len`
+
+warning: unused variable: `slot`
+   --> src/lanes.rs:364:58
+    |
+364 | ... &[u8], message_len: usize, slot: usize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |                                ^^^^ help: if this is intentional, prefix it with an underscore: `_slot`
+
+warning: unused variable: `key`
+   --> src/lanes.rs:364:71
+    |
+364 | ...age_len: usize, slot: usize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |                                 ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+
+warning: unused variable: `flags`
+   --> src/lanes.rs:364:93
+    |
+364 | ...ize, key: &crate::CVWords, flags: u8, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_flags`
+
+warning: unused variable: `outputs`
+   --> src/lanes.rs:364:104
+    |
+364 | ...ate::CVWords, flags: u8, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |                             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_outputs`
+
+warning: function `cut_messages` is never used
+   --> src/lanes.rs:420:4
+    |
+420 | fn cut_messages(pieces: &mut Vec<Piece>, count: usize, message_len: usize, threads: usize) {
+    |    ^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `Messages` is never constructed
+   --> src/lanes.rs:482:5
+    |
+468 | enum Work<'a> {
+    |      ---- variant in this enum
+...
+482 |     Messages { input: &'a [u8], message_len: usize, slot: usize, key: crate::CVWords, flags: u8, pieces: &'a [Piece], outputs: *mut...
+    |     ^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 8 warnings (run `cargo fix --lib -p blake3-servil` to apply 6 suggestions)
+warning: variant `Messages` is never constructed
+   --> src/lanes.rs:482:5
+    |
+468 | enum Work<'a> {
+    |      ---- variant in this enum
+...
+482 |     Messages { input: &'a [u8], message_len: usize, slot: usize, key: crate::CVWords, flags: u8, pieces: &'a [Piece], outputs: *mut...
+    |     ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib test) generated 7 warnings (6 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.03s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID 46d356d8-d585-4d8c-8ffb-2ca2f91c844a with nextest profile: mutants
+    Starting 101 tests across 9 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+       START [         ] (  1/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+        PASS [   0.022s] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+        PASS [   0.027s] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  3/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        PASS [   0.058s] (  3/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+       START [         ] (  4/101) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_every_multithreaded_call_inside_guard_pages --nocapture
+        FAIL [   0.026s] (  4/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+  stdout ───
+
+    running 1 test
+    test forms_test::packed_messages_hash_multithreaded_as_each_message_alone ... FAILED
+
+    failures:
+
+    failures:
+        forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 80 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'forms_test::packed_messages_hash_multithreaded_as_each_message_alone' (30373649) panicked at src/forms_test.rs:379:17:
+    assertion `left == right` failed: 32 B multithreaded, 40000 messages, message 0, plain
+      left: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+     right: [233, 134, 170, 72, 222, 142, 93, 217, 252, 23, 57, 225, 184, 233, 55, 148, 52, 161, 142, 251, 208, 128, 83, 151, 161, 252, 54, 85, 47, 152, 200, 60]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGTERM [   0.017s] (  5/101) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+────────────
+     Summary [   0.076s] 5/101 tests run: 3 passed, 2 failed, 0 skipped
+warning: 96/101 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)

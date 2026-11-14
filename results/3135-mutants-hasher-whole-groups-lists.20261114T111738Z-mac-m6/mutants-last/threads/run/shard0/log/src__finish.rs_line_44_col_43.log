@@ -1,0 +1,93 @@
+
+*** src/finish.rs:44:43: replace - with +
+
+*** mutation diff:
+--- src/finish.rs
++++ replace - with +
+@@ -36,17 +36,17 @@
+ impl<T> std::ops::Deref for Line<T> {
+     type Target = T;
+     fn deref(&self) -> &T {
+         &self.0
+     }
+ }
+ 
+ /// The top bit of `state`: the caller is parked, waiting.
+-const SLEEPING: usize = 1 << (usize::BITS - 1);
++const SLEEPING: usize = 1 << (usize::BITS + /* ~ changed by cargo-mutants ~ */ 1);
+ 
+ pub(crate) struct Finish {
+     /// The number past the last piece or task published.
+     pub(crate) published: Line<AtomicUsize>,
+     /// The pieces finished, all the source's jobs', and SLEEPING.
+     state: Line<AtomicUsize>,
+     /// The waiting thread: behind a lock, since the worker finishing the
+     /// last piece may read it as the source passes to another thread (an
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0080]: attempt to shift left by `65_u32`, which would overflow
+  --> src/finish.rs:44:25
+   |
+44 | const SLEEPING: usize = 1 << (usize::BITS + /* ~ changed by cargo-mutants ~ */ 1);
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `finish::SLEEPING` failed here
+
+note: erroneous constant encountered
+  --> src/finish.rs:64:46
+   |
+64 |         self.state.load(Ordering::SeqCst) & !SLEEPING
+   |                                              ^^^^^^^^
+
+note: erroneous constant encountered
+  --> src/finish.rs:76:21
+   |
+76 |         if before & SLEEPING != 0 && (before & !SLEEPING) + n == self.published.load(Ordering::SeqCst) {
+   |                     ^^^^^^^^
+
+note: erroneous constant encountered
+  --> src/finish.rs:76:49
+   |
+76 |         if before & SLEEPING != 0 && (before & !SLEEPING) + n == self.published.load(Ordering::SeqCst) {
+   |                                                 ^^^^^^^^
+
+note: erroneous constant encountered
+  --> src/finish.rs:99:45
+   |
+99 |         let mut count = self.state.fetch_or(SLEEPING, Ordering::SeqCst) & !SLEEPING;
+   |                                             ^^^^^^^^
+
+note: erroneous constant encountered
+  --> src/finish.rs:99:76
+   |
+99 |         let mut count = self.state.fetch_or(SLEEPING, Ordering::SeqCst) & !SLEEPING;
+   |                                                                            ^^^^^^^^
+
+note: erroneous constant encountered
+   --> src/finish.rs:104:31
+    |
+104 |         self.state.fetch_and(!SLEEPING, Ordering::SeqCst);
+    |                               ^^^^^^^^
+
+For more information about this error, try `rustc --explain E0080`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

@@ -1,0 +1,81 @@
+
+*** src/throughput.rs:274:9: replace Tree::parent_cv -> ChainingValue with Default::default()
+
+*** mutation diff:
+--- src/throughput.rs
++++ replace Tree::parent_cv -> ChainingValue with Default::default()
+@@ -266,17 +266,17 @@
+         let turn = self.turn(input.len());
+         let [left, right] =
+             crate::tree::root_children(&crate::tree::PlatformKernels { key: &self.key, flags: self.flags, platform: turn.platform() }, input, 0, first_chunk);
+         [ChainingValue(left), ChainingValue(right)]
+     }
+ 
+     /// The chaining value of the parent of two subtrees.
+     pub fn parent_cv(&self, left: &ChainingValue, right: &ChainingValue) -> ChainingValue {
+-        ChainingValue(crate::hasher::parent_output(&left.0, &right.0, &self.key, self.flags, crate::platform::Platform::detect()).chaining_value())
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// A layer of parents: `out[i]` is the parent of `children[2 * i]` and
+     /// `children[2 * i + 1]`, side by side in the CPU's lanes.
+     ///
+     /// Requires an even number of children and half as many outputs.
+     pub fn parent_cvs(&self, children: &[ChainingValue], out: &mut [ChainingValue]) {
+         assert_eq!(children.len() % 2, 0, "parents take their children in pairs");
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.9.0+dev --features=serde,zeroize
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3423]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3411]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+error[E0277]: the trait bound `ChainingValue: Default` is not satisfied
+   --> src/throughput.rs:274:9
+    |
+274 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `ChainingValue`
+    |
+help: consider annotating `ChainingValue` with `#[derive(Default)]`
+    |
+139 + #[derive(Default)]
+140 | pub struct ChainingValue([u8; OUT_LEN]);
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `throughput::ChainingValue: Default` is not satisfied
+   --> src/throughput.rs:274:9
+    |
+274 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `throughput::ChainingValue`
+    |
+help: consider annotating `throughput::ChainingValue` with `#[derive(Default)]`
+    |
+139 + #[derive(Default)]
+140 | pub struct ChainingValue([u8; OUT_LEN]);
+    |
+
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.9.0+dev' '--features=serde,zeroize' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
