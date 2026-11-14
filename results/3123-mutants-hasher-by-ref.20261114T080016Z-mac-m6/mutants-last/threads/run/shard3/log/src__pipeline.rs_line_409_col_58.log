@@ -1,0 +1,85 @@
+
+*** src/pipeline.rs:409:58: replace + with -
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace + with -
+@@ -401,17 +401,17 @@
+ }
+ 
+ /// Worker-visible per-pipeline state.
+ struct Shared {
+     key: CVWords,
+     flags: u8,
+     storage: &'static PipeStorage,
+     hashes: Box<[UnsafeCell<[u8; OUT_LEN]>]>,
+-    cvs: Box<[UnsafeCell<[[u8; OUT_LEN]; MAX_SLOT_PIECES + 1]>]>,
++    cvs: Box<[UnsafeCell<[[u8; OUT_LEN]; MAX_SLOT_PIECES - /* ~ changed by cargo-mutants ~ */ 1]>]>,
+     slot_done: Box<[OwnLine<AtomicBool>]>,
+     tasks_left: Box<[OwnLine<AtomicUsize>]>,
+     multi: Box<[UnsafeCell<MultiDesc>]>,
+     pieces: Box<[PieceNode]>,
+ }
+ 
+ unsafe impl Send for Shared {}
+ unsafe impl Sync for Shared {}
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-3/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3)
+error[E0308]: mismatched types
+   --> src/pipeline.rs:519:62
+    |
+519 |             let hash = fold_multi_cvs(&self.key, self.flags, cvs, desc.pieces);
+    |                        --------------                        ^^^ expected an array with a size of 65, found one with a size of 63
+    |                        |
+    |                        arguments to this function are incorrect
+    |
+note: function defined here
+   --> src/pipeline.rs:530:4
+    |
+530 | fn fold_multi_cvs(key: &CVWords, flags: u8, cvs: &[[u8; OUT_LEN]; MAX_SLOT_PIECES + 1], pieces: usize) -> Hash {
+    |    ^^^^^^^^^^^^^^                           ------------------------------------------
+
+error[E0277]: a value of type `Box<[UnsafeCell<[[u8; 32]; 63]>]>` cannot be built from an iterator over elements of type `UnsafeCell<[[u8; 32]; 65]>`
+   --> src/pipeline.rs:690:89
+    |
+690 |             cvs: (0..m).map(|_| UnsafeCell::new([[0u8; OUT_LEN]; MAX_SLOT_PIECES + 1])).collect(),
+    |                                                                                         ^^^^^^^ value of type `Box<[UnsafeCell<[[u8; 32]; 63]>]>` cannot be built from `std::iter::Iterator<Item=UnsafeCell<[[u8; 32]; 65]>>`
+    |
+    = help: the trait `FromIterator<UnsafeCell<[[u8; 32]; 65]>>` is not implemented for `Box<[UnsafeCell<[[u8; 32]; 63]>]>`
+    = help: the following other types implement trait `FromIterator<T>`:
+              `Box<[T]>` implements `FromIterator<T>`
+              `Box<str>` implements `FromIterator<&char>`
+              `Box<str>` implements `FromIterator<&str>`
+              `Box<str>` implements `FromIterator<Box<str, A>>`
+              `Box<str>` implements `FromIterator<Cow<'_, str>>`
+              `Box<str>` implements `FromIterator<String>`
+              `Box<str>` implements `FromIterator<char>`
+note: required by a bound in `collect`
+   --> /rustc/6eeff9a52c3e35c4c4cbf5651f342dcd2191866f/library/core/src/iter/traits/iterator.rs:2087:4
+
+Some errors have detailed explanations: E0277, E0308.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 2 previous errors
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

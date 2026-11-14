@@ -1,0 +1,207 @@
+
+*** src/lanes.rs:645:5: replace merge_to_children with ()
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace merge_to_children with ()
+@@ -637,50 +637,17 @@
+ fn merge_root(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) -> Hash {
+     merge_to_children(pieces, cvs, key, flags);
+     crate::hasher::parent_output(&cvs[0], &cvs[1], key, flags, pool_platform()).root_hash()
+ }
+ 
+ /// [`merge_root`] up to the root's two children, left in `cvs[0]` and
+ /// `cvs[1]`.
+ fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) {
+-    debug_assert_eq!(pieces.len(), cvs.len());
+-    debug_assert!(pieces.len() >= 2);
+-    debug_assert_eq!(pieces[0].offset, 0);
+-    debug_assert!(pieces.last().unwrap().len > 0);
+-    debug_assert!(pieces[..pieces.len() - 1].iter().all(|p| p.len >= MIN_PIECE_LEN));
+-    debug_assert!(pieces.windows(2).all(|w| w[0].len.is_power_of_two() && w[0].len >= w[1].len && w[0].offset + w[0].len == w[1].offset));
+-    let platform = pool_platform();
+-    let mut count = cvs.len();
+-    let mut width = MIN_PIECE_LEN;
+-    let mut out = [0u8; crate::MAX_SIMD_DEGREE * crate::OUT_LEN];
+-    while count > 2 {
+-        let prefix = pieces.partition_point(|p| p.len > width);
+-        debug_assert!(prefix < count);
+-        let mut read = prefix;
+-        let mut write = prefix;
+-        while read + 1 < count {
+-            let children = (count - read).min(2 * crate::MAX_SIMD_DEGREE);
+-            // The inner loop's variant: each call merges at least one pair.
+-            assert!(children >= 2, "a parents call with under two children");
+-            let parents = crate::compress_parents_parallel(cvs[read..read + children].as_flattened(), key, flags, platform, &mut out);
+-            cvs[write..write + parents].as_flattened_mut().copy_from_slice(&out[..parents * crate::OUT_LEN]);
+-            read += children;
+-            write += parents;
+-        }
+-        if read < count {
+-            cvs[write] = cvs[read];
+-            write += 1;
+-        }
+-        // The loop's variant: a level merges at least one pair.
+-        assert!(write < count, "a level of the tree merged nothing");
+-        count = write;
+-        width *= 2;
+-    }
+-    debug_assert_eq!(count, 2, "the root's two children");
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// [`cut_with_prefix`] with no prefix (the tests').
+ #[cfg(test)]
+ fn cut_subtrees(len: usize, threads: usize) -> Vec<Piece> {
+     cut_with_prefix_vec(len, threads, 0).0
+ }
+ 
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+warning: unused variable: `pieces`
+   --> src/lanes.rs:644:22
+    |
+644 | fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) {
+    |                      ^^^^^^ help: if this is intentional, prefix it with an underscore: `_pieces`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cvs`
+   --> src/lanes.rs:644:40
+    |
+644 | fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) {
+    |                                        ^^^ help: if this is intentional, prefix it with an underscore: `_cvs`
+
+warning: unused variable: `key`
+   --> src/lanes.rs:644:67
+    |
+644 | fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) {
+    |                                                                   ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+
+warning: unused variable: `flags`
+   --> src/lanes.rs:644:89
+    |
+644 | fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) {
+    |                                                                                         ^^^^^ help: if this is intentional, prefix it with an underscore: `_flags`
+
+warning: `blake3-servil` (lib) generated 4 warnings (run `cargo fix --lib -p blake3-servil` to apply 4 suggestions)
+warning: `blake3-servil` (lib test) generated 4 warnings (4 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 6.37s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev --lib --tests
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: unused variable: `pieces`
+   --> src/lanes.rs:644:22
+    |
+644 | fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) {
+    |                      ^^^^^^ help: if this is intentional, prefix it with an underscore: `_pieces`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cvs`
+   --> src/lanes.rs:644:40
+    |
+644 | fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) {
+    |                                        ^^^ help: if this is intentional, prefix it with an underscore: `_cvs`
+
+warning: unused variable: `key`
+   --> src/lanes.rs:644:67
+    |
+644 | fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) {
+    |                                                                   ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+
+warning: unused variable: `flags`
+   --> src/lanes.rs:644:89
+    |
+644 | fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], key: &crate::CVWords, flags: u8) {
+    |                                                                                         ^^^^^ help: if this is intentional, prefix it with an underscore: `_flags`
+
+warning: `blake3-servil` (lib) generated 4 warnings (run `cargo fix --lib -p blake3-servil` to apply 4 suggestions)
+warning: `blake3-servil` (lib test) generated 4 warnings (4 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.02s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID cc3862c4-8de4-425e-8d6f-5fa0169c1f96 with nextest profile: mutants
+    Starting 101 tests across 9 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+       START [         ] (  1/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+        PASS [   0.010s] (  1/101) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+        PASS [   0.010s] (  2/101) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  3/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        PASS [   0.044s] (  3/101) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+       START [         ] (  4/101) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::test_every_multithreaded_call_inside_guard_pages --nocapture
+        PASS [   0.036s] (  4/101) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+       START [         ] (  5/101) blake3-servil forms_test::test_hash_each_multithreaded
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::test_hash_each_multithreaded --nocapture
+        FAIL [   0.015s] (  5/101) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+  stdout ───
+
+    running 1 test
+    test forms_test::test_every_multithreaded_call_inside_guard_pages ... FAILED
+
+    failures:
+
+    failures:
+        forms_test::test_every_multithreaded_call_inside_guard_pages
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 80 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'forms_test::test_every_multithreaded_call_inside_guard_pages' (30188928) panicked at src/forms_test.rs:154:17:
+    assertion `left == right` failed: hash_multithreaded, hash, 524291 B, at end true
+      left: [104, 214, 71, 230, 25, 169, 48, 231, 177, 8, 47, 116, 243, 52, 176, 198, 90, 49, 87, 37, 86, 155, 220, 18, 63, 14, 225, 24, 129, 113, 123, 254]
+     right: [41, 97, 56, 160, 247, 184, 54, 175, 137, 191, 166, 144, 168, 216, 85, 138, 102, 177, 131, 78, 36, 83, 219, 184, 116, 166, 14, 0, 224, 9, 27, 125]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGTERM [   0.003s] (  6/101) blake3-servil forms_test::test_hash_each_multithreaded
+────────────
+     Summary [   0.061s] 6/101 tests run: 4 passed, 2 failed, 0 skipped
+warning: 95/101 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
