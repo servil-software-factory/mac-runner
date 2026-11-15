@@ -1,0 +1,80 @@
+
+*** src/lanes.rs:1018:51: replace - with + in places::Plan::done
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace - with + in places::Plan::done
+@@ -1010,17 +1010,17 @@
+         /// The job is done: the thread learns from it.
+         pub(crate) fn done(&self) {
+             if let Some((kind, len, _, started)) = self.learning {
+                 let ended = now();
+                 let nanos = cost(
+                     ended - started,
+                     LAST.with(|l| l.replace(Some((kind, class(len), ended))))
+                         .filter(|&(k, c, _)| k == kind && c == class(len))
+-                        .map(|(_, _, last)| ended - last),
++                        .map(|(_, _, last)| ended + /* ~ changed by cargo-mutants ~ */ last),
+                 );
+                 LEARNED.with(|l| {
+                     let mut all = l.get();
+                     all[kind as usize][class(len)].record(nanos, len);
+                     l.set(all);
+                 });
+             }
+         }
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-2/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2)
+error[E0308]: mismatched types
+    --> src/lanes.rs:1018:88
+     |
+1018 |                         .map(|(_, _, last)| ended + /* ~ changed by cargo-mutants ~ */ last),
+     |                                                                                        ^^^^ expected `Duration`, found `Instant`
+
+error[E0308]: mismatched types
+    --> src/lanes.rs:1016:21
+     |
+1014 |                   let nanos = cost(
+     |                               ---- arguments to this function are incorrect
+1015 |                       ended - started,
+1016 | /                     LAST.with(|l| l.replace(Some((kind, class(len), ended))))
+1017 | |                         .filter(|&(k, c, _)| k == kind && c == class(len))
+1018 | |                         .map(|(_, _, last)| ended + /* ~ changed by cargo-mutants ~ */ last),
+     | |____________________________________________________________________________________________^ expected `Option<Duration>`, found `Option<Instant>`
+     |
+     = note: expected enum `Option<Duration>`
+                found enum `Option<Instant>`
+note: function defined here
+    --> src/lanes.rs:968:8
+     |
+ 968 |     fn cost(job: std::time::Duration, cycle: Option<std::time::Duration>) -> u64 {
+     |        ^^^^                           ----------------------------------
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `blake3-servil` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 2 previous errors
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
