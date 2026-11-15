@@ -1,0 +1,162 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace finished with ()\n@@ -405,20 +405,17 @@\n /// see every task done, drop the Pipeline and free its `Shared`, so the\n /// worker reads nothing of `Shared` after it: the storage, which outlives\n /// every Pipeline, is taken before. (A worker that read `self.storage`\n /// after the store read freed memory: one b3sum test run in about 400\n /// died of it on a 4-CPU machine.) A wake that comes after the storage\n /// has gone to another Pipeline is a wake that one may get at any time.\n #[inline(always)]\n fn finished(storage: &'static PipeStorage, publish: impl FnOnce()) {\n-    publish();\n-    #[cfg(test)]\n-    test_hooks::after_publish();\n-    storage.waker.notify_after_seqcst();\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// The tests' seams for [`finished`].\n #[cfg(test)]\n mod test_hooks {\n     use core::sync::atomic::{AtomicU64, Ordering};\n     /// Milliseconds a worker waits between a completion's store and the wake.\n     pub(super) static PAUSE_MS: AtomicU64 = AtomicU64::new(0);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "finished",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 417
+        },
+        "start": {
+          "column": 1,
+          "line": 403
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:413:5: replace finished with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 416
+      },
+      "start": {
+        "column": 5,
+        "line": 413
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_group with ()\n@@ -465,48 +465,17 @@\n             KIND_GROUP => shared.run_group(a, platform),\n             KIND_ROOM_PIECE => shared.run_room_piece(a, platform),\n             KIND_MULTI => shared.run_multi_piece(a, b, platform),\n             _ => unreachable!(),\n         }\n     }\n \n     fn run_group(&self, group_idx: usize, platform: Platform) {\n-        let storage = self.storage;\n-        let group = &storage.groups[group_idx];\n-        let task = unsafe { &*group.task.get() };\n-        let count = task.members;\n-        let epoch = unsafe { *group.epoch.get() };\n-        task.run_members(platform);\n-        let metas = unsafe { &*group.metas.get() };\n-\n-        // Coalesce consecutive members sharing a Room into a single atomic subtraction.\n-        let mut cur_room = NONE;\n-        let mut cur_n = 0usize;\n-        for meta in &metas[..count] {\n-            if meta.room != NONE {\n-                if meta.room == cur_room {\n-                    cur_n += 1;\n-                } else {\n-                    if cur_room != NONE {\n-                        self.storage.rooms.release_n(cur_room, cur_n);\n-                    }\n-                    cur_room = meta.room;\n-                    cur_n = 1;\n-                }\n-            }\n-        }\n-        if cur_room != NONE {\n-            self.storage.rooms.release_n(cur_room, cur_n);\n-        }\n-\n-        // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n-        finished(storage, || {\n-            group.completed_epoch.swap(epoch, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) {\n         let pnode = &self.pieces[pnode_idx];\n         let room_idx = unsafe { *pnode.room.get() };\n         let offset = unsafe { *pnode.offset.get() } as usize;\n         let len = unsafe { *pnode.len.get() } as usize;\n         let counter = unsafe { *pnode.counter.get() };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_group",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 505
+        },
+        "start": {
+          "column": 5,
+          "line": 472
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:473:9: replace Shared::run_group with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 504
+      },
+      "start": {
+        "column": 9,
+        "line": 473
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_room_piece with ()\n@@ -500,34 +500,17 @@\n \n         // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n         finished(storage, || {\n             group.completed_epoch.swap(epoch, Ordering::SeqCst);\n         });\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) {\n-        let pnode = &self.pieces[pnode_idx];\n-        let room_idx = unsafe { *pnode.room.get() };\n-        let offset = unsafe { *pnode.offset.get() } as usize;\n-        let len = unsafe { *pnode.len.get() } as usize;\n-        let counter = unsafe { *pnode.counter.get() };\n-        let ptr = unsafe { self.storage.rooms.room_ptr(room_idx as usize).add(offset) };\n-        let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };\n-        let out = unsafe { &mut *pnode.out.0.get() };\n-        if counter == 0 && len > CHUNK_LEN {\n-            *out = crate::compress_subtree_to_parent_node(bytes, 0, &self.key, 0, self.flags, platform);\n-        } else {\n-            out[..OUT_LEN].copy_from_slice(&crate::hash_all_at_once(bytes, &self.key, counter, self.flags, platform).chaining_value());\n-        }\n-        let storage = self.storage;\n-        storage.rooms.release_n(room_idx, 1);\n-        finished(storage, || {\n-            pnode.done.swap(true, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) {\n         let desc = unsafe { *self.multi[slot].get() };\n         if let Some((message_len, slot_len, per_part)) = desc.batch {\n             let first = piece_idx * per_part;\n             let count = (desc.total_len - first).min(per_part);\n             let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_room_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 526
+        },
+        "start": {
+          "column": 5,
+          "line": 507
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:508:9: replace Shared::run_room_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 525
+      },
+      "start": {
+        "column": 9,
+        "line": 508
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_multi_piece with ()\n@@ -521,63 +521,17 @@\n         let storage = self.storage;\n         storage.rooms.release_n(room_idx, 1);\n         finished(storage, || {\n             pnode.done.swap(true, Ordering::SeqCst);\n         });\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) {\n-        let desc = unsafe { *self.multi[slot].get() };\n-        if let Some((message_len, slot_len, per_part)) = desc.batch {\n-            let first = piece_idx * per_part;\n-            let count = (desc.total_len - first).min(per_part);\n-            let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };\n-            let digests = unsafe { core::slice::from_raw_parts_mut(desc.digests.add(first), count) };\n-            crate::many::hash_many_on(bytes, message_len, slot_len, &self.key, self.flags, digests, platform);\n-            let storage = self.storage;\n-            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-                finished(storage, || {\n-                    self.slot_done[slot].swap(true, Ordering::SeqCst);\n-                });\n-            }\n-            return;\n-        }\n-\n-        let offset = piece_idx * desc.piece_len;\n-        let part_len = (desc.total_len - offset).min(desc.piece_len);\n-        let counter = (offset / CHUNK_LEN) as u64;\n-        let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(offset), part_len) };\n-        let cvs_ptr = self.cvs[slot].get() as *mut [u8; OUT_LEN];\n-        if piece_idx == 0 {\n-            debug_assert!(part_len > CHUNK_LEN);\n-            let pair = crate::compress_subtree_to_parent_node(bytes, 0, &self.key, 0, self.flags, platform);\n-            unsafe {\n-                (*cvs_ptr).copy_from_slice(&pair[..OUT_LEN]);\n-                (*cvs_ptr.add(1)).copy_from_slice(&pair[OUT_LEN..]);\n-            }\n-        } else {\n-            let cv = crate::hash_all_at_once(bytes, &self.key, counter, self.flags, platform).chaining_value();\n-            unsafe {\n-                (*cvs_ptr.add(piece_idx + 1)).copy_from_slice(&cv);\n-            }\n-        }\n-\n-        let storage = self.storage;\n-        if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-            let cvs = unsafe { &*self.cvs[slot].get() };\n-            let hash = fold_multi_cvs(&self.key, self.flags, cvs, desc.pieces);\n-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };\n-            if desc.loan_epoch != 0 {\n-                self.storage.loan_completed[slot].0.store(desc.loan_epoch, Ordering::Release);\n-            }\n-            finished(storage, || {\n-                self.slot_done[slot].swap(true, Ordering::SeqCst);\n-            });\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n fn fold_multi_cvs(key: &CVWords, flags: u8, cvs: &[[u8; OUT_LEN]; MAX_SLOT_PIECES + 1], pieces: usize) -> Hash {\n     let platform = Platform::detect();\n     let parent = |l: &CVBytes, r: &CVBytes| crate::hasher::parent_output(l, r, key, flags, platform);\n     debug_assert!(pieces >= 2);\n     let mut stack: arrayvec::ArrayVec<CVBytes, 8> = arrayvec::ArrayVec::new();\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 576
+        },
+        "start": {
+          "column": 5,
+          "line": 528
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:529:9: replace Shared::run_multi_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 575
+      },
+      "start": {
+        "column": 9,
+        "line": 529
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Shared::run_multi_piece\n@@ -529,17 +529,17 @@\n         let desc = unsafe { *self.multi[slot].get() };\n         if let Some((message_len, slot_len, per_part)) = desc.batch {\n             let first = piece_idx * per_part;\n             let count = (desc.total_len - first).min(per_part);\n             let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };\n             let digests = unsafe { core::slice::from_raw_parts_mut(desc.digests.add(first), count) };\n             crate::many::hash_many_on(bytes, message_len, slot_len, &self.key, self.flags, digests, platform);\n             let storage = self.storage;\n-            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n+            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) != /* ~ changed by cargo-mutants ~ */ 1 {\n                 finished(storage, || {\n                     self.slot_done[slot].swap(true, Ordering::SeqCst);\n                 });\n             }\n             return;\n         }\n \n         let offset = piece_idx * desc.piece_len;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 576
+        },
+        "start": {
+          "column": 5,
+          "line": 528
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:537:69: replace == with != in Shared::run_multi_piece",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 71,
+        "line": 537
+      },
+      "start": {
+        "column": 69,
+        "line": 537
+      }
+    }
+  }
+]

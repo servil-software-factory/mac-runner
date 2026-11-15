@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace family -> &'static Family with Box::leak(Box::new(Default::default()))\n@@ -401,23 +401,17 @@\n const OTHER_PLANS: [&[usize]; 17] =\n     [&[], &[1], &[2], &[3], &[4], &[5], &[3, 3], &[5, 2], &[5, 3], &[5, 4], &[5, 5], &[5, 3, 3], &[5, 5, 2], &[5, 5, 3], &[5, 5, 4], &[5, 5, 5], &[5, 5, 3, 3]];\n \n static OTHER: Family = Family { chunk_plans: &OTHER_PLANS, chunk_kernels: &OTHER_CHUNK_KERNELS, parent_plans: &PARENT_PLANS, parent_kernels: &PARENT_KERNELS };\n \n /// This CPU's family: without SHA-3 the scalars and quads; with it,\n /// Apple's cores the plans measured on them, and other cores theirs.\n fn family() -> &'static Family {\n-    if !sha3_detected() {\n-        &PLAIN\n-    } else if apple_cores() {\n-        &WITH_SHA3\n-    } else {\n-        &OTHER\n-    }\n+    Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(feature = \"std\")]\n /// Where each kernel's code ends (labels the generator puts after each).\n mod ends {\n     unsafe extern \"C\" {\n         pub static blake3_servil_hybrid_p2_end: u8;\n         pub static blake3_servil_hybrid_p3_end: u8;\n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "family",
+      "return_type": "-> &'static Family",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 416
+        },
+        "start": {
+          "column": 1,
+          "line": 406
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_neon_hybrid.rs:409:5: replace family -> &'static Family with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil-core",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 415
+      },
+      "start": {
+        "column": 5,
+        "line": 409
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ delete ! in family\n@@ -401,17 +401,17 @@\n const OTHER_PLANS: [&[usize]; 17] =\n     [&[], &[1], &[2], &[3], &[4], &[5], &[3, 3], &[5, 2], &[5, 3], &[5, 4], &[5, 5], &[5, 3, 3], &[5, 5, 2], &[5, 5, 3], &[5, 5, 4], &[5, 5, 5], &[5, 5, 3, 3]];\n \n static OTHER: Family = Family { chunk_plans: &OTHER_PLANS, chunk_kernels: &OTHER_CHUNK_KERNELS, parent_plans: &PARENT_PLANS, parent_kernels: &PARENT_KERNELS };\n \n /// This CPU's family: without SHA-3 the scalars and quads; with it,\n /// Apple's cores the plans measured on them, and other cores theirs.\n fn family() -> &'static Family {\n-    if !sha3_detected() {\n+    if  /* ~ changed by cargo-mutants ~ */sha3_detected() {\n         &PLAIN\n     } else if apple_cores() {\n         &WITH_SHA3\n     } else {\n         &OTHER\n     }\n }\n \n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "family",
+      "return_type": "-> &'static Family",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 416
+        },
+        "start": {
+          "column": 1,
+          "line": 406
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/ffi_neon_hybrid.rs:409:8: delete ! in family",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 409
+      },
+      "start": {
+        "column": 8,
+        "line": 409
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace chunk_code -> (usize, usize) with (0, 0)\n@@ -450,46 +450,17 @@\n     }\n }\n \n #[cfg(feature = \"std\")]\n /// The code of the chunk kernel for `n` whole chunks (1 to 10), and of\n /// the q kernel for `n` whole chunks and a partial one (1 to 9): start\n /// and end addresses.\n fn chunk_code(n: usize, partial: bool) -> (usize, usize) {\n-    if !apple_cores() && !partial && (4..=5).contains(&n) {\n-        return other_code(n);\n-    }\n-    macro_rules! code {\n-        ($kernel:ident, $end:ident) => {\n-            (asm::$kernel as *const () as usize, &raw const ends::$end as usize)\n-        };\n-    }\n-    match (n, partial) {\n-        (1, false) => code!(blake3_servil_hybrid_k1, blake3_servil_hybrid_k1_end),\n-        (2, false) => code!(blake3_servil_hybrid_k2, blake3_servil_hybrid_k2_end),\n-        (3, false) => code!(blake3_servil_hybrid_k3, blake3_servil_hybrid_k3_end),\n-        (4, false) => code!(blake3_servil_hybrid_k4, blake3_servil_hybrid_k4_end),\n-        (5, false) => code!(blake3_servil_hybrid_k5, blake3_servil_hybrid_k5_end),\n-        (6, false) => code!(blake3_servil_hybrid_k6, blake3_servil_hybrid_k6_end),\n-        (7, false) => code!(blake3_servil_hybrid_k7, blake3_servil_hybrid_k7_end),\n-        (8, false) => code!(blake3_servil_hybrid_k8, blake3_servil_hybrid_k8_end),\n-        (9, false) => code!(blake3_servil_hybrid_k9, blake3_servil_hybrid_k9_end),\n-        (10, false) => code!(blake3_servil_hybrid_k10, blake3_servil_hybrid_k10_end),\n-        (1, true) => code!(blake3_servil_hybrid_q1, blake3_servil_hybrid_q1_end),\n-        (2, true) => code!(blake3_servil_hybrid_q2, blake3_servil_hybrid_q2_end),\n-        (3, true) => code!(blake3_servil_hybrid_q3, blake3_servil_hybrid_q3_end),\n-        (4, true) => code!(blake3_servil_hybrid_q4, blake3_servil_hybrid_q4_end),\n-        (5, true) => code!(blake3_servil_hybrid_q5, blake3_servil_hybrid_q5_end),\n-        (6, true) => code!(blake3_servil_hybrid_q6, blake3_servil_hybrid_q6_end),\n-        (7, true) => code!(blake3_servil_hybrid_q7, blake3_servil_hybrid_q7_end),\n-        (8, true) => code!(blake3_servil_hybrid_q8, blake3_servil_hybrid_q8_end),\n-        (9, true) => code!(blake3_servil_hybrid_q9, blake3_servil_hybrid_q9_end),\n-        _ => unreachable!(\"no kernel for {n} whole chunks (partial: {partial})\"),\n-    }\n+    (0, 0) /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(feature = \"std\")]\n /// The code of the quad kernels that cores not Apple's run for four and\n /// five chunks, kn4 and kn5, where Apple's run a hybrid\n /// (OTHER_CHUNK_KERNELS; its other sizes are the kernels Apple's run).\n fn other_code(n: usize) -> (usize, usize) {\n     macro_rules! code {\n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "chunk_code",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 488
+        },
+        "start": {
+          "column": 1,
+          "line": 453
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_neon_hybrid.rs:458:5: replace chunk_code -> (usize, usize) with (0, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(0, 0)",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 487
+      },
+      "start": {
+        "column": 5,
+        "line": 458
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace chunk_code -> (usize, usize) with (0, 1)\n@@ -450,46 +450,17 @@\n     }\n }\n \n #[cfg(feature = \"std\")]\n /// The code of the chunk kernel for `n` whole chunks (1 to 10), and of\n /// the q kernel for `n` whole chunks and a partial one (1 to 9): start\n /// and end addresses.\n fn chunk_code(n: usize, partial: bool) -> (usize, usize) {\n-    if !apple_cores() && !partial && (4..=5).contains(&n) {\n-        return other_code(n);\n-    }\n-    macro_rules! code {\n-        ($kernel:ident, $end:ident) => {\n-            (asm::$kernel as *const () as usize, &raw const ends::$end as usize)\n-        };\n-    }\n-    match (n, partial) {\n-        (1, false) => code!(blake3_servil_hybrid_k1, blake3_servil_hybrid_k1_end),\n-        (2, false) => code!(blake3_servil_hybrid_k2, blake3_servil_hybrid_k2_end),\n-        (3, false) => code!(blake3_servil_hybrid_k3, blake3_servil_hybrid_k3_end),\n-        (4, false) => code!(blake3_servil_hybrid_k4, blake3_servil_hybrid_k4_end),\n-        (5, false) => code!(blake3_servil_hybrid_k5, blake3_servil_hybrid_k5_end),\n-        (6, false) => code!(blake3_servil_hybrid_k6, blake3_servil_hybrid_k6_end),\n-        (7, false) => code!(blake3_servil_hybrid_k7, blake3_servil_hybrid_k7_end),\n-        (8, false) => code!(blake3_servil_hybrid_k8, blake3_servil_hybrid_k8_end),\n-        (9, false) => code!(blake3_servil_hybrid_k9, blake3_servil_hybrid_k9_end),\n-        (10, false) => code!(blake3_servil_hybrid_k10, blake3_servil_hybrid_k10_end),\n-        (1, true) => code!(blake3_servil_hybrid_q1, blake3_servil_hybrid_q1_end),\n-        (2, true) => code!(blake3_servil_hybrid_q2, blake3_servil_hybrid_q2_end),\n-        (3, true) => code!(blake3_servil_hybrid_q3, blake3_servil_hybrid_q3_end),\n-        (4, true) => code!(blake3_servil_hybrid_q4, blake3_servil_hybrid_q4_end),\n-        (5, true) => code!(blake3_servil_hybrid_q5, blake3_servil_hybrid_q5_end),\n-        (6, true) => code!(blake3_servil_hybrid_q6, blake3_servil_hybrid_q6_end),\n-        (7, true) => code!(blake3_servil_hybrid_q7, blake3_servil_hybrid_q7_end),\n-        (8, true) => code!(blake3_servil_hybrid_q8, blake3_servil_hybrid_q8_end),\n-        (9, true) => code!(blake3_servil_hybrid_q9, blake3_servil_hybrid_q9_end),\n-        _ => unreachable!(\"no kernel for {n} whole chunks (partial: {partial})\"),\n-    }\n+    (0, 1) /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(feature = \"std\")]\n /// The code of the quad kernels that cores not Apple's run for four and\n /// five chunks, kn4 and kn5, where Apple's run a hybrid\n /// (OTHER_CHUNK_KERNELS; its other sizes are the kernels Apple's run).\n fn other_code(n: usize) -> (usize, usize) {\n     macro_rules! code {\n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "chunk_code",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 488
+        },
+        "start": {
+          "column": 1,
+          "line": 453
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_neon_hybrid.rs:458:5: replace chunk_code -> (usize, usize) with (0, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(0, 1)",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 487
+      },
+      "start": {
+        "column": 5,
+        "line": 458
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace chunk_code -> (usize, usize) with (1, 0)\n@@ -450,46 +450,17 @@\n     }\n }\n \n #[cfg(feature = \"std\")]\n /// The code of the chunk kernel for `n` whole chunks (1 to 10), and of\n /// the q kernel for `n` whole chunks and a partial one (1 to 9): start\n /// and end addresses.\n fn chunk_code(n: usize, partial: bool) -> (usize, usize) {\n-    if !apple_cores() && !partial && (4..=5).contains(&n) {\n-        return other_code(n);\n-    }\n-    macro_rules! code {\n-        ($kernel:ident, $end:ident) => {\n-            (asm::$kernel as *const () as usize, &raw const ends::$end as usize)\n-        };\n-    }\n-    match (n, partial) {\n-        (1, false) => code!(blake3_servil_hybrid_k1, blake3_servil_hybrid_k1_end),\n-        (2, false) => code!(blake3_servil_hybrid_k2, blake3_servil_hybrid_k2_end),\n-        (3, false) => code!(blake3_servil_hybrid_k3, blake3_servil_hybrid_k3_end),\n-        (4, false) => code!(blake3_servil_hybrid_k4, blake3_servil_hybrid_k4_end),\n-        (5, false) => code!(blake3_servil_hybrid_k5, blake3_servil_hybrid_k5_end),\n-        (6, false) => code!(blake3_servil_hybrid_k6, blake3_servil_hybrid_k6_end),\n-        (7, false) => code!(blake3_servil_hybrid_k7, blake3_servil_hybrid_k7_end),\n-        (8, false) => code!(blake3_servil_hybrid_k8, blake3_servil_hybrid_k8_end),\n-        (9, false) => code!(blake3_servil_hybrid_k9, blake3_servil_hybrid_k9_end),\n-        (10, false) => code!(blake3_servil_hybrid_k10, blake3_servil_hybrid_k10_end),\n-        (1, true) => code!(blake3_servil_hybrid_q1, blake3_servil_hybrid_q1_end),\n-        (2, true) => code!(blake3_servil_hybrid_q2, blake3_servil_hybrid_q2_end),\n-        (3, true) => code!(blake3_servil_hybrid_q3, blake3_servil_hybrid_q3_end),\n-        (4, true) => code!(blake3_servil_hybrid_q4, blake3_servil_hybrid_q4_end),\n-        (5, true) => code!(blake3_servil_hybrid_q5, blake3_servil_hybrid_q5_end),\n-        (6, true) => code!(blake3_servil_hybrid_q6, blake3_servil_hybrid_q6_end),\n-        (7, true) => code!(blake3_servil_hybrid_q7, blake3_servil_hybrid_q7_end),\n-        (8, true) => code!(blake3_servil_hybrid_q8, blake3_servil_hybrid_q8_end),\n-        (9, true) => code!(blake3_servil_hybrid_q9, blake3_servil_hybrid_q9_end),\n-        _ => unreachable!(\"no kernel for {n} whole chunks (partial: {partial})\"),\n-    }\n+    (1, 0) /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(feature = \"std\")]\n /// The code of the quad kernels that cores not Apple's run for four and\n /// five chunks, kn4 and kn5, where Apple's run a hybrid\n /// (OTHER_CHUNK_KERNELS; its other sizes are the kernels Apple's run).\n fn other_code(n: usize) -> (usize, usize) {\n     macro_rules! code {\n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "chunk_code",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 488
+        },
+        "start": {
+          "column": 1,
+          "line": 453
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_neon_hybrid.rs:458:5: replace chunk_code -> (usize, usize) with (1, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(1, 0)",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 487
+      },
+      "start": {
+        "column": 5,
+        "line": 458
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace chunk_code -> (usize, usize) with (1, 1)\n@@ -450,46 +450,17 @@\n     }\n }\n \n #[cfg(feature = \"std\")]\n /// The code of the chunk kernel for `n` whole chunks (1 to 10), and of\n /// the q kernel for `n` whole chunks and a partial one (1 to 9): start\n /// and end addresses.\n fn chunk_code(n: usize, partial: bool) -> (usize, usize) {\n-    if !apple_cores() && !partial && (4..=5).contains(&n) {\n-        return other_code(n);\n-    }\n-    macro_rules! code {\n-        ($kernel:ident, $end:ident) => {\n-            (asm::$kernel as *const () as usize, &raw const ends::$end as usize)\n-        };\n-    }\n-    match (n, partial) {\n-        (1, false) => code!(blake3_servil_hybrid_k1, blake3_servil_hybrid_k1_end),\n-        (2, false) => code!(blake3_servil_hybrid_k2, blake3_servil_hybrid_k2_end),\n-        (3, false) => code!(blake3_servil_hybrid_k3, blake3_servil_hybrid_k3_end),\n-        (4, false) => code!(blake3_servil_hybrid_k4, blake3_servil_hybrid_k4_end),\n-        (5, false) => code!(blake3_servil_hybrid_k5, blake3_servil_hybrid_k5_end),\n-        (6, false) => code!(blake3_servil_hybrid_k6, blake3_servil_hybrid_k6_end),\n-        (7, false) => code!(blake3_servil_hybrid_k7, blake3_servil_hybrid_k7_end),\n-        (8, false) => code!(blake3_servil_hybrid_k8, blake3_servil_hybrid_k8_end),\n-        (9, false) => code!(blake3_servil_hybrid_k9, blake3_servil_hybrid_k9_end),\n-        (10, false) => code!(blake3_servil_hybrid_k10, blake3_servil_hybrid_k10_end),\n-        (1, true) => code!(blake3_servil_hybrid_q1, blake3_servil_hybrid_q1_end),\n-        (2, true) => code!(blake3_servil_hybrid_q2, blake3_servil_hybrid_q2_end),\n-        (3, true) => code!(blake3_servil_hybrid_q3, blake3_servil_hybrid_q3_end),\n-        (4, true) => code!(blake3_servil_hybrid_q4, blake3_servil_hybrid_q4_end),\n-        (5, true) => code!(blake3_servil_hybrid_q5, blake3_servil_hybrid_q5_end),\n-        (6, true) => code!(blake3_servil_hybrid_q6, blake3_servil_hybrid_q6_end),\n-        (7, true) => code!(blake3_servil_hybrid_q7, blake3_servil_hybrid_q7_end),\n-        (8, true) => code!(blake3_servil_hybrid_q8, blake3_servil_hybrid_q8_end),\n-        (9, true) => code!(blake3_servil_hybrid_q9, blake3_servil_hybrid_q9_end),\n-        _ => unreachable!(\"no kernel for {n} whole chunks (partial: {partial})\"),\n-    }\n+    (1, 1) /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(feature = \"std\")]\n /// The code of the quad kernels that cores not Apple's run for four and\n /// five chunks, kn4 and kn5, where Apple's run a hybrid\n /// (OTHER_CHUNK_KERNELS; its other sizes are the kernels Apple's run).\n fn other_code(n: usize) -> (usize, usize) {\n     macro_rules! code {\n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "chunk_code",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 488
+        },
+        "start": {
+          "column": 1,
+          "line": 453
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_neon_hybrid.rs:458:5: replace chunk_code -> (usize, usize) with (1, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(1, 1)",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 487
+      },
+      "start": {
+        "column": 5,
+        "line": 458
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace && with || in chunk_code\n@@ -450,17 +450,17 @@\n     }\n }\n \n #[cfg(feature = \"std\")]\n /// The code of the chunk kernel for `n` whole chunks (1 to 10), and of\n /// the q kernel for `n` whole chunks and a partial one (1 to 9): start\n /// and end addresses.\n fn chunk_code(n: usize, partial: bool) -> (usize, usize) {\n-    if !apple_cores() && !partial && (4..=5).contains(&n) {\n+    if !apple_cores() && !partial || /* ~ changed by cargo-mutants ~ */ (4..=5).contains(&n) {\n         return other_code(n);\n     }\n     macro_rules! code {\n         ($kernel:ident, $end:ident) => {\n             (asm::$kernel as *const () as usize, &raw const ends::$end as usize)\n         };\n     }\n     match (n, partial) {\n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "chunk_code",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 488
+        },
+        "start": {
+          "column": 1,
+          "line": 453
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_neon_hybrid.rs:458:35: replace && with || in chunk_code",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 458
+      },
+      "start": {
+        "column": 35,
+        "line": 458
+      }
+    }
+  }
+]
