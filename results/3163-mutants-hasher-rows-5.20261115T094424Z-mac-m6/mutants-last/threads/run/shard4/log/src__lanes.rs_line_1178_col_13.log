@@ -1,0 +1,58 @@
+
+*** src/lanes.rs:1178:13: replace && with || in places::settle
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace && with || in places::settle
+@@ -1170,17 +1170,17 @@
+     /// (two files a CPU, 2 ms on a machine of 96). Each worker moves to
+     /// its place when it next finds nothing to do (`take`), and every
+     /// parked worker is woken once so that it does; until the places are
+     /// set, wakes and jobs are as on a machine without them.
+     pub(crate) fn settle(workers: usize) {
+         #[cfg(target_os = "linux")]
+         if let Some(cpus) = read()
+             // Sound: no arguments, no memory.
+-            && let Some(places) = assign(&cpus, usize::try_from(unsafe { sched_getcpu() }).unwrap_or(0), workers)
++            || /* ~ changed by cargo-mutants ~ */ let Some(places) = assign(&cpus, usize::try_from(unsafe { sched_getcpu() }).unwrap_or(0), workers)
+             && PLACES.set(places).is_ok()
+         {
+             let places = PLACES.get().expect("just set");
+             let park = &pool().park;
+             park.set_places(places.near.clone(), places.beside.clone(), here);
+             SETTLED.store(true, Ordering::SeqCst);
+             park.wake_all();
+         }
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-4/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4)
+error: `||` operators are not supported in let chain conditions
+    --> src/lanes.rs:1178:13
+     |
+1178 | ...   || /* ~ changed by cargo-mutants ~ */ let Some(places) = assign(&cpus, usize::try_from(unsafe { sched_getcpu() }).unwrap_or(...
+     |       ^^
+
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
