@@ -1,0 +1,76 @@
+
+*** src/hasher.rs:432:5: replace above -> N with Default::default()
+
+*** mutation diff:
+--- src/hasher.rs
++++ replace above -> N with Default::default()
+@@ -424,26 +424,17 @@
+ /// The root's node, for a message that goes on past the stack's subtrees:
+ /// `out` is the node of everything after them (a whole subtree, shorter
+ /// than the stack's last), and the stack's entries stand for `target`
+ /// subtrees or more. Entries beyond `target` are the merges the stack
+ /// has put off (it merges lazily): the top ones become one value first,
+ /// folded from the top, and that value's parent with `out` is folded
+ /// into the rest. The stack is only read.
+ pub fn above<C: Chunk, N, K: Nodes<C, N> + Parent>(k: &K, stack: &CvStack, target: usize, out: N) -> N {
+-    assert!(target >= 1 && stack.len() >= target, "a subtree or more before the rest, each with its entry");
+-    let mut top = stack.get(k, stack.len() - 1);
+-    for i in (target - 1..stack.len() - 1).rev() {
+-        top = k.parent(&stack.get(k, i), &top);
+-    }
+-    let mut out = k.parent_node(&top, &k.node_cv(&out));
+-    for i in (0..target - 1).rev() {
+-        out = k.parent_node(&stack.get(k, i), &k.node_cv(&out));
+-    }
+-    out
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// What the Hasher's kernels take from the library beyond the compression
+ /// function: Feed's methods of those names, as Feed describes them.
+ pub trait Hooks {
+     fn subtree_cv(&self, input: &[u8], ahead: usize, counter: u64) -> Option<Cv>;
+     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> [Cv; 2];
+     fn cuts(&self, len: usize) -> bool;
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.9.0+dev --features=serde,zeroize
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3523]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3439]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3)
+error[E0277]: the trait bound `N: Default` is not satisfied
+   --> src/hasher.rs:432:5
+    |
+432 |     Default::default() /* ~ changed by cargo-mutants ~ */
+    |     ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `N`
+    |
+help: consider restricting type parameter `N` with trait `Default`
+    |
+431 | pub fn above<C: Chunk, N: std::default::Default, K: Nodes<C, N> + Parent>(k: &K, stack: &CvStack, target: usize, out: N) -> N {
+    |                         +++++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.9.0+dev' '--features=serde,zeroize' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

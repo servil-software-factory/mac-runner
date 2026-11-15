@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::row -> &[Cv] with Vec::leak(vec![Default::default()])\n@@ -95,20 +95,17 @@\n     }\n \n     fn is_row(&self, i: usize) -> bool {\n         self.wide >> i & 1 == 1\n     }\n \n     /// Entry `i`'s row (it is one).\n     fn row(&self, i: usize) -> &[Cv] {\n-        debug_assert!(self.is_row(i));\n-        let n = self.widths[i % ROWS] as usize;\n-        // Sound: a row's first `width` values were written when it was pushed or merged.\n-        unsafe { core::slice::from_raw_parts((self.rows.as_ptr() as *const Cv).add((i % ROWS) * ROW), n) }\n+        Vec::leak(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn set_row(&mut self, i: usize, row: &[Cv]) {\n         // Sound: within the rows' storage; plain bytes.\n         unsafe { core::slice::from_raw_parts_mut((self.rows.as_mut_ptr() as *mut Cv).add((i % ROWS) * ROW), row.len()) }.copy_from_slice(row);\n         self.widths[i % ROWS] = row.len() as u8;\n         self.wide |= 1 << i;\n     }\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::row",
+      "return_type": "-> &[Cv]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 107
+        },
+        "start": {
+          "column": 5,
+          "line": 101
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:103:9: replace CvStack::row -> &[Cv] with Vec::leak(vec![Default::default()])",
+    "package": "blake3-servil-core",
+    "replacement": "Vec::leak(vec![Default::default()])",
+    "span": {
+      "end": {
+        "column": 107,
+        "line": 106
+      },
+      "start": {
+        "column": 9,
+        "line": 103
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace == with != in CvStack::place_on_top\n@@ -164,17 +164,17 @@\n     pub fn place_on_top<P: Parent>(&mut self, p: &P) -> &mut [Cv; ROW] {\n         for below in (self.len % ROWS..self.len).step_by(ROWS) {\n             if self.is_row(below) {\n                 self.narrow(p, below);\n             }\n         }\n         let slot = self.len % ROWS;\n         let place = unsafe { (self.rows.as_mut_ptr() as *mut [Cv; ROW]).add(slot) };\n-        if self.ready >> slot & 1 == 0 {\n+        if self.ready >> slot & 1 != /* ~ changed by cargo-mutants ~ */ 0 {\n             // Sound: the slot's own storage.\n             unsafe { place.write_bytes(0, 1) };\n             self.ready |= 1 << slot;\n         }\n         // Sound: the slot's storage, every byte of it written (now or before).\n         unsafe { &mut *place }\n     }\n \n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::place_on_top",
+      "return_type": "-> &mut[Cv; ROW]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 179
+        },
+        "start": {
+          "column": 5,
+          "line": 156
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:172:35: replace == with != in CvStack::place_on_top",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 172
+      },
+      "start": {
+        "column": 35,
+        "line": 172
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace & with | in CvStack::place_on_top\n@@ -164,17 +164,17 @@\n     pub fn place_on_top<P: Parent>(&mut self, p: &P) -> &mut [Cv; ROW] {\n         for below in (self.len % ROWS..self.len).step_by(ROWS) {\n             if self.is_row(below) {\n                 self.narrow(p, below);\n             }\n         }\n         let slot = self.len % ROWS;\n         let place = unsafe { (self.rows.as_mut_ptr() as *mut [Cv; ROW]).add(slot) };\n-        if self.ready >> slot & 1 == 0 {\n+        if self.ready >> slot | /* ~ changed by cargo-mutants ~ */ 1 == 0 {\n             // Sound: the slot's own storage.\n             unsafe { place.write_bytes(0, 1) };\n             self.ready |= 1 << slot;\n         }\n         // Sound: the slot's storage, every byte of it written (now or before).\n         unsafe { &mut *place }\n     }\n \n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::place_on_top",
+      "return_type": "-> &mut[Cv; ROW]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 179
+        },
+        "start": {
+          "column": 5,
+          "line": 156
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:172:31: replace & with | in CvStack::place_on_top",
+    "package": "blake3-servil-core",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 172
+      },
+      "start": {
+        "column": 31,
+        "line": 172
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace >> with << in CvStack::place_on_top\n@@ -164,17 +164,17 @@\n     pub fn place_on_top<P: Parent>(&mut self, p: &P) -> &mut [Cv; ROW] {\n         for below in (self.len % ROWS..self.len).step_by(ROWS) {\n             if self.is_row(below) {\n                 self.narrow(p, below);\n             }\n         }\n         let slot = self.len % ROWS;\n         let place = unsafe { (self.rows.as_mut_ptr() as *mut [Cv; ROW]).add(slot) };\n-        if self.ready >> slot & 1 == 0 {\n+        if self.ready << /* ~ changed by cargo-mutants ~ */ slot & 1 == 0 {\n             // Sound: the slot's own storage.\n             unsafe { place.write_bytes(0, 1) };\n             self.ready |= 1 << slot;\n         }\n         // Sound: the slot's storage, every byte of it written (now or before).\n         unsafe { &mut *place }\n     }\n \n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::place_on_top",
+      "return_type": "-> &mut[Cv; ROW]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 179
+        },
+        "start": {
+          "column": 5,
+          "line": 156
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:172:23: replace >> with << in CvStack::place_on_top",
+    "package": "blake3-servil-core",
+    "replacement": "<<",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 172
+      },
+      "start": {
+        "column": 23,
+        "line": 172
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace |= with &= in CvStack::place_on_top\n@@ -167,17 +167,17 @@\n                 self.narrow(p, below);\n             }\n         }\n         let slot = self.len % ROWS;\n         let place = unsafe { (self.rows.as_mut_ptr() as *mut [Cv; ROW]).add(slot) };\n         if self.ready >> slot & 1 == 0 {\n             // Sound: the slot's own storage.\n             unsafe { place.write_bytes(0, 1) };\n-            self.ready |= 1 << slot;\n+            self.ready &= /* ~ changed by cargo-mutants ~ */ 1 << slot;\n         }\n         // Sound: the slot's storage, every byte of it written (now or before).\n         unsafe { &mut *place }\n     }\n \n     /// The row written into [`CvStack::place_on_top`]'s place, `width`\n     /// values of it, is the top entry.\n     pub fn pushed_row(&mut self, width: usize) {\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::place_on_top",
+      "return_type": "-> &mut[Cv; ROW]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 179
+        },
+        "start": {
+          "column": 5,
+          "line": 156
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:175:24: replace |= with &= in CvStack::place_on_top",
+    "package": "blake3-servil-core",
+    "replacement": "&=",
+    "span": {
+      "end": {
+        "column": 26,
+        "line": 175
+      },
+      "start": {
+        "column": 24,
+        "line": 175
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace << with >> in CvStack::place_on_top\n@@ -167,17 +167,17 @@\n                 self.narrow(p, below);\n             }\n         }\n         let slot = self.len % ROWS;\n         let place = unsafe { (self.rows.as_mut_ptr() as *mut [Cv; ROW]).add(slot) };\n         if self.ready >> slot & 1 == 0 {\n             // Sound: the slot's own storage.\n             unsafe { place.write_bytes(0, 1) };\n-            self.ready |= 1 << slot;\n+            self.ready |= 1 >> /* ~ changed by cargo-mutants ~ */ slot;\n         }\n         // Sound: the slot's storage, every byte of it written (now or before).\n         unsafe { &mut *place }\n     }\n \n     /// The row written into [`CvStack::place_on_top`]'s place, `width`\n     /// values of it, is the top entry.\n     pub fn pushed_row(&mut self, width: usize) {\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::place_on_top",
+      "return_type": "-> &mut[Cv; ROW]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 179
+        },
+        "start": {
+          "column": 5,
+          "line": 156
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:175:29: replace << with >> in CvStack::place_on_top",
+    "package": "blake3-servil-core",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 175
+      },
+      "start": {
+        "column": 29,
+        "line": 175
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl hasher::Hooks for HasherHooks<'_>>::cuts -> bool with false\n@@ -155,17 +155,17 @@\n         [pair[..OUT_LEN].try_into().unwrap(), pair[OUT_LEN..].try_into().unwrap()]\n     }\n \n     /// A whole group or more is cut, on the caller's own kernels: not\n     /// pooled, and by kernels 4 to ROW lanes wide (the SME2 unit's are\n     /// wider, and its subtrees are its own: `subtree_cv`).\n     #[inline(always)]\n     fn cuts(&self, len: usize) -> bool {\n-        self.pooled.is_none() && len >= STAGE_LEN && (4..=hasher::ROW).contains(&self.platform.simd_degree())\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn cut(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [CVBytes; hasher::ROW]) -> usize {\n         crate::counted(crate::Counted::Row);\n         let kernels = crate::tree::PlatformKernels { key: self.key, flags: self.flags, platform: self.platform };\n         crate::tree::wide(&kernels, input, ahead, counter, out)\n     }\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl hasher::Hooks for HasherHooks<'_>>::cuts",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 164
+        },
+        "start": {
+          "column": 5,
+          "line": 158
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:163:9: replace <impl hasher::Hooks for HasherHooks<'_>>::cuts -> bool with false",
+    "package": "blake3-servil-core",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 110,
+        "line": 163
+      },
+      "start": {
+        "column": 9,
+        "line": 163
+      }
+    }
+  }
+]
