@@ -1,0 +1,162 @@
+[
+  {
+    "diff": "--- src/lib.rs\n+++ replace prefetch_kernels with ()\n@@ -1293,34 +1293,17 @@\n         prefetch_kernels(len, platform);\n     }\n }\n \n /// Prefetch the code of the kernels hashing `len` bytes on `platform`\n /// runs: SME2's from 16 chunks, else the hybrids', chunks to root.\n #[cfg(all(blake3_neon, feature = \"std\"))]\n fn prefetch_kernels(len: usize, platform: Platform) {\n-    #[cfg(blake3_sme2)]\n-    if matches!(platform, Platform::SME2) && len >= SME2_SIZED_LEN {\n-        sme2::prefetch_code();\n-        // Below the flat walk, sixteen chunks' values merge on the hybrids.\n-        if !sme2::flat_takes(len) {\n-            neon_hybrid::prefetch_parent_code(16);\n-        }\n-        return;\n-    }\n-    // Below 16 chunks the SME2 platform runs the hybrids too.\n-    #[cfg(blake3_sme2)]\n-    let hybrids = matches!(platform, Platform::NEON | Platform::SME2);\n-    #[cfg(not(blake3_sme2))]\n-    let hybrids = matches!(platform, Platform::NEON);\n-    if hybrids && neon_hybrid::apple_plans() {\n-        let whole = (len / CHUNK_LEN).min(16);\n-        neon_hybrid::prefetch_tree_code(whole, if whole == 16 { 0 } else { len % CHUNK_LEN });\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Prefetch the code a fresh Hasher's update of `len` bytes runs: the\n /// subtrees its loop cuts (hasher::subtree_len from counter 0, up to the last\n /// chunk, which waits in the chunk state), each one's kernels.\n #[cfg(all(blake3_neon, feature = \"std\"))]\n fn prefetch_update_kernels(len: usize, platform: Platform) {\n     if !neon_hybrid::apple_plans() {\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "prefetch_kernels",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1319
+        },
+        "start": {
+          "column": 1,
+          "line": 1297
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:1301:5: replace prefetch_kernels with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 1318
+      },
+      "start": {
+        "column": 5,
+        "line": 1301
+      }
+    }
+  },
+  {
+    "diff": "--- src/lib.rs\n+++ replace prefetch_update_kernels with ()\n@@ -1318,38 +1318,17 @@\n     }\n }\n \n /// Prefetch the code a fresh Hasher's update of `len` bytes runs: the\n /// subtrees its loop cuts (hasher::subtree_len from counter 0, up to the last\n /// chunk, which waits in the chunk state), each one's kernels.\n #[cfg(all(blake3_neon, feature = \"std\"))]\n fn prefetch_update_kernels(len: usize, platform: Platform) {\n-    if !neon_hybrid::apple_plans() {\n-        return;\n-    }\n-    let (mut counter, mut left) = (0u64, len);\n-    while left > CHUNK_LEN {\n-        let subtree = hasher::subtree_len(counter, left);\n-        let chunks = subtree / CHUNK_LEN;\n-        #[cfg(blake3_sme2)]\n-        if matches!(platform, Platform::SME2) && chunks >= 16 {\n-            sme2::prefetch_code();\n-            if !sme2::flat_takes(subtree) {\n-                neon_hybrid::prefetch_parent_code(16);\n-            }\n-            counter += chunks as u64;\n-            left -= subtree;\n-            continue;\n-        }\n-        neon_hybrid::prefetch_tree_code(chunks.min(16), 0);\n-        counter += chunks as u64;\n-        left -= subtree;\n-    }\n-    let _ = platform;\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// The smallest input the SME2 kernels take part in: one group of sixteen\n /// chunks. Below it the SME2 platform runs the NEON hybrids.\n pub(crate) const SME2_SIZED_LEN: usize = 16 * CHUNK_LEN;\n \n /// The fewest messages a batch has when the SME2 kernels take part: one\n /// group of sixteen messages.\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "prefetch_update_kernels",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1348
+        },
+        "start": {
+          "column": 1,
+          "line": 1321
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:1326:5: replace prefetch_update_kernels with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1347
+      },
+      "start": {
+        "column": 5,
+        "line": 1326
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace family -> &'static Family with Box::leak(Box::new(Default::default()))\n@@ -409,23 +409,17 @@\n     [&[], &[1], &[2], &[3], &[4], &[5], &[3, 3], &[5, 2], &[5, 3], &[5, 4], &[5, 5], &[5, 3, 3], &[5, 5, 2], &[5, 5, 3], &[5, 5, 4], &[5, 5, 5], &[5, 5, 3, 3]];\n \n static OTHER: Family =\n     Family { chunk_plans: &OTHER_PLANS, chunk_kernels: &OTHER_CHUNK_KERNELS, parent_plans: &OTHER_PLANS, parent_kernels: &OTHER_PARENT_KERNELS };\n \n /// This CPU's family: without SHA-3 the scalars and quads; with it,\n /// Apple's cores the plans measured on them, and other cores theirs.\n fn family() -> &'static Family {\n-    if !sha3_detected() {\n-        &PLAIN\n-    } else if apple_cores() {\n-        &WITH_SHA3\n-    } else {\n-        &OTHER\n-    }\n+    Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n }\n \n /// Whether this CPU runs the plans measured on Apple's cores\n /// (CHUNK_PLANS, PARENT_PLANS): the code prefetch, which follows those\n /// plans, is for these CPUs.\n pub fn apple_plans() -> bool {\n     sha3_detected() && apple_cores()\n }\n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "family",
+      "return_type": "-> &'static Family",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 424
+        },
+        "start": {
+          "column": 1,
+          "line": 414
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_neon_hybrid.rs:417:5: replace family -> &'static Family with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil-core",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 423
+      },
+      "start": {
+        "column": 5,
+        "line": 417
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ delete ! in family\n@@ -409,17 +409,17 @@\n     [&[], &[1], &[2], &[3], &[4], &[5], &[3, 3], &[5, 2], &[5, 3], &[5, 4], &[5, 5], &[5, 3, 3], &[5, 5, 2], &[5, 5, 3], &[5, 5, 4], &[5, 5, 5], &[5, 5, 3, 3]];\n \n static OTHER: Family =\n     Family { chunk_plans: &OTHER_PLANS, chunk_kernels: &OTHER_CHUNK_KERNELS, parent_plans: &OTHER_PLANS, parent_kernels: &OTHER_PARENT_KERNELS };\n \n /// This CPU's family: without SHA-3 the scalars and quads; with it,\n /// Apple's cores the plans measured on them, and other cores theirs.\n fn family() -> &'static Family {\n-    if !sha3_detected() {\n+    if  /* ~ changed by cargo-mutants ~ */sha3_detected() {\n         &PLAIN\n     } else if apple_cores() {\n         &WITH_SHA3\n     } else {\n         &OTHER\n     }\n }\n \n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "family",
+      "return_type": "-> &'static Family",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 424
+        },
+        "start": {
+          "column": 1,
+          "line": 414
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/ffi_neon_hybrid.rs:417:8: delete ! in family",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 417
+      },
+      "start": {
+        "column": 8,
+        "line": 417
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace apple_plans -> bool with true\n@@ -422,17 +422,17 @@\n         &OTHER\n     }\n }\n \n /// Whether this CPU runs the plans measured on Apple's cores\n /// (CHUNK_PLANS, PARENT_PLANS): the code prefetch, which follows those\n /// plans, is for these CPUs.\n pub fn apple_plans() -> bool {\n-    sha3_detected() && apple_cores()\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(feature = \"std\")]\n /// Where each kernel's code ends (labels the generator puts after each).\n mod ends {\n     unsafe extern \"C\" {\n         pub static blake3_servil_hybrid_p2_end: u8;\n         pub static blake3_servil_hybrid_p3_end: u8;\n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "apple_plans",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 431
+        },
+        "start": {
+          "column": 1,
+          "line": 426
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_neon_hybrid.rs:430:5: replace apple_plans -> bool with true",
+    "package": "blake3-servil-core",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 430
+      },
+      "start": {
+        "column": 5,
+        "line": 430
+      }
+    }
+  }
+]
