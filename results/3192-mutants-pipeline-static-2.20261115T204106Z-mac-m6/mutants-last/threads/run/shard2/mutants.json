@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace + with - in Pipeline<T, B>::create\n@@ -724,17 +724,17 @@\n         } else {\n             // One it replaces stays allocated: a worker of an earlier\n             // Pipeline may still be reading it.\n             let new = Box::into_raw(Box::new(Shared {\n                 key,\n                 flags,\n                 storage,\n                 hashes: (0..m).map(|_| UnsafeCell::new([0u8; OUT_LEN])).collect(),\n-                cvs: (0..m).map(|_| UnsafeCell::new([[0u8; OUT_LEN]; MAX_SLOT_PIECES + 1])).collect(),\n+                cvs: (0..m).map(|_| UnsafeCell::new([[0u8; OUT_LEN]; MAX_SLOT_PIECES - /* ~ changed by cargo-mutants ~ */ 1])).collect(),\n                 slot_done: (0..m).map(|_| OwnLine(AtomicBool::new(true))).collect(),\n                 tasks_left: (0..m).map(|_| OwnLine(AtomicUsize::new(0))).collect(),\n                 multi: (0..m)\n                     .map(|_| {\n                         UnsafeCell::new(MultiDesc {\n                             input: core::ptr::null(),\n                             total_len: 0,\n                             piece_len: TASK_LEN,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 803
+        },
+        "start": {
+          "column": 5,
+          "line": 694
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:732:86: replace + with - in Pipeline<T, B>::create",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 87,
+        "line": 732
+      },
+      "start": {
+        "column": 86,
+        "line": 732
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for Pipeline<T, B>>::drop with ()\n@@ -1569,59 +1569,17 @@\n             }\n         }\n         false\n     }\n }\n \n impl<T, B> Drop for Pipeline<T, B> {\n     fn drop(&mut self) {\n-        if self.has_in_flight_work() {\n-            stop_process(\"blake3-servil: Pipeline dropped while worker tasks are still in flight\");\n-        }\n-        // Release any credits held on uncommitted short rooms sitting in un-ended slots\n-        // (e.g. during panic unwind after a precondition check failed with zero workers running).\n-        for s in 0..self.slots.len() {\n-            if let SlotKind::OpenShort { room: room_idx, .. } = self.slots[s].kind {\n-                self.shared().storage.rooms.release_n(room_idx, 1);\n-            }\n-        }\n-        if self.open_group.take().is_some() {\n-            for &r in &self.local_rooms[..self.local_count] {\n-                if r != NONE {\n-                    self.shared().storage.rooms.release_n(r, 1);\n-                }\n-            }\n-        }\n-        if let Some(slot) = self.source_slot {\n-            Source::unregister(slot);\n-        }\n-        crate::lanes::sources::closed();\n-        let storage = self.shared().storage;\n-        storage.waker.clear();\n-        unsafe {\n-            *storage.saved_loan_epoch.get() = self.next_loan_epoch;\n-            *storage.saved_group_epoch.get() = self.next_group_epoch;\n-        }\n-\n-        while let Some(s_idx) = self.end_queue.pop_front() {\n-            let s = s_idx as usize;\n-            match core::mem::replace(&mut self.slots[s].kind, SlotKind::Free) {\n-                SlotKind::WaitSingle { has_owner: true, .. } | SlotKind::WaitMulti { has_owner: true } => {\n-                    unsafe { (*self.owners[s].get()).assume_init_drop() };\n-                }\n-                SlotKind::WaitBatch { .. } => {\n-                    unsafe { (*self.batches[s].get()).assume_init_drop() };\n-                }\n-                _ => {}\n-            }\n-        }\n-        if storage.rooms.caller_held.load(Ordering::Acquire) == 0 {\n-            PipeStorage::release(storage);\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct MessageFut<'a, T, B> {\n     pipe: &'a mut Pipeline<T, B>,\n     tag: Option<T>,\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Pipeline<T, B>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1620
+        },
+        "start": {
+          "column": 5,
+          "line": 1576
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1577:9: replace <impl Drop for Pipeline<T, B>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1619
+      },
+      "start": {
+        "column": 9,
+        "line": 1577
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in <impl Drop for Pipeline<T, B>>::drop\n@@ -1609,17 +1609,17 @@\n                     unsafe { (*self.owners[s].get()).assume_init_drop() };\n                 }\n                 SlotKind::WaitBatch { .. } => {\n                     unsafe { (*self.batches[s].get()).assume_init_drop() };\n                 }\n                 _ => {}\n             }\n         }\n-        if storage.rooms.caller_held.load(Ordering::Acquire) == 0 {\n+        if storage.rooms.caller_held.load(Ordering::Acquire) != /* ~ changed by cargo-mutants ~ */ 0 {\n             PipeStorage::release(storage);\n         }\n     }\n }\n \n struct MessageFut<'a, T, B> {\n     pipe: &'a mut Pipeline<T, B>,\n     tag: Option<T>,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Pipeline<T, B>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1620
+        },
+        "start": {
+          "column": 5,
+          "line": 1576
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1617:62: replace == with != in <impl Drop for Pipeline<T, B>>::drop",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 64,
+        "line": 1617
+      },
+      "start": {
+        "column": 62,
+        "line": 1617
+      }
+    }
+  }
+]
