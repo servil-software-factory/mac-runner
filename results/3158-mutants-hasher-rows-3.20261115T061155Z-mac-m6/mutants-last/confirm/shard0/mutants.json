@@ -1,0 +1,162 @@
+[
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::row -> &[Cv] with Vec::leak(vec![Default::default()])\n@@ -79,20 +79,17 @@\n     }\n \n     fn is_row(&self, i: usize) -> bool {\n         self.wide >> i & 1 == 1\n     }\n \n     /// Entry `i`'s row (it is one).\n     fn row(&self, i: usize) -> &[Cv] {\n-        debug_assert!(self.is_row(i));\n-        let n = self.widths[i % ROWS] as usize;\n-        // Sound: a row's first `width` values were written when it was pushed or merged.\n-        unsafe { core::slice::from_raw_parts((self.rows.as_ptr() as *const Cv).add((i % ROWS) * ROW), n) }\n+        Vec::leak(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn set_row(&mut self, i: usize, row: &[Cv]) {\n         // Sound: within the rows' storage; plain bytes.\n         unsafe { core::slice::from_raw_parts_mut((self.rows.as_mut_ptr() as *mut Cv).add((i % ROWS) * ROW), row.len()) }.copy_from_slice(row);\n         self.widths[i % ROWS] = row.len() as u8;\n         self.wide |= 1 << i;\n     }\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::row",
+      "return_type": "-> &[Cv]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 91
+        },
+        "start": {
+          "column": 5,
+          "line": 85
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:87:9: replace CvStack::row -> &[Cv] with Vec::leak(vec![Default::default()])",
+    "package": "blake3-servil-core",
+    "replacement": "Vec::leak(vec![Default::default()])",
+    "span": {
+      "end": {
+        "column": 107,
+        "line": 90
+      },
+      "start": {
+        "column": 9,
+        "line": 87
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::halve with ()\n@@ -141,21 +141,17 @@\n             }\n         }\n         self.set_row(self.len, row);\n         self.len += 1;\n     }\n \n     /// Entry `i`, a row, becomes the row half as wide: its values' parents.\n     fn halve<P: Parent>(&mut self, p: &P, i: usize) {\n-        assert!(self.row(i).len() >= 8, \"a row stays 4 wide or more\");\n-        let mut parents = [[0u8; 32]; ROW];\n-        let made = p.parents(self.row(i), &mut parents);\n-        assert_eq!(2 * made, self.row(i).len(), \"a parent for every two children\");\n-        self.set_row(i, &parents[..made]);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Entry `i`, a row, becomes its one value.\n     fn narrow<P: Parent>(&mut self, p: &P, i: usize) {\n         let cv = self.get(p, i);\n         self.set(i, cv);\n         self.wide &= !(1 << i);\n     }\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::halve",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 154
+        },
+        "start": {
+          "column": 5,
+          "line": 147
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:149:9: replace CvStack::halve with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 43,
+        "line": 153
+      },
+      "start": {
+        "column": 9,
+        "line": 149
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace / with % in CvStack::merge\n@@ -186,17 +186,17 @@\n                 // Two rows of different widths (one subtree cut by wider\n                 // kernels than its sibling was, or cut whole where the\n                 // sibling grew from narrower rows): the wider is halved\n                 // to the other's width first.\n                 // (Widths are powers of two: the wider is the other's\n                 // width times two to the count of halvings.)\n                 for (wide, narrow) in [(a, b), (b, a)] {\n                     // (The narrower over the wider is 0: no halving.)\n-                    let times = self.row(wide).len() / self.row(narrow).len();\n+                    let times = self.row(wide).len() % /* ~ changed by cargo-mutants ~ */ self.row(narrow).len();\n                     for _ in 0..times.max(1).trailing_zeros() {\n                         self.halve(p, wide);\n                     }\n                 }\n                 // The two rows' values in one place, then their parents\n                 // into the lower row's place. The place for the children\n                 // is written before it is read, and never zeroed first:\n                 // zeroing 2 KiB a merge cost more than the merge saved.\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::merge",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 223
+        },
+        "start": {
+          "column": 5,
+          "line": 174
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:194:54: replace / with % in CvStack::merge",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 55,
+        "line": 194
+      },
+      "start": {
+        "column": 54,
+        "line": 194
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl hasher::Hooks for HasherHooks<'_>>::cuts -> bool with false\n@@ -141,17 +141,17 @@\n         [pair[..OUT_LEN].try_into().unwrap(), pair[OUT_LEN..].try_into().unwrap()]\n     }\n \n     /// A whole group or more is cut, on the caller's own kernels: not\n     /// pooled, and by kernels 4 to ROW lanes wide (the SME2 unit's are\n     /// wider, and its subtrees are its own: `subtree_cv`).\n     #[inline(always)]\n     fn cuts(&self, len: usize) -> bool {\n-        self.pooled.is_none() && len >= STAGE_LEN && (4..=hasher::ROW).contains(&self.platform.simd_degree())\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn cut(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [CVBytes; hasher::ROW]) -> usize {\n         crate::counted(crate::Counted::Row);\n         let kernels = crate::tree::PlatformKernels { key: self.key, flags: self.flags, platform: self.platform };\n         crate::tree::wide(&kernels, input, ahead, counter, out)\n     }\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl hasher::Hooks for HasherHooks<'_>>::cuts",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 150
+        },
+        "start": {
+          "column": 5,
+          "line": 144
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:149:9: replace <impl hasher::Hooks for HasherHooks<'_>>::cuts -> bool with false",
+    "package": "blake3-servil-core",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 110,
+        "line": 149
+      },
+      "start": {
+        "column": 9,
+        "line": 149
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace == with != in Hasher::first_block\n@@ -194,17 +194,17 @@\n     /// Hasher's stage is unwritten, and a reset one's holds the last\n     /// message). Otherwise it is the stage's first block, whose bytes\n     /// after the message are zero: `update` stores a first block or less\n     /// padded (pad_block), later bytes only follow the ones before, and\n     /// `clone_from` copies the whole block.\n     #[cfg(blake3_sse41_ffi)]\n     pub(crate) fn first_block(&self) -> &[u8; BLOCK_LEN] {\n         static EMPTY: [u8; BLOCK_LEN] = [0; BLOCK_LEN];\n-        if self.staged == 0 {\n+        if self.staged != /* ~ changed by cargo-mutants ~ */ 0 {\n             return &EMPTY;\n         }\n         // Sound: with bytes staged, the stage's first BLOCK_LEN bytes were written (pad_block, or more than a block of input).\n         unsafe { &*(self.stage.as_ptr() as *const [u8; BLOCK_LEN]) }\n     }\n \n     /// The bytes gathered in the stage.\n     pub(crate) fn staged_bytes(&self) -> &[u8] {\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "Hasher::first_block",
+      "return_type": "-> &[u8; BLOCK_LEN]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 207
+        },
+        "start": {
+          "column": 5,
+          "line": 191
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/incremental.rs:202:24: replace == with != in Hasher::first_block",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 26,
+        "line": 202
+      },
+      "start": {
+        "column": 24,
+        "line": 202
+      }
+    }
+  }
+]
