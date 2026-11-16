@@ -1,0 +1,285 @@
+
+*** src/lib.rs:454:22: replace < with <= in throughput::hash_many_multithreaded
+
+*** mutation diff:
+--- src/lib.rs
++++ replace < with <= in throughput::hash_many_multithreaded
+@@ -446,17 +446,17 @@
+     // Inlined, so a constant mode folds to its constants (as
+     // convenience::hash is: no mode stored for the call to read).
+     #[inline(always)]
+     pub fn hash_many_multithreaded<P: Prepared>(mode: Mode, batch: &P, out: &mut [[u8; OUT_LEN]]) {
+         crate::lanes::require();
+         // The short path first and inline, so a small batch costs what
+         // hash_many costs (which checks its length against the digests);
+         // everything the pool needs is behind the call after.
+-        if out.len() < 2 || batch.bytes().len() < crate::lanes::MIN_SPLIT_LEN {
++        if out.len() <= /* ~ changed by cargo-mutants ~ */ 2 || batch.bytes().len() < crate::lanes::MIN_SPLIT_LEN {
+             return hash_many(mode, batch, out);
+         }
+         // The whole batch as a part: its length is checked against the
+         // digests there, on the caller's thread.
+         let (kind, key, context) = crate::lanes::parts(mode);
+         crate::lanes::hash_many_in(kind, key, context, batch.part(0..batch.bytes().len() / batch.slot()), out);
+     }
+ 
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+warning: struct `Cpu` is never constructed
+    --> src/lanes.rs:1128:23
+     |
+1128 |     pub(crate) struct Cpu {
+     |                       ^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `assign` is never used
+    --> src/lanes.rs:1168:19
+     |
+1168 |     pub(crate) fn assign(cpus: &[Cpu], starter: usize, workers: usize) -> Option<Places> {
+     |                   ^^^^^^
+
+warning: methods `wake_all` and `set_places` are never used
+   --> src/park.rs:114:19
+    |
+ 69 | impl Park {
+    | --------- methods in this implementation
+...
+114 |     pub(crate) fn wake_all(&self) -> usize {
+    |                   ^^^^^^^^
+...
+141 |     pub(crate) fn set_places(&self, places: Box<[Box<[u64]>]>, beside: Box<[Box<[u64]>]>, here: fn() -> usize) {
+    |                   ^^^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 3 warnings
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1318:27
+     |
+1318 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib test) generated 1 warning
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 4.88s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev --lib --tests
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: struct `Cpu` is never constructed
+    --> src/lanes.rs:1128:23
+     |
+1128 |     pub(crate) struct Cpu {
+     |                       ^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `assign` is never used
+    --> src/lanes.rs:1168:19
+     |
+1168 |     pub(crate) fn assign(cpus: &[Cpu], starter: usize, workers: usize) -> Option<Places> {
+     |                   ^^^^^^
+
+warning: methods `wake_all` and `set_places` are never used
+   --> src/park.rs:114:19
+    |
+ 69 | impl Park {
+    | --------- methods in this implementation
+...
+114 |     pub(crate) fn wake_all(&self) -> usize {
+    |                   ^^^^^^^^
+...
+141 |     pub(crate) fn set_places(&self, places: Box<[Box<[u64]>]>, beside: Box<[Box<[u64]>]>, here: fn() -> usize) {
+    |                   ^^^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 3 warnings
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1318:27
+     |
+1318 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib test) generated 1 warning
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.03s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID 4859252b-2e1f-443e-9604-a31ca7c13a50 with nextest profile: mutants
+    Starting 112 tests across 9 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/112) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+       START [         ] (  1/112) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+        PASS [   0.020s] (  1/112) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  2/112) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+        PASS [   0.016s] (  2/112) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  3/112) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        PASS [   0.045s] (  3/112) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+       START [         ] (  4/112) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_every_multithreaded_call_inside_guard_pages --nocapture
+        PASS [   0.049s] (  4/112) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+       START [         ] (  5/112) blake3-servil forms_test::test_hash_each_multithreaded
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_hash_each_multithreaded --nocapture
+        PASS [   0.081s] (  5/112) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+       START [         ] (  6/112) blake3-servil forms_test::test_hash_each_multithreaded_each_item_against_a_guard_page
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_hash_each_multithreaded_each_item_against_a_guard_page --nocapture
+        PASS [   0.110s] (  6/112) blake3-servil forms_test::test_hash_each_multithreaded
+       START [         ] (  7/112) blake3-servil forms_test::test_hash_each_multithreaded_past_the_split
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_hash_each_multithreaded_past_the_split --nocapture
+        PASS [   0.025s] (  7/112) blake3-servil forms_test::test_hash_each_multithreaded_past_the_split
+       START [         ] (  8/112) blake3-servil forms_test::test_hash_each_multithreaded_splits_at_min_split_len_exactly
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_hash_each_multithreaded_splits_at_min_split_len_exactly --nocapture
+        PASS [   0.014s] (  8/112) blake3-servil forms_test::test_hash_each_multithreaded_splits_at_min_split_len_exactly
+       START [         ] (  9/112) blake3-servil forms_test::test_hash_many_multithreaded_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_hash_many_multithreaded_inside_guard_pages --nocapture
+        PASS [   0.182s] (  9/112) blake3-servil forms_test::test_hash_each_multithreaded_each_item_against_a_guard_page
+       START [         ] ( 10/112) blake3-servil forms_test::test_hash_many_multithreaded_whole_blocks
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_hash_many_multithreaded_whole_blocks --nocapture
+        PASS [   0.018s] ( 10/112) blake3-servil forms_test::test_hash_many_multithreaded_whole_blocks
+       START [         ] ( 11/112) blake3-servil forms_test::test_hash_multithreaded_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_hash_multithreaded_inside_guard_pages --nocapture
+        PASS [   0.111s] ( 11/112) blake3-servil forms_test::test_hash_many_multithreaded_inside_guard_pages
+       START [         ] ( 12/112) blake3-servil forms_test::test_hasher_gathers_with_multithreaded_updates
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_hasher_gathers_with_multithreaded_updates --nocapture
+        PASS [   0.019s] ( 12/112) blake3-servil forms_test::test_hash_multithreaded_inside_guard_pages
+       START [         ] ( 13/112) blake3-servil forms_test::test_pool_from_two_callers
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_pool_from_two_callers --nocapture
+        PASS [   0.016s] ( 13/112) blake3-servil forms_test::test_pool_from_two_callers
+       START [         ] ( 14/112) blake3-servil forms_test::test_update_each_multithreaded
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact forms_test::test_update_each_multithreaded --nocapture
+        PASS [   0.020s] ( 14/112) blake3-servil forms_test::test_hasher_gathers_with_multithreaded_updates
+       START [         ] ( 15/112) blake3-servil lanes::places::test::a_jobs_cost_is_its_cycle_where_jobs_follow_closely
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::places::test::a_jobs_cost_is_its_cycle_where_jobs_follow_closely --nocapture
+        PASS [   0.016s] ( 15/112) blake3-servil lanes::places::test::a_jobs_cost_is_its_cycle_where_jobs_follow_closely
+       START [         ] ( 16/112) blake3-servil lanes::places::test::a_thread_keeps_the_faster_reach_and_tries_the_other_each_round
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::places::test::a_thread_keeps_the_faster_reach_and_tries_the_other_each_round --nocapture
+        PASS [   0.020s] ( 16/112) blake3-servil forms_test::test_update_each_multithreaded
+       START [         ] ( 17/112) blake3-servil lanes::places::test::few_workers_many_workers_and_a_confined_process
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::places::test::few_workers_many_workers_and_a_confined_process --nocapture
+        PASS [   0.014s] ( 17/112) blake3-servil lanes::places::test::a_thread_keeps_the_faster_reach_and_tries_the_other_each_round
+       START [         ] ( 18/112) blake3-servil lanes::places::test::once_settled_a_placed_worker_parks_and_an_unplaced_one_stays_up
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::places::test::once_settled_a_placed_worker_parks_and_an_unplaced_one_stays_up --nocapture
+        PASS [   0.014s] ( 18/112) blake3-servil lanes::places::test::few_workers_many_workers_and_a_confined_process
+       START [         ] ( 19/112) blake3-servil lanes::places::test::one_cache_has_no_places
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::places::test::one_cache_has_no_places --nocapture
+        PASS [   0.009s] ( 19/112) blake3-servil lanes::places::test::one_cache_has_no_places
+       START [         ] ( 20/112) blake3-servil lanes::places::test::the_measured_jobs_exactly
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::places::test::the_measured_jobs_exactly --nocapture
+        PASS [   0.010s] ( 20/112) blake3-servil lanes::places::test::once_settled_a_placed_worker_parks_and_an_unplaced_one_stays_up
+       START [         ] ( 21/112) blake3-servil lanes::places::test::the_places_of_two_sockets_of_four_caches
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::places::test::the_places_of_two_sockets_of_four_caches --nocapture
+        PASS [   0.011s] ( 21/112) blake3-servil lanes::places::test::the_measured_jobs_exactly
+       START [         ] ( 22/112) blake3-servil lanes::places::test::the_size_classes
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::places::test::the_size_classes --nocapture
+        PASS [   0.011s] ( 22/112) blake3-servil lanes::places::test::the_places_of_two_sockets_of_four_caches
+       START [         ] ( 23/112) blake3-servil lanes::places::test::without_places_a_plan_is_every_threads
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::places::test::without_places_a_plan_is_every_threads --nocapture
+        PASS [   0.013s] ( 23/112) blake3-servil lanes::places::test::without_places_a_plan_is_every_threads
+       START [         ] ( 24/112) blake3-servil lanes::sources::test::a_publication_past_actions_capacity_is_stopped
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::sources::test::a_publication_past_actions_capacity_is_stopped --nocapture
+        PASS [   0.014s] ( 24/112) blake3-servil lanes::places::test::the_size_classes
+       START [         ] ( 25/112) blake3-servil lanes::sources::test::actions_len_and_run_waiting_action_execute_queued_action
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::sources::test::actions_len_and_run_waiting_action_execute_queued_action --nocapture
+        PASS [   0.012s] ( 25/112) blake3-servil lanes::sources::test::a_publication_past_actions_capacity_is_stopped
+       START [         ] ( 26/112) blake3-servil lanes::sources::test::test_a_finished_threads_source_is_the_next_threads
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::sources::test::test_a_finished_threads_source_is_the_next_threads --nocapture
+        PASS [   0.014s] ( 26/112) blake3-servil lanes::sources::test::actions_len_and_run_waiting_action_execute_queued_action
+       START [         ] ( 27/112) blake3-servil lanes::sources::test::test_a_worker_serves_the_lowest_source_until_it_is_empty
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::sources::test::test_a_worker_serves_the_lowest_source_until_it_is_empty --nocapture
+        PASS [   0.014s] ( 27/112) blake3-servil lanes::sources::test::test_a_finished_threads_source_is_the_next_threads
+       START [         ] ( 28/112) blake3-servil lanes::sources::test::test_find_reaches_every_registered_source
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::sources::test::test_find_reaches_every_registered_source --nocapture
+        PASS [   0.013s] ( 28/112) blake3-servil lanes::sources::test::test_a_worker_serves_the_lowest_source_until_it_is_empty
+       START [         ] ( 29/112) blake3-servil lanes::sources::test::test_take_stream_item_claims_from_registered_action_source
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::sources::test::test_take_stream_item_claims_from_registered_action_source --nocapture
+        PASS [   0.011s] ( 29/112) blake3-servil lanes::sources::test::test_find_reaches_every_registered_source
+       START [         ] ( 30/112) blake3-servil lanes::sources::test::test_unregister_gives_the_slot_back
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::sources::test::test_unregister_gives_the_slot_back --nocapture
+        PASS [   0.015s] ( 30/112) blake3-servil lanes::sources::test::test_take_stream_item_claims_from_registered_action_source
+       START [         ] ( 31/112) blake3-servil lanes::sources::test::test_unregister_leaves_the_other_sources_registered
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::sources::test::test_unregister_leaves_the_other_sources_registered --nocapture
+        PASS [   0.017s] ( 31/112) blake3-servil lanes::sources::test::test_unregister_gives_the_slot_back
+       START [         ] ( 32/112) blake3-servil lanes::sources::test::test_visible_sees_a_waiting_item_and_its_kind
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::sources::test::test_visible_sees_a_waiting_item_and_its_kind --nocapture
+        PASS [   0.016s] ( 32/112) blake3-servil lanes::sources::test::test_unregister_leaves_the_other_sources_registered
+       START [         ] ( 33/112) blake3-servil lanes::test::equal_members_match_the_reference
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::test::equal_members_match_the_reference --nocapture
+        PASS [   0.012s] ( 33/112) blake3-servil lanes::sources::test::test_visible_sees_a_waiting_item_and_its_kind
+       START [         ] ( 34/112) blake3-servil lanes::test::test_a_caller_gives_its_place_back
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::test::test_a_caller_gives_its_place_back --nocapture
+        PASS [   0.018s] ( 34/112) blake3-servil lanes::test::test_a_caller_gives_its_place_back
+       START [         ] ( 35/112) blake3-servil lanes::test::test_a_caller_polls_for_spin_before_sleep_then_sleeps
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::test::test_a_caller_polls_for_spin_before_sleep_then_sleeps --nocapture
+        PASS [   0.013s] ( 35/112) blake3-servil lanes::test::test_a_caller_polls_for_spin_before_sleep_then_sleeps
+       START [         ] ( 36/112) blake3-servil lanes::test::test_a_claim_takes_a_share_of_what_waits
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::test::test_a_claim_takes_a_share_of_what_waits --nocapture
+        PASS [   0.043s] ( 36/112) blake3-servil lanes::test::equal_members_match_the_reference
+       START [         ] ( 37/112) blake3-servil lanes::test::test_a_job_wakes_one_worker_a_piece_past_its_own
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::test::test_a_job_wakes_one_worker_a_piece_past_its_own --nocapture
+        PASS [   0.016s] ( 37/112) blake3-servil lanes::test::test_a_claim_takes_a_share_of_what_waits
+       START [         ] ( 38/112) blake3-servil lanes::test::test_a_parked_caller_is_woken_by_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/025aacb5b69c6006/out/blake3_servil-025aacb5b69c6006 --exact lanes::test::test_a_parked_caller_is_woken_by_the_last_piece --nocapture
+        FAIL [   0.020s] ( 38/112) blake3-servil lanes::test::test_a_job_wakes_one_worker_a_piece_past_its_own
+  stdout ───
+
+    running 1 test
+    test lanes::test::test_a_job_wakes_one_worker_a_piece_past_its_own ... FAILED
+
+    failures:
+
+    failures:
+        lanes::test::test_a_job_wakes_one_worker_a_piece_past_its_own
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 91 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'lanes::test::test_a_job_wakes_one_worker_a_piece_past_its_own' (45417604) panicked at src/lanes.rs:3528:9:
+    assertion `left == right` failed: two pieces: one worker
+      left: None
+     right: Some(1)
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGTERM [   0.010s] ( 39/112) blake3-servil lanes::test::test_a_parked_caller_is_woken_by_the_last_piece
+────────────
+     Summary [   0.553s] 39/112 tests run: 37 passed, 2 failed, 0 skipped
+warning: 73/112 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
