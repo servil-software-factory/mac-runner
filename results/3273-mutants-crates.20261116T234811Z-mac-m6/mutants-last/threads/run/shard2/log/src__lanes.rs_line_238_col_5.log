@@ -1,0 +1,76 @@
+
+*** src/lanes.rs:238:5: replace parts -> (Kind, Option<&'a[u8; crate::KEY_LEN]>, &'a str) with (Default::default(), Some(Box::leak(Box::new([1; crate::KEY_LEN]))), "xyzzy")
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace parts -> (Kind, Option<&'a[u8; crate::KEY_LEN]>, &'a str) with (Default::default(), Some(Box::leak(Box::new([1; crate::KEY_LEN]))), "xyzzy")
+@@ -230,22 +230,17 @@
+ 
+ /// `mode` in parts that travel in registers, for the pool's out-of-line
+ /// calls. A `Mode` itself is three words and travels by address; given
+ /// the caller's own, the compiler kept the caller's in memory, and the
+ /// short path, inlined beside, read it back from there even where it is a
+ /// constant (a store, a load and two compares on every short call).
+ #[inline(always)]
+ pub(crate) fn parts<'a>(mode: crate::Mode<'a>) -> (Kind, Option<&'a [u8; crate::KEY_LEN]>, &'a str) {
+-    match mode {
+-        crate::Mode::Plain => (Kind::Plain, None, ""),
+-        crate::Mode::Keyed(key) => (Kind::Keyed, Some(key), ""),
+-        crate::Mode::DeriveKey(context) => (Kind::DeriveKey, None, context),
+-        crate::Mode::DeriveKeyWith(key) => (Kind::DeriveKeyWith, Some(key), ""),
+-    }
++    (Default::default(), Some(Box::leak(Box::new([1; crate::KEY_LEN]))), "xyzzy") /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The mode [`parts`] took apart.
+ fn whole<'a>(kind: Kind, key: Option<&'a [u8; crate::KEY_LEN]>, context: &'a str) -> crate::Mode<'a> {
+     match kind {
+         Kind::Plain => crate::Mode::Plain,
+         Kind::Keyed => crate::Mode::Keyed(key.expect("a keyed mode's key")),
+         Kind::DeriveKey => crate::Mode::DeriveKey(context),
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-2/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2)
+error[E0277]: the trait bound `lanes::Kind: Default` is not satisfied
+   --> src/lanes.rs:238:6
+    |
+238 |     (Default::default(), Some(Box::leak(Box::new([1; crate::KEY_LEN]))), "xyzzy") /* ~ changed by cargo-mutants ~ */
+    |      ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `lanes::Kind`
+    |
+help: consider annotating `lanes::Kind` with `#[derive(Default)]`
+    |
+224 + #[derive(Default)]
+225 | pub(crate) enum Kind {
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
