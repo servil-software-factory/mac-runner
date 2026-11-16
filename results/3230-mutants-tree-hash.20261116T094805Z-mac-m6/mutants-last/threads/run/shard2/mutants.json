@@ -1,0 +1,258 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace subtree_halves -> [ChainingValue; 2] with [Default::default(); 2]\n@@ -342,23 +342,17 @@\n \n /// The chaining values of the two halves of the subtree `input` at chunk\n /// `counter`, over the machine's threads: what `TreeHasher::subtree_halves`\n /// returns for a whole subtree.\n /// Requires a power-of-two number of chunks, at least MIN_SPLIT_LEN\n /// bytes, and `counter` a multiple\n /// of that number, as `Hasher::update` hands out.\n pub(crate) fn subtree_halves(tree: &TreeHasher, counter: u64, input: &[u8]) -> [ChainingValue; 2] {\n-    assert!(input.len().is_power_of_two() && input.len() >= MIN_SPLIT_LEN, \"a whole subtree of at least MIN_SPLIT_LEN bytes\");\n-    assert_eq!(counter % (input.len() / CHUNK_LEN) as u64, 0, \"a subtree starts at a multiple of its chunk count\");\n-    let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().subtree_halves(counter, input) };\n-    tree_cvs(pool, input, tree, counter, |pieces, cvs, own| {\n-        merge_to_children(pieces, cvs, own);\n-        [cvs[0], cvs[1]]\n-    })\n+    [Default::default(); 2] /* ~ changed by cargo-mutants ~ */\n }\n \n /// The hashes of `batch`'s messages, two or more in MIN_SPLIT_LEN bytes\n /// or more, in `tree`'s mode, over the machine's threads (a smaller batch\n /// is the caller's, on its own thread: the public call's short path).\n pub(crate) fn hash_many_over_pool(tree: &TreeHasher, batch: crate::throughput::Part, outputs: &mut [[u8; crate::OUT_LEN]]) {\n     let (input, slot) = (batch.bytes(), batch.slot());\n     assert_eq!(Some(input.len()), slot.checked_mul(outputs.len()), \"input holds one slot per output\");\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "subtree_halves",
+      "return_type": "-> [ChainingValue; 2]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 357
+        },
+        "start": {
+          "column": 1,
+          "line": 343
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:350:5: replace subtree_halves -> [ChainingValue; 2] with [Default::default(); 2]",
+    "package": "blake3-servil",
+    "replacement": "[Default::default(); 2]",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 356
+      },
+      "start": {
+        "column": 5,
+        "line": 350
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace hash_many_over_pool with ()\n@@ -355,31 +355,17 @@\n         [cvs[0], cvs[1]]\n     })\n }\n \n /// The hashes of `batch`'s messages, two or more in MIN_SPLIT_LEN bytes\n /// or more, in `tree`'s mode, over the machine's threads (a smaller batch\n /// is the caller's, on its own thread: the public call's short path).\n pub(crate) fn hash_many_over_pool(tree: &TreeHasher, batch: crate::throughput::Part, outputs: &mut [[u8; crate::OUT_LEN]]) {\n-    let (input, slot) = (batch.bytes(), batch.slot());\n-    assert_eq!(Some(input.len()), slot.checked_mul(outputs.len()), \"input holds one slot per output\");\n-    let Some((pool, _caller)) = spare_pool() else {\n-        return tree.hash_many(&batch, outputs);\n-    };\n-    let count = outputs.len();\n-    let plan = pool.plan(places::Kind::Messages, input.len());\n-    with_scratch(\n-        |pieces| cut_messages(pieces, count, slot, plan.threads),\n-        |(), pieces, _| {\n-            let work = Work::Messages { batch, tree: tree.clone().on_this_core(), pieces, outputs: outputs.as_mut_ptr() };\n-            pool.run_job(work, pieces.len(), 0, plan.threads, plan.near());\n-            plan.done();\n-        },\n-    )\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// [`crate::each::hash_each_multithreaded`]'s pool job: the items under\n /// MIN_SPLIT_LEN, cut into ranges of about [`next_piece_len`] of the\n /// bytes that remain, each range hashed by one thread. An item of\n /// MIN_SPLIT_LEN or more is set aside here (its digest zero, a stand-in)\n /// and hashed by the caller over the whole pool after.\n pub(crate) fn hash_each(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_many_over_pool",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 378
+        },
+        "start": {
+          "column": 1,
+          "line": 359
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:363:5: replace hash_many_over_pool with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 377
+      },
+      "start": {
+        "column": 5,
+        "line": 363
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace hash_each with ()\n@@ -378,28 +378,17 @@\n }\n \n /// [`crate::each::hash_each_multithreaded`]'s pool job: the items under\n /// MIN_SPLIT_LEN, cut into ranges of about [`next_piece_len`] of the\n /// bytes that remain, each range hashed by one thread. An item of\n /// MIN_SPLIT_LEN or more is set aside here (its digest zero, a stand-in)\n /// and hashed by the caller over the whole pool after.\n pub(crate) fn hash_each(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n-    let Some((pool, _caller)) = spare_pool() else {\n-        return hash_each_small(tree, items, out);\n-    };\n-    let plan = pool.plan(places::Kind::Each, items.iter().map(|i| i.1).sum());\n-    with_scratch(\n-        |pieces| cut_items(pieces, items, plan.threads),\n-        |(), pieces, _| {\n-            let work = Work::Each { items, tree: tree.clone().on_this_core(), pieces, outputs: out.as_mut_ptr() };\n-            pool.run_job(work, pieces.len(), 0, plan.threads, plan.near());\n-            plan.done();\n-        },\n-    )\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// The hashes of a collection's items under MIN_SPLIT_LEN, on this\n /// thread, in `tree`'s mode: each run of them between the longer items\n /// is a collection of its own. An item of MIN_SPLIT_LEN or more is left\n /// as it was: the caller hashes it over the pool after.\n pub(crate) fn hash_each_small(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n     let mut start = 0;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 398
+        },
+        "start": {
+          "column": 1,
+          "line": 380
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:386:5: replace hash_each with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 397
+      },
+      "start": {
+        "column": 5,
+        "line": 386
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace hash_each_small with ()\n@@ -397,22 +397,17 @@\n     )\n }\n \n /// The hashes of a collection's items under MIN_SPLIT_LEN, on this\n /// thread, in `tree`'s mode: each run of them between the longer items\n /// is a collection of its own. An item of MIN_SPLIT_LEN or more is left\n /// as it was: the caller hashes it over the pool after.\n pub(crate) fn hash_each_small(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n-    let mut start = 0;\n-    for run in items.split(|item| item.1 >= MIN_SPLIT_LEN) {\n-        tree.hash_each(run, &mut out[start..start + run.len()]);\n-        // Past the run and the longer item that ended it.\n-        start += run.len() + 1;\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Cut `items` into consecutive ranges for `threads` threads, in order:\n /// each range takes items until it holds [`next_piece_len`] of the bytes\n /// that remain (one item at least, however long), so ranges shrink toward\n /// the end as subtree pieces do. An item of MIN_SPLIT_LEN or more weighs\n /// nothing here: it is hashed after, over the pool.\n fn cut_items(pieces: &mut Vec<Piece>, items: &[impl crate::each::Item], threads: usize) {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each_small",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 411
+        },
+        "start": {
+          "column": 1,
+          "line": 400
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:405:5: replace hash_each_small with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 410
+      },
+      "start": {
+        "column": 5,
+        "line": 405
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace >= with < in hash_each_small\n@@ -398,17 +398,17 @@\n }\n \n /// The hashes of a collection's items under MIN_SPLIT_LEN, on this\n /// thread, in `tree`'s mode: each run of them between the longer items\n /// is a collection of its own. An item of MIN_SPLIT_LEN or more is left\n /// as it was: the caller hashes it over the pool after.\n pub(crate) fn hash_each_small(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n     let mut start = 0;\n-    for run in items.split(|item| item.1 >= MIN_SPLIT_LEN) {\n+    for run in items.split(|item| item.1 < /* ~ changed by cargo-mutants ~ */ MIN_SPLIT_LEN) {\n         tree.hash_each(run, &mut out[start..start + run.len()]);\n         // Past the run and the longer item that ended it.\n         start += run.len() + 1;\n     }\n }\n \n /// Cut `items` into consecutive ranges for `threads` threads, in order:\n /// each range takes items until it holds [`next_piece_len`] of the bytes\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each_small",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 411
+        },
+        "start": {
+          "column": 1,
+          "line": 400
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:406:42: replace >= with < in hash_each_small",
+    "package": "blake3-servil",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 406
+      },
+      "start": {
+        "column": 42,
+        "line": 406
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace + with - in hash_each_small\n@@ -399,17 +399,17 @@\n \n /// The hashes of a collection's items under MIN_SPLIT_LEN, on this\n /// thread, in `tree`'s mode: each run of them between the longer items\n /// is a collection of its own. An item of MIN_SPLIT_LEN or more is left\n /// as it was: the caller hashes it over the pool after.\n pub(crate) fn hash_each_small(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n     let mut start = 0;\n     for run in items.split(|item| item.1 >= MIN_SPLIT_LEN) {\n-        tree.hash_each(run, &mut out[start..start + run.len()]);\n+        tree.hash_each(run, &mut out[start..start - /* ~ changed by cargo-mutants ~ */ run.len()]);\n         // Past the run and the longer item that ended it.\n         start += run.len() + 1;\n     }\n }\n \n /// Cut `items` into consecutive ranges for `threads` threads, in order:\n /// each range takes items until it holds [`next_piece_len`] of the bytes\n /// that remain (one item at least, however long), so ranges shrink toward\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each_small",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 411
+        },
+        "start": {
+          "column": 1,
+          "line": 400
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:407:51: replace + with - in hash_each_small",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 52,
+        "line": 407
+      },
+      "start": {
+        "column": 51,
+        "line": 407
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace += with -= in hash_each_small\n@@ -401,17 +401,17 @@\n /// thread, in `tree`'s mode: each run of them between the longer items\n /// is a collection of its own. An item of MIN_SPLIT_LEN or more is left\n /// as it was: the caller hashes it over the pool after.\n pub(crate) fn hash_each_small(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n     let mut start = 0;\n     for run in items.split(|item| item.1 >= MIN_SPLIT_LEN) {\n         tree.hash_each(run, &mut out[start..start + run.len()]);\n         // Past the run and the longer item that ended it.\n-        start += run.len() + 1;\n+        start -= /* ~ changed by cargo-mutants ~ */ run.len() + 1;\n     }\n }\n \n /// Cut `items` into consecutive ranges for `threads` threads, in order:\n /// each range takes items until it holds [`next_piece_len`] of the bytes\n /// that remain (one item at least, however long), so ranges shrink toward\n /// the end as subtree pieces do. An item of MIN_SPLIT_LEN or more weighs\n /// nothing here: it is hashed after, over the pool.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each_small",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 411
+        },
+        "start": {
+          "column": 1,
+          "line": 400
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:409:15: replace += with -= in hash_each_small",
+    "package": "blake3-servil",
+    "replacement": "-=",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 409
+      },
+      "start": {
+        "column": 15,
+        "line": 409
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace + with - in hash_each_small\n@@ -401,17 +401,17 @@\n /// thread, in `tree`'s mode: each run of them between the longer items\n /// is a collection of its own. An item of MIN_SPLIT_LEN or more is left\n /// as it was: the caller hashes it over the pool after.\n pub(crate) fn hash_each_small(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n     let mut start = 0;\n     for run in items.split(|item| item.1 >= MIN_SPLIT_LEN) {\n         tree.hash_each(run, &mut out[start..start + run.len()]);\n         // Past the run and the longer item that ended it.\n-        start += run.len() + 1;\n+        start += run.len() - /* ~ changed by cargo-mutants ~ */ 1;\n     }\n }\n \n /// Cut `items` into consecutive ranges for `threads` threads, in order:\n /// each range takes items until it holds [`next_piece_len`] of the bytes\n /// that remain (one item at least, however long), so ranges shrink toward\n /// the end as subtree pieces do. An item of MIN_SPLIT_LEN or more weighs\n /// nothing here: it is hashed after, over the pool.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each_small",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 411
+        },
+        "start": {
+          "column": 1,
+          "line": 400
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:409:28: replace + with - in hash_each_small",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 409
+      },
+      "start": {
+        "column": 28,
+        "line": 409
+      }
+    }
+  }
+]
