@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace free_storages_for_model -> (usize, usize) with (1, 1)\n@@ -337,35 +337,17 @@\n /// The model's alone (tests/shuttle_pipeline.rs): at the end of one run,\n /// every storage made in it is free again (returned: how many), and is\n /// freed here. A program never frees one; a model that ran thousands of\n /// schedules without freeing would hold them all, and Shuttle's atomics\n /// must not pass from one run to the next.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n pub(crate) fn free_storages_for_model() -> (usize, usize) {\n-    let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n-    let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n-    let back = free.len();\n-    for st in free {\n-        // Sound: the model's threads have all ended, and nothing holds a\n-        // storage that is on the free list.\n-        unsafe {\n-            let shared = *st.shared.get();\n-            if !shared.is_null() {\n-                drop(Box::from_raw(shared));\n-            }\n-            let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n-                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n-            }\n-            drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n-        }\n-    }\n-    (made, back)\n+    (1, 1) /* ~ changed by cargo-mutants ~ */\n }\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 364
+        },
+        "start": {
+          "column": 1,
+          "line": 337
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:345:5: replace free_storages_for_model -> (usize, usize) with (1, 1)",
+    "package": "blake3-servil",
+    "replacement": "(1, 1)",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 363
+      },
+      "start": {
+        "column": 5,
+        "line": 345
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete ! in free_storages_for_model\n@@ -345,17 +345,17 @@\n     let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n     let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n     let back = free.len();\n     for st in free {\n         // Sound: the model's threads have all ended, and nothing holds a\n         // storage that is on the free list.\n         unsafe {\n             let shared = *st.shared.get();\n-            if !shared.is_null() {\n+            if  /* ~ changed by cargo-mutants ~ */shared.is_null() {\n                 drop(Box::from_raw(shared));\n             }\n             let (at, len) = st.rooms.backing;\n             if !at.is_null() {\n                 drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n             }\n             drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 364
+        },
+        "start": {
+          "column": 1,
+          "line": 337
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/pipeline.rs:353:16: delete ! in free_storages_for_model",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 353
+      },
+      "start": {
+        "column": 16,
+        "line": 353
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete ! in free_storages_for_model\n@@ -349,17 +349,17 @@\n         // Sound: the model's threads have all ended, and nothing holds a\n         // storage that is on the free list.\n         unsafe {\n             let shared = *st.shared.get();\n             if !shared.is_null() {\n                 drop(Box::from_raw(shared));\n             }\n             let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n+            if  /* ~ changed by cargo-mutants ~ */at.is_null() {\n                 drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n             }\n             drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n         }\n     }\n     (made, back)\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 364
+        },
+        "start": {
+          "column": 1,
+          "line": 337
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/pipeline.rs:357:16: delete ! in free_storages_for_model",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 357
+      },
+      "start": {
+        "column": 16,
+        "line": 357
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))\n@@ -369,59 +369,17 @@\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n             FREE_STORAGES.lock().unwrap().push(st);\n         }\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize, key: &CVWords, flags: u8) -> &'static PipeStorage {\n-        let chosen = {\n-            let mut free = FREE_STORAGES.lock().unwrap();\n-            let fits = |st: &&'static PipeStorage| {\n-                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups\n-            };\n-            free.iter().position(fits).map(|at| free.swap_remove(at))\n-        };\n-        if let Some(st) = chosen {\n-            st.holders.store(1, Ordering::Release);\n-            for g in &st.groups[..groups] {\n-                // Sound: the storage came off the free list, so no Pipeline\n-                // holds it and every task that read these groups has finished\n-                // (Pipeline::drop stops the process otherwise).\n-                let t = unsafe { &mut *g.task.get() };\n-                t.key = *key;\n-                t.flags = flags;\n-            }\n-            return st;\n-        }\n-        let actions = actions.max(1024);\n-        let messages = messages.max(64);\n-        let groups = groups.max(64);\n-        let dummy = GroupMemberMeta { room: NONE };\n-        #[cfg(any(test, shuttle))]\n-        STORAGES_MADE.fetch_add(1, Ordering::Relaxed);\n-        Box::leak(Box::new(PipeStorage {\n-            source: Source::with_actions(actions),\n-            waker: WakerSlot::new(),\n-            rooms: Rooms::new(rooms),\n-            groups: (0..groups)\n-                .map(|_| MemberGroup {\n-                    task: UnsafeCell::new(Task::members(key, flags, None)),\n-                    metas: UnsafeCell::new([dummy; MEMBERS]),\n-                    epoch: UnsafeCell::new(0),\n-                    completed_epoch: OwnLine(AtomicU64::new(0)),\n-                })\n-                .collect(),\n-            loan_completed: (0..messages).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            saved_loan_epoch: UnsafeCell::new(1),\n-            saved_group_epoch: UnsafeCell::new(1),\n-            shared: UnsafeCell::new(core::ptr::null_mut()),\n-            holders: OwnLine(AtomicUsize::new(1)),\n-        }))\n+        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.\n #[must_use = \"commit from the room; a dropped Room gives back what is left of it\"]\n pub struct Room {\n     pipeline_id: u64,\n     index: u32,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 420
+        },
+        "start": {
+          "column": 5,
+          "line": 376
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:377:9: replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 419
+      },
+      "start": {
+        "column": 9,
+        "line": 377
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Room::bytes_mut -> &mut[u8] with Vec::leak(Vec::new())\n@@ -436,21 +436,17 @@\n unsafe impl Send for Room {}\n unsafe impl Sync for Room {}\n \n #[allow(clippy::len_without_is_empty)]\n impl Room {\n     /// Remaining writable bytes in this room, starting on a 64-byte boundary.\n     #[inline(always)]\n     pub fn bytes_mut(&mut self) -> &mut [u8] {\n-        let rem = ROOM_LEN - self.offset as usize;\n-        // Sound: the bytes from `offset` to the room's end are this Room's\n-        // alone: committed bytes lie before `offset`, and no other Room has\n-        // this index while this one's credits are out (take_credit).\n-        unsafe { core::slice::from_raw_parts_mut(self.as_mut_ptr(), rem) }\n+        Vec::leak(Vec::new()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Pointer to the start of the remaining writable bytes.\n     #[inline(always)]\n     pub fn as_mut_ptr(&mut self) -> *mut u8 {\n         // Sound: `offset` is at most ROOM_LEN, inside or one past the room.\n         unsafe { self.ptr.add(self.offset as usize) }\n     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Room::bytes_mut",
+      "return_type": "-> &mut[u8]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 449
+        },
+        "start": {
+          "column": 5,
+          "line": 441
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:444:9: replace Room::bytes_mut -> &mut[u8] with Vec::leak(Vec::new())",
+    "package": "blake3-servil",
+    "replacement": "Vec::leak(Vec::new())",
+    "span": {
+      "end": {
+        "column": 75,
+        "line": 448
+      },
+      "start": {
+        "column": 9,
+        "line": 444
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Room::bytes_mut -> &mut[u8] with Vec::leak(vec![0])\n@@ -436,21 +436,17 @@\n unsafe impl Send for Room {}\n unsafe impl Sync for Room {}\n \n #[allow(clippy::len_without_is_empty)]\n impl Room {\n     /// Remaining writable bytes in this room, starting on a 64-byte boundary.\n     #[inline(always)]\n     pub fn bytes_mut(&mut self) -> &mut [u8] {\n-        let rem = ROOM_LEN - self.offset as usize;\n-        // Sound: the bytes from `offset` to the room's end are this Room's\n-        // alone: committed bytes lie before `offset`, and no other Room has\n-        // this index while this one's credits are out (take_credit).\n-        unsafe { core::slice::from_raw_parts_mut(self.as_mut_ptr(), rem) }\n+        Vec::leak(vec![0]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Pointer to the start of the remaining writable bytes.\n     #[inline(always)]\n     pub fn as_mut_ptr(&mut self) -> *mut u8 {\n         // Sound: `offset` is at most ROOM_LEN, inside or one past the room.\n         unsafe { self.ptr.add(self.offset as usize) }\n     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Room::bytes_mut",
+      "return_type": "-> &mut[u8]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 449
+        },
+        "start": {
+          "column": 5,
+          "line": 441
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:444:9: replace Room::bytes_mut -> &mut[u8] with Vec::leak(vec![0])",
+    "package": "blake3-servil",
+    "replacement": "Vec::leak(vec![0])",
+    "span": {
+      "end": {
+        "column": 75,
+        "line": 448
+      },
+      "start": {
+        "column": 9,
+        "line": 444
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Room::bytes_mut -> &mut[u8] with Vec::leak(vec![1])\n@@ -436,21 +436,17 @@\n unsafe impl Send for Room {}\n unsafe impl Sync for Room {}\n \n #[allow(clippy::len_without_is_empty)]\n impl Room {\n     /// Remaining writable bytes in this room, starting on a 64-byte boundary.\n     #[inline(always)]\n     pub fn bytes_mut(&mut self) -> &mut [u8] {\n-        let rem = ROOM_LEN - self.offset as usize;\n-        // Sound: the bytes from `offset` to the room's end are this Room's\n-        // alone: committed bytes lie before `offset`, and no other Room has\n-        // this index while this one's credits are out (take_credit).\n-        unsafe { core::slice::from_raw_parts_mut(self.as_mut_ptr(), rem) }\n+        Vec::leak(vec![1]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Pointer to the start of the remaining writable bytes.\n     #[inline(always)]\n     pub fn as_mut_ptr(&mut self) -> *mut u8 {\n         // Sound: `offset` is at most ROOM_LEN, inside or one past the room.\n         unsafe { self.ptr.add(self.offset as usize) }\n     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Room::bytes_mut",
+      "return_type": "-> &mut[u8]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 449
+        },
+        "start": {
+          "column": 5,
+          "line": 441
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:444:9: replace Room::bytes_mut -> &mut[u8] with Vec::leak(vec![1])",
+    "package": "blake3-servil",
+    "replacement": "Vec::leak(vec![1])",
+    "span": {
+      "end": {
+        "column": 75,
+        "line": 448
+      },
+      "start": {
+        "column": 9,
+        "line": 444
+      }
+    }
+  }
+]
