@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace * with + in Pipeline<T, B>::commit\n@@ -1007,17 +1007,17 @@\n     pub fn commit(&mut self, message: &mut Message, room: &mut Room, written: usize) {\n         assert_eq!(message.pipeline_id, self.id, \"Message belongs to a different Pipeline\");\n         assert_eq!(room.pipeline_id, self.id, \"Room belongs to a different Pipeline\");\n         assert!(written <= room.len(), \"commit wrote {written} bytes into a Room with {} left\", room.len());\n \n         let s = message.slot as usize;\n         if matches!(self.slots[s].kind, SlotKind::OpenEmpty) && written < ROOM_LEN {\n             let start_offset = room.offset;\n-            room.offset = ((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN) as u32;\n+            room.offset = ((start_offset as usize + written).div_ceil(64) + /* ~ changed by cargo-mutants ~ */ 64).min(ROOM_LEN) as u32;\n             room.take_credit();\n             self.slots[s].kind = SlotKind::OpenShort { room: room.index, offset: start_offset, len: written as u32 };\n             return;\n         }\n         self.commit_multi(s, room, written);\n     }\n \n     #[inline(never)]\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::commit",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1021
+        },
+        "start": {
+          "column": 5,
+          "line": 1002
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1015:75: replace * with + in Pipeline<T, B>::commit",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 76,
+        "line": 1015
+      },
+      "start": {
+        "column": 75,
+        "line": 1015
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace + with - in Pipeline<T, B>::commit\n@@ -1007,17 +1007,17 @@\n     pub fn commit(&mut self, message: &mut Message, room: &mut Room, written: usize) {\n         assert_eq!(message.pipeline_id, self.id, \"Message belongs to a different Pipeline\");\n         assert_eq!(room.pipeline_id, self.id, \"Room belongs to a different Pipeline\");\n         assert!(written <= room.len(), \"commit wrote {written} bytes into a Room with {} left\", room.len());\n \n         let s = message.slot as usize;\n         if matches!(self.slots[s].kind, SlotKind::OpenEmpty) && written < ROOM_LEN {\n             let start_offset = room.offset;\n-            room.offset = ((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN) as u32;\n+            room.offset = ((start_offset as usize - /* ~ changed by cargo-mutants ~ */ written).div_ceil(64) * 64).min(ROOM_LEN) as u32;\n             room.take_credit();\n             self.slots[s].kind = SlotKind::OpenShort { room: room.index, offset: start_offset, len: written as u32 };\n             return;\n         }\n         self.commit_multi(s, room, written);\n     }\n \n     #[inline(never)]\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::commit",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1021
+        },
+        "start": {
+          "column": 5,
+          "line": 1002
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1015:51: replace + with - in Pipeline<T, B>::commit",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 52,
+        "line": 1015
+      },
+      "start": {
+        "column": 51,
+        "line": 1015
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::commit_multi with ()\n@@ -1017,72 +1017,17 @@\n             self.slots[s].kind = SlotKind::OpenShort { room: room.index, offset: start_offset, len: written as u32 };\n             return;\n         }\n         self.commit_multi(s, room, written);\n     }\n \n     #[inline(never)]\n     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {\n-        let start_offset = room.offset;\n-        let room_idx = room.index;\n-\n-        match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                debug_assert_eq!(written, ROOM_LEN);\n-                debug_assert_eq!(start_offset, 0);\n-                room.offset = ROOM_LEN as u32;\n-                self.room_streams[s] = RoomStream::EMPTY;\n-                self.slots[s].kind = SlotKind::OpenRooms { sealed: false };\n-            }\n-            SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {\n-                panic!(\"commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room\");\n-            }\n-            SlotKind::OpenRooms { ref mut sealed } => {\n-                if written == ROOM_LEN {\n-                    debug_assert_eq!(start_offset, 0);\n-                    room.offset = ROOM_LEN as u32;\n-                } else {\n-                    *sealed = true;\n-                    room.offset = ((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN) as u32;\n-                    if written == 0 {\n-                        return;\n-                    }\n-                }\n-            }\n-            _ => unreachable!(\"Message token refers to a non-open slot\"),\n-        }\n-\n-        room.take_credit();\n-        let counter = self.room_streams[s].room_pieces * (ROOM_LEN / CHUNK_LEN) as u64;\n-        self.room_streams[s].room_pieces += 1;\n-\n-        self.drain_slot_pieces(s);\n-        let pnode = self.alloc_piece_node(s);\n-        let shared = unsafe { &*self.shared };\n-        let node = &shared.pieces[pnode as usize];\n-        unsafe {\n-            *node.room.get() = room_idx;\n-            *node.offset.get() = start_offset;\n-            *node.len.get() = written as u32;\n-            *node.counter.get() = counter;\n-            *node.next.get() = NONE;\n-        }\n-        node.done.store(false, Ordering::Relaxed);\n-\n-        let rs = &mut self.room_streams[s];\n-        if rs.tail_piece == NONE {\n-            rs.head_piece = pnode;\n-        } else {\n-            unsafe { *shared.pieces[rs.tail_piece as usize].next.get() = pnode };\n-        }\n-        rs.tail_piece = pnode;\n-\n-        let arg = pack_arg(KIND_ROOM_PIECE, pnode, 0, written >= SME2_MIN_LEN);\n-        self.dispatch_one(arg);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {\n         if let Some(p) = self.free_pieces.pop_front() {\n             return p;\n         }\n         loop {\n             self.drain_slot_pieces(current_slot);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::commit_multi",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1081
+        },
+        "start": {
+          "column": 5,
+          "line": 1023
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1025:9: replace Pipeline<T, B>::commit_multi with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 1080
+      },
+      "start": {
+        "column": 9,
+        "line": 1025
+      }
+    }
+  }
+]
