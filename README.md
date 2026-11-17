@@ -36,3 +36,15 @@ what a job built or fetched stays on the machine.
 
 Members of the servil team. The runner pushes through a deploy key with
 write access, one per machine.
+
+## Licence
+
+Copyright (c) the servil team. You may use the files of this repository under the terms of any of these four Free and Open
+Source Software licences, at your choice:
+
+* MIT license ([LICENSE-MIT](LICENSE-MIT))
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+* Transitive Grace Period Public Licence 1.0 ([LICENSE-TGPPL](LICENSE-TGPPL)):
+  *Licensed under the Transitive Grace Period Public Licence version 1.0*
+* Bootstrap Open Source Licence v1.0 ([LICENSE-BOSL.txt](LICENSE-BOSL.txt)):
+  *Licensed under the Bootstrap Open Source Licence version 1.0*
