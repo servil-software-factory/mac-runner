@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace >> with << in subtree_halves\n@@ -397,17 +397,17 @@\n     assert_eq!(counter % (input.len() / CHUNK_LEN) as u64, 0, \"a subtree starts at a multiple of its chunk count\");\n     let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().bare_subtree_halves(counter, input) };\n     tree_cvs(pool, input, tree, counter, |pieces, cvs, last, own| {\n         let (left, right) = merge_to_children(pieces, cvs, last, own);\n         // The two are the halves asked for: the calls that made them kept\n         // each join to siblings, and this, in every build, the two to\n         // their places.\n         let level = level_of(input.len() as u64) - 1;\n-        let index = counter >> level;\n+        let index = counter << /* ~ changed by cargo-mutants ~ */ level;\n         assert!(\n             (left.level(), left.index(), right.first_chunk(), right.len()) == (level, index, (index + 1) << level, input.len() as u64 / 2),\n             \"not the halves of {} bytes at chunk {counter}: {left:?} and {right:?}\",\n             input.len()\n         );\n         [BareCv::from_bytes(*left.as_bytes()), BareCv::from_bytes(*right.as_bytes())]\n     })\n }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "subtree_halves",
+      "return_type": "-> [BareCv; 2]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 413
+        },
+        "start": {
+          "column": 1,
+          "line": 389
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:405:29: replace >> with << in subtree_halves",
+    "package": "blake3-servil",
+    "replacement": "<<",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 405
+      },
+      "start": {
+        "column": 29,
+        "line": 405
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace merge_root -> Hash with Default::default()\n@@ -705,18 +705,17 @@\n     if share >= MAX_PIECE_LEN { share } else { 0 }\n }\n \n /// The hash of the message of `len` bytes that `pieces` tile from zero,\n /// from the pieces' values: `cvs` the whole pieces' (non-increasing\n /// powers of two, as `cut_subtrees` makes them) and `last` the last\n /// piece's. Two or more pieces are required.\n fn merge_root(pieces: &[Piece], cvs: &mut [ChainingValue], last: LastCv, tree: &TreeHasher, len: usize) -> Hash {\n-    let (left, right) = merge_to_children(pieces, cvs, last, tree);\n-    tree.root_hash(&left, &right, len as u64)\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// [`merge_root`] up to the root's two children. `cvs` holds the whole\n /// pieces' values (every piece's but the last) and `last` the last\n /// piece's.\n ///\n /// At each size the longer pieces are an untouched prefix; the values\n /// after it are that size's whole subtrees. They are paired through the\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "merge_root",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 715
+        },
+        "start": {
+          "column": 1,
+          "line": 708
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:713:5: replace merge_root -> Hash with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 46,
+        "line": 714
+      },
+      "start": {
+        "column": 5,
+        "line": 713
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace merge_to_children -> (ChainingValue, LastCv) with (Default::default(), Default::default())\n@@ -719,48 +719,17 @@\n /// piece's.\n ///\n /// At each size the longer pieces are an untouched prefix; the values\n /// after it are that size's whole subtrees. They are paired through the\n /// kernels, and an odd one out is the last subtree's left sibling. The\n /// tree's calls keep each join to siblings, in every build: a cut that\n /// was not BLAKE3's would stop here.\n fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], mut last: LastCv, tree: &TreeHasher) -> (ChainingValue, LastCv) {\n-    let whole = &pieces[..pieces.len() - 1];\n-    assert_eq!(whole.len(), cvs.len(), \"a value for every whole piece\");\n-    assert!(!whole.is_empty(), \"two pieces or more\");\n-    let mut count = cvs.len();\n-    let mut width = MIN_PIECE_LEN;\n-    let mut out = [ChainingValue::unset(); crate::MAX_SIMD_DEGREE];\n-    while count > 1 {\n-        let prefix = whole.partition_point(|p| p.len > width);\n-        debug_assert!(prefix <= count);\n-        let mut read = prefix;\n-        let mut write = prefix;\n-        while read + 1 < count {\n-            // Whole pairs: an odd one out joins the last subtree below.\n-            let children = (count - read).min(2 * crate::MAX_SIMD_DEGREE) & !1;\n-            // The inner loop's variant: each call merges at least one pair.\n-            assert!(children >= 2, \"a parents call with under two children\");\n-            let parents = children / 2;\n-            tree.parent_cvs(&cvs[read..read + children], &mut out[..parents]);\n-            cvs[write..write + parents].copy_from_slice(&out[..parents]);\n-            read += children;\n-            write += parents;\n-        }\n-        if read < count {\n-            last = tree.last_parent_cv(&cvs[read], &last);\n-        }\n-        // The loop's variant: a level merges at least one pair, or joins\n-        // its one value to the last.\n-        assert!(write < count, \"a level of the tree merged nothing\");\n-        count = write;\n-        width *= 2;\n-    }\n-    (cvs[0], last)\n+    (Default::default(), Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n /// The tests' way to the pool: the public call, the bytes in blocks.\n #[cfg(test)]\n fn hash_mt(input: &[u8], mode: crate::Mode) -> Hash {\n     let mut blocks = std::vec![crate::throughput::Block([0; 64]); input.len().div_ceil(64)];\n     crate::throughput::Block::bytes_mut(&mut blocks)[..input.len()].copy_from_slice(input);\n     crate::throughput::hash_multithreaded(mode, &blocks, input.len())\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "merge_to_children",
+      "return_type": "-> (ChainingValue, LastCv)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 759
+        },
+        "start": {
+          "column": 1,
+          "line": 717
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:727:5: replace merge_to_children -> (ChainingValue, LastCv) with (Default::default(), Default::default())",
+    "package": "blake3-servil",
+    "replacement": "(Default::default(), Default::default())",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 758
+      },
+      "start": {
+        "column": 5,
+        "line": 727
+      }
+    }
+  }
+]
