@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace hash_over_pool -> Hash with Default::default()\n@@ -275,21 +275,17 @@\n ) {\n     hash_many_over_pool(&TreeHasher::new(whole(kind, key, context)), batch, outputs)\n }\n \n /// The hash of `input`, of MIN_SPLIT_LEN bytes or more, in `tree`'s mode,\n /// over the machine's threads (a shorter input is the caller's, on its\n /// own thread: the public calls' short path).\n pub(crate) fn hash_over_pool(tree: &TreeHasher, input: &[u8]) -> Hash {\n-    debug_assert!(input.len() >= MIN_SPLIT_LEN);\n-    let Some((pool, _caller)) = spare_pool() else {\n-        return tree.hash(input);\n-    };\n-    tree_cvs(pool, input, tree, 0, |pieces, cvs, last, own| merge_root(pieces, cvs, last, own, input.len()))\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// The pool, this caller counted until the guard drops; or None with no\n /// CPU to spare (every one has a caller, or the process has one CPU), when\n /// the call hashes on its own thread. The count lets concurrent callers\n /// see that this CPU already has work.\n /// The wide AVX-512 kernel's budget for whole-message trees (Linux): one\n /// maximum-sized piece per participant, at least two participants when\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_over_pool",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 288
+        },
+        "start": {
+          "column": 1,
+          "line": 279
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:283:5: replace hash_over_pool -> Hash with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 109,
+        "line": 287
+      },
+      "start": {
+        "column": 5,
+        "line": 283
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace with_scratch -> T with Default::default()\n@@ -344,25 +344,17 @@\n     });\n     sources::job_source();\n     crate::each::prepare_thread();\n }\n \n /// `cut` fills this thread's scratch with a job's pieces; `job` runs with\n /// what `cut` returned, the pieces, and as many chaining values, unset.\n fn with_scratch<C, T>(cut: impl FnOnce(&mut Vec<Piece>) -> C, job: impl FnOnce(C, &[Piece], &mut [ChainingValue]) -> T) -> T {\n-    SCRATCH.with(|s| {\n-        let mut s = s.try_borrow_mut().expect(\"one pool call at a time on a thread\");\n-        let Scratch { pieces, cvs } = &mut *s;\n-        pieces.clear();\n-        let c = cut(pieces);\n-        cvs.clear();\n-        cvs.resize(pieces.len(), ChainingValue::unset());\n-        job(c, pieces, cvs)\n-    })\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// The subtree pieces of `input` at chunk `counter` and their chaining\n /// values, hashed over the pool (the SME2 thread's prefix first, where it\n /// takes one), handed to `merge`: the whole pieces' values (every piece\n /// but the last), then the last piece's.\n /// `merge` gets `tree` kept to a core's own kernels too, as the pieces\n /// ran: the merges are the pool's work like them.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "with_scratch",
+      "return_type": "-> T",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 361
+        },
+        "start": {
+          "column": 1,
+          "line": 349
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:352:5: replace with_scratch -> T with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 360
+      },
+      "start": {
+        "column": 5,
+        "line": 352
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace tree_cvs -> T with Default::default()\n@@ -362,33 +362,17 @@\n \n /// The subtree pieces of `input` at chunk `counter` and their chaining\n /// values, hashed over the pool (the SME2 thread's prefix first, where it\n /// takes one), handed to `merge`: the whole pieces' values (every piece\n /// but the last), then the last piece's.\n /// `merge` gets `tree` kept to a core's own kernels too, as the pieces\n /// ran: the merges are the pool's work like them.\n fn tree_cvs<T>(pool: &Pool, input: &[u8], tree: &TreeHasher, counter: u64, merge: impl FnOnce(&[Piece], &mut [ChainingValue], LastCv, &TreeHasher) -> T) -> T {\n-    let turn = crate::platform::Sme2Turn::take(Platform::detect(), true);\n-    let plan = pool.plan(places::Kind::Tree, input.len());\n-    let threads = tree_threads(input.len(), plan.threads, turn.platform().simd_degree());\n-    let prefix = prefix_for(&turn, input.len(), threads);\n-    with_scratch(\n-        |pieces| cut_with_prefix(pieces, input.len(), threads, prefix),\n-        |own, pieces, cvs| {\n-            let own_core = tree.clone().on_this_core();\n-            let mut last = None;\n-            let work = Work::Tree { input, pieces, cvs: cvs.as_mut_ptr(), last: &mut last, tree: own_core.clone(), counter, own_platform: turn.platform() };\n-            pool.run_job(work, pieces.len(), own, threads, plan.near());\n-            plan.done();\n-            drop(turn);\n-            let whole = pieces.len() - 1;\n-            merge(pieces, &mut cvs[..whole], last.expect(\"the job hashed its last piece\"), &own_core)\n-        },\n-    )\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// The chaining values of the two halves of the subtree `input` at chunk\n /// `counter`, over the machine's threads: what `TreeHasher::subtree_halves`\n /// returns for a whole subtree.\n /// Requires a power-of-two number of chunks, at least MIN_SPLIT_LEN\n /// bytes, and `counter` a multiple\n /// of that number, as `Hasher::update` hands out.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "tree_cvs",
+      "return_type": "-> T",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 387
+        },
+        "start": {
+          "column": 1,
+          "line": 363
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:370:5: replace tree_cvs -> T with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 386
+      },
+      "start": {
+        "column": 5,
+        "line": 370
+      }
+    }
+  }
+]
