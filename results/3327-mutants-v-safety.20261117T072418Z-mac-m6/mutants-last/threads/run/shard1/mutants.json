@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete ! in free_storages_for_model\n@@ -350,17 +350,17 @@\n     let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n     let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n     let back = free.len();\n     for st in free {\n         // Sound: the model's threads have all ended, and nothing holds a\n         // storage that is on the free list.\n         unsafe {\n             let shared = *st.shared.get();\n-            if !shared.is_null() {\n+            if  /* ~ changed by cargo-mutants ~ */shared.is_null() {\n                 drop(Box::from_raw(shared));\n             }\n             let (at, len) = st.rooms.backing;\n             if !at.is_null() {\n                 drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n             }\n             drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 369
+        },
+        "start": {
+          "column": 1,
+          "line": 342
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/pipeline.rs:358:16: delete ! in free_storages_for_model",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 358
+      },
+      "start": {
+        "column": 16,
+        "line": 358
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete ! in free_storages_for_model\n@@ -354,17 +354,17 @@\n         // Sound: the model's threads have all ended, and nothing holds a\n         // storage that is on the free list.\n         unsafe {\n             let shared = *st.shared.get();\n             if !shared.is_null() {\n                 drop(Box::from_raw(shared));\n             }\n             let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n+            if  /* ~ changed by cargo-mutants ~ */at.is_null() {\n                 drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n             }\n             drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n         }\n     }\n     (made, back)\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 369
+        },
+        "start": {
+          "column": 1,
+          "line": 342
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/pipeline.rs:362:16: delete ! in free_storages_for_model",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 362
+      },
+      "start": {
+        "column": 16,
+        "line": 362
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))\n@@ -374,59 +374,17 @@\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n             FREE_STORAGES.lock().unwrap().push(st);\n         }\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize, key: &CVWords, flags: u8) -> &'static PipeStorage {\n-        let chosen = {\n-            let mut free = FREE_STORAGES.lock().unwrap();\n-            let fits = |st: &&'static PipeStorage| {\n-                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups\n-            };\n-            free.iter().position(fits).map(|at| free.swap_remove(at))\n-        };\n-        if let Some(st) = chosen {\n-            st.holders.store(1, Ordering::Release);\n-            for g in &st.groups[..groups] {\n-                // Sound: the storage came off the free list, so no Pipeline\n-                // holds it and every task that read these groups has finished\n-                // (Pipeline::drop stops the process otherwise).\n-                let t = unsafe { &mut *g.task.get() };\n-                t.key = *key;\n-                t.flags = flags;\n-            }\n-            return st;\n-        }\n-        let actions = actions.max(1024);\n-        let messages = messages.max(64);\n-        let groups = groups.max(64);\n-        let dummy = GroupMemberMeta { room: NONE };\n-        #[cfg(any(test, shuttle))]\n-        STORAGES_MADE.fetch_add(1, Ordering::Relaxed);\n-        Box::leak(Box::new(PipeStorage {\n-            source: Source::with_actions(actions),\n-            waker: WakerSlot::new(),\n-            rooms: Rooms::new(rooms),\n-            groups: (0..groups)\n-                .map(|_| MemberGroup {\n-                    task: UnsafeCell::new(Task::members(key, flags, None)),\n-                    metas: UnsafeCell::new([dummy; MEMBERS]),\n-                    epoch: UnsafeCell::new(0),\n-                    completed_epoch: OwnLine(AtomicU64::new(0)),\n-                })\n-                .collect(),\n-            loan_completed: (0..messages).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            saved_loan_epoch: UnsafeCell::new(1),\n-            saved_group_epoch: UnsafeCell::new(1),\n-            shared: UnsafeCell::new(core::ptr::null_mut()),\n-            holders: OwnLine(AtomicUsize::new(1)),\n-        }))\n+        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.\n #[must_use = \"commit from the room; a dropped Room gives back what is left of it\"]\n pub struct Room {\n     pipeline_id: u64,\n     index: u32,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 425
+        },
+        "start": {
+          "column": 5,
+          "line": 381
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:382:9: replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 424
+      },
+      "start": {
+        "column": 9,
+        "line": 382
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace block_on -> F::Output with Default::default()\n@@ -2176,45 +2176,17 @@\n /// use blake3_servil::throughput::Pipeline;\n /// async fn bad(pipeline: &mut Pipeline<u64>) {\n ///     let slot = pipeline.message(1, None);\n ///     let ev = pipeline.ready();\n ///     let _ = (slot.await, ev.await);\n /// }\n /// ```\n pub fn block_on<F: Future>(future: F) -> F::Output {\n-    struct Guard(u8);\n-    impl Drop for Guard {\n-        fn drop(&mut self) {\n-            BLOCK_ON_STATE.with(|f| f.set(self.0));\n-        }\n-    }\n-    let prev = BLOCK_ON_STATE.with(|f| f.replace(1));\n-    let _guard = Guard(prev);\n-    let mut future = core::pin::pin!(future);\n-    BLOCK_ON_WAKER.with(|waker| {\n-        let mut cx = Context::from_waker(waker);\n-        if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n-            return output;\n-        }\n-        let started = crate::lanes::now();\n-        let mut yielded = started;\n-        loop {\n-            crate::lanes::poll_pause(&mut yielded);\n-            if crate::lanes::now() - started >= crate::lanes::SPIN_BEFORE_SLEEP {\n-                BLOCK_ON_STATE.with(|f| f.set(2));\n-                match future.as_mut().poll(&mut cx) {\n-                    Poll::Ready(output) => return output,\n-                    Poll::Pending => thread::park(),\n-                }\n-            } else if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n-                return output;\n-            }\n-        }\n-    })\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n // The standard library's tests alone: under Shuttle\n // (tests/shuttle_pipeline.rs) this file is compiled without them.\n #[cfg(all(test, not(shuttle)))]\n mod test {\n     use super::*;\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "block_on",
+      "return_type": "-> F::Output",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2213
+        },
+        "start": {
+          "column": 1,
+          "line": 2033
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2184:5: replace block_on -> F::Output with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 2212
+      },
+      "start": {
+        "column": 5,
+        "line": 2184
+      }
+    }
+  }
+]
