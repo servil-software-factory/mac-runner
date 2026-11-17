@@ -1,0 +1,354 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Ring<X>::push_back with ()\n@@ -81,25 +81,17 @@\n     fn front(&self) -> Option<&X> {\n         // Sound: the `len` items from `head` on are written (push_back) and\n         // not yet read out.\n         if self.len == 0 { None } else { Some(unsafe { self.buf[self.head].assume_init_ref() }) }\n     }\n \n     #[inline(always)]\n     fn push_back(&mut self, item: X) {\n-        let cap = self.buf.len();\n-        // In every build: one item more than the ring holds would be\n-        // written over the oldest, a queued message or event lost in\n-        // silence. Each ring's users keep within it (a slot, a piece or a\n-        // room is in one ring once), and this holds them to that.\n-        assert!(self.len < cap, \"Ring capacity exceeded\");\n-        let idx = (self.head + self.len) % cap;\n-        self.buf[idx].write(item);\n-        self.len += 1;\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn pop_front(&mut self) -> Option<X> {\n         if self.len == 0 {\n             return None;\n         }\n         // Sound: as `front`; the item is read out once, since `head` moves\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Ring<X>::push_back",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 98
+        },
+        "start": {
+          "column": 5,
+          "line": 87
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:89:9: replace Ring<X>::push_back with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 97
+      },
+      "start": {
+        "column": 9,
+        "line": 89
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Ring<X>::pop_front -> Option<X> with None\n@@ -94,25 +94,17 @@\n         assert!(self.len < cap, \"Ring capacity exceeded\");\n         let idx = (self.head + self.len) % cap;\n         self.buf[idx].write(item);\n         self.len += 1;\n     }\n \n     #[inline(always)]\n     fn pop_front(&mut self) -> Option<X> {\n-        if self.len == 0 {\n-            return None;\n-        }\n-        // Sound: as `front`; the item is read out once, since `head` moves\n-        // past it.\n-        let item = unsafe { self.buf[self.head].assume_init_read() };\n-        self.head = (self.head + 1) % self.buf.len();\n-        self.len -= 1;\n-        Some(item)\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<X> Drop for Ring<X> {\n     fn drop(&mut self) {\n         while self.pop_front().is_some() {}\n     }\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Ring<X>::pop_front",
+      "return_type": "-> Option<X>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 111
+        },
+        "start": {
+          "column": 5,
+          "line": 100
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:102:9: replace Ring<X>::pop_front -> Option<X> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 110
+      },
+      "start": {
+        "column": 9,
+        "line": 102
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace free_storages_for_model -> (usize, usize) with (0, 0)\n@@ -337,35 +337,17 @@\n /// The model's alone (tests/shuttle_pipeline.rs): at the end of one run,\n /// every storage made in it is free again (returned: how many), and is\n /// freed here. A program never frees one; a model that ran thousands of\n /// schedules without freeing would hold them all, and Shuttle's atomics\n /// must not pass from one run to the next.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n pub(crate) fn free_storages_for_model() -> (usize, usize) {\n-    let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n-    let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n-    let back = free.len();\n-    for st in free {\n-        // Sound: the model's threads have all ended, and nothing holds a\n-        // storage that is on the free list.\n-        unsafe {\n-            let shared = *st.shared.get();\n-            if !shared.is_null() {\n-                drop(Box::from_raw(shared));\n-            }\n-            let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n-                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n-            }\n-            drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n-        }\n-    }\n-    (made, back)\n+    (0, 0) /* ~ changed by cargo-mutants ~ */\n }\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 364
+        },
+        "start": {
+          "column": 1,
+          "line": 337
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:345:5: replace free_storages_for_model -> (usize, usize) with (0, 0)",
+    "package": "blake3-servil",
+    "replacement": "(0, 0)",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 363
+      },
+      "start": {
+        "column": 5,
+        "line": 345
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace free_storages_for_model -> (usize, usize) with (0, 1)\n@@ -337,35 +337,17 @@\n /// The model's alone (tests/shuttle_pipeline.rs): at the end of one run,\n /// every storage made in it is free again (returned: how many), and is\n /// freed here. A program never frees one; a model that ran thousands of\n /// schedules without freeing would hold them all, and Shuttle's atomics\n /// must not pass from one run to the next.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n pub(crate) fn free_storages_for_model() -> (usize, usize) {\n-    let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n-    let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n-    let back = free.len();\n-    for st in free {\n-        // Sound: the model's threads have all ended, and nothing holds a\n-        // storage that is on the free list.\n-        unsafe {\n-            let shared = *st.shared.get();\n-            if !shared.is_null() {\n-                drop(Box::from_raw(shared));\n-            }\n-            let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n-                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n-            }\n-            drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n-        }\n-    }\n-    (made, back)\n+    (0, 1) /* ~ changed by cargo-mutants ~ */\n }\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 364
+        },
+        "start": {
+          "column": 1,
+          "line": 337
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:345:5: replace free_storages_for_model -> (usize, usize) with (0, 1)",
+    "package": "blake3-servil",
+    "replacement": "(0, 1)",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 363
+      },
+      "start": {
+        "column": 5,
+        "line": 345
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace free_storages_for_model -> (usize, usize) with (1, 0)\n@@ -337,35 +337,17 @@\n /// The model's alone (tests/shuttle_pipeline.rs): at the end of one run,\n /// every storage made in it is free again (returned: how many), and is\n /// freed here. A program never frees one; a model that ran thousands of\n /// schedules without freeing would hold them all, and Shuttle's atomics\n /// must not pass from one run to the next.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n pub(crate) fn free_storages_for_model() -> (usize, usize) {\n-    let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n-    let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n-    let back = free.len();\n-    for st in free {\n-        // Sound: the model's threads have all ended, and nothing holds a\n-        // storage that is on the free list.\n-        unsafe {\n-            let shared = *st.shared.get();\n-            if !shared.is_null() {\n-                drop(Box::from_raw(shared));\n-            }\n-            let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n-                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n-            }\n-            drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n-        }\n-    }\n-    (made, back)\n+    (1, 0) /* ~ changed by cargo-mutants ~ */\n }\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 364
+        },
+        "start": {
+          "column": 1,
+          "line": 337
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:345:5: replace free_storages_for_model -> (usize, usize) with (1, 0)",
+    "package": "blake3-servil",
+    "replacement": "(1, 0)",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 363
+      },
+      "start": {
+        "column": 5,
+        "line": 345
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace free_storages_for_model -> (usize, usize) with (1, 1)\n@@ -337,35 +337,17 @@\n /// The model's alone (tests/shuttle_pipeline.rs): at the end of one run,\n /// every storage made in it is free again (returned: how many), and is\n /// freed here. A program never frees one; a model that ran thousands of\n /// schedules without freeing would hold them all, and Shuttle's atomics\n /// must not pass from one run to the next.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n pub(crate) fn free_storages_for_model() -> (usize, usize) {\n-    let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n-    let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n-    let back = free.len();\n-    for st in free {\n-        // Sound: the model's threads have all ended, and nothing holds a\n-        // storage that is on the free list.\n-        unsafe {\n-            let shared = *st.shared.get();\n-            if !shared.is_null() {\n-                drop(Box::from_raw(shared));\n-            }\n-            let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n-                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n-            }\n-            drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n-        }\n-    }\n-    (made, back)\n+    (1, 1) /* ~ changed by cargo-mutants ~ */\n }\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 364
+        },
+        "start": {
+          "column": 1,
+          "line": 337
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:345:5: replace free_storages_for_model -> (usize, usize) with (1, 1)",
+    "package": "blake3-servil",
+    "replacement": "(1, 1)",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 363
+      },
+      "start": {
+        "column": 5,
+        "line": 345
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete ! in free_storages_for_model\n@@ -345,17 +345,17 @@\n     let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n     let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n     let back = free.len();\n     for st in free {\n         // Sound: the model's threads have all ended, and nothing holds a\n         // storage that is on the free list.\n         unsafe {\n             let shared = *st.shared.get();\n-            if !shared.is_null() {\n+            if  /* ~ changed by cargo-mutants ~ */shared.is_null() {\n                 drop(Box::from_raw(shared));\n             }\n             let (at, len) = st.rooms.backing;\n             if !at.is_null() {\n                 drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n             }\n             drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 364
+        },
+        "start": {
+          "column": 1,
+          "line": 337
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/pipeline.rs:353:16: delete ! in free_storages_for_model",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 353
+      },
+      "start": {
+        "column": 16,
+        "line": 353
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete ! in free_storages_for_model\n@@ -349,17 +349,17 @@\n         // Sound: the model's threads have all ended, and nothing holds a\n         // storage that is on the free list.\n         unsafe {\n             let shared = *st.shared.get();\n             if !shared.is_null() {\n                 drop(Box::from_raw(shared));\n             }\n             let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n+            if  /* ~ changed by cargo-mutants ~ */at.is_null() {\n                 drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n             }\n             drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n         }\n     }\n     (made, back)\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 364
+        },
+        "start": {
+          "column": 1,
+          "line": 337
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/pipeline.rs:357:16: delete ! in free_storages_for_model",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 357
+      },
+      "start": {
+        "column": 16,
+        "line": 357
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_group with ()\n@@ -570,52 +570,17 @@\n             KIND_GROUP => shared.run_group(a, platform),\n             KIND_ROOM_PIECE => shared.run_room_piece(a, platform),\n             KIND_MULTI => shared.run_multi_piece(a, b, platform),\n             _ => unreachable!(),\n         }\n     }\n \n     fn run_group(&self, group_idx: usize, platform: Platform) {\n-        let storage = self.storage;\n-        let group = &storage.groups[group_idx];\n-        // Sound: the owner wrote this group's task, epoch and metas before it\n-        // dispatched the group (publish_open), and writes them again only\n-        // after it has seen `completed_epoch` reach this epoch, which is this\n-        // function's last store.\n-        let task = unsafe { &*group.task.get() };\n-        let count = task.members;\n-        let epoch = unsafe { *group.epoch.get() };\n-        task.run_members(platform);\n-        let metas = unsafe { &*group.metas.get() };\n-\n-        // Coalesce consecutive members sharing a Room into a single atomic subtraction.\n-        let mut cur_room = NONE;\n-        let mut cur_n = 0usize;\n-        for meta in &metas[..count] {\n-            if meta.room != NONE {\n-                if meta.room == cur_room {\n-                    cur_n += 1;\n-                } else {\n-                    if cur_room != NONE {\n-                        self.storage.rooms.release_n(cur_room, cur_n);\n-                    }\n-                    cur_room = meta.room;\n-                    cur_n = 1;\n-                }\n-            }\n-        }\n-        if cur_room != NONE {\n-            self.storage.rooms.release_n(cur_room, cur_n);\n-        }\n-\n-        // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n-        finished(storage, || {\n-            group.completed_epoch.swap(epoch, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) {\n         let pnode = &self.pieces[pnode_idx];\n         // Sound: the owner wrote the piece's fields before dispatching it\n         // (commit_multi), and touches the node again only once `done` is set,\n         // which is this function's last store.\n         let room_idx = unsafe { *pnode.room.get() };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_group",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 614
+        },
+        "start": {
+          "column": 5,
+          "line": 577
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:578:9: replace Shared::run_group with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 613
+      },
+      "start": {
+        "column": 9,
+        "line": 578
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_multi_piece with ()\n@@ -641,76 +641,17 @@\n             pnode.done.swap(true, Ordering::SeqCst);\n         });\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) {\n         // Sound: the owner wrote the description before dispatching the slot's\n         // tasks (batch, submit_multi_slice), and writes it again only after\n         // `slot_done`.\n-        let desc = unsafe { *self.multi[slot].get() };\n-        if let Some((message_len, slot_len, per_part)) = desc.batch {\n-            let first = piece_idx * per_part;\n-            let count = (desc.total_len - first).min(per_part);\n-            // Sound: the batch and its digests stay in the slot (`batches[s]`)\n-            // until the slot's event, which waits for `slot_done`; this task's\n-            // messages and digests are its own range of them (`first`,\n-            // `count`).\n-            let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };\n-            let digests = unsafe { core::slice::from_raw_parts_mut(desc.digests.add(first), count) };\n-            crate::many::hash_many_on(bytes, message_len, slot_len, &self.key, self.flags, digests, platform);\n-            let storage = self.storage;\n-            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-                finished(storage, || {\n-                    self.slot_done[slot].swap(true, Ordering::SeqCst);\n-                });\n-            }\n-            return;\n-        }\n-\n-        let offset = piece_idx * desc.piece_len;\n-        let part_len = (desc.total_len - offset).min(desc.piece_len);\n-        let counter = (offset / CHUNK_LEN) as u64;\n-        // Sound: the message's bytes stay where they are until the slot is\n-        // done (an owner in `owners[s]`; a loan by the Lent guard, which waits\n-        // for `loan_completed`), and this piece reads its own range.\n-        let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(offset), part_len) };\n-        let cvs_ptr = self.cvs[slot].get() as *mut [u8; OUT_LEN];\n-        if piece_idx == 0 {\n-            debug_assert!(part_len > CHUNK_LEN);\n-            let pair = crate::compress_subtree_to_parent_node(bytes, 0, &self.key, 0, self.flags, platform);\n-            // Sound: `cvs[slot]` has MAX_SLOT_PIECES + 1 values; piece 0\n-            // writes the first two and piece i the one at i + 1, each its own.\n-            unsafe {\n-                (*cvs_ptr).copy_from_slice(&pair[..OUT_LEN]);\n-                (*cvs_ptr.add(1)).copy_from_slice(&pair[OUT_LEN..]);\n-            }\n-        } else {\n-            let cv = crate::hash_all_at_once(bytes, &self.key, counter, self.flags, platform).chaining_value();\n-            // Sound: as piece 0's, above.\n-            unsafe {\n-                (*cvs_ptr.add(piece_idx + 1)).copy_from_slice(&cv);\n-            }\n-        }\n-\n-        let storage = self.storage;\n-        if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-            // Sound: this is the slot's last task (`tasks_left` reached zero),\n-            // so every piece's value is written and no one else reads or\n-            // writes the slot's values or hash until `slot_done` below.\n-            let cvs = unsafe { &*self.cvs[slot].get() };\n-            let hash = fold_multi_cvs(&self.key, self.flags, cvs, desc.pieces);\n-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };\n-            if desc.loan_epoch != 0 {\n-                self.storage.loan_completed[slot].0.store(desc.loan_epoch, Ordering::Release);\n-            }\n-            finished(storage, || {\n-                self.slot_done[slot].swap(true, Ordering::SeqCst);\n-            });\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n fn fold_multi_cvs(key: &CVWords, flags: u8, cvs: &[[u8; OUT_LEN]; MAX_SLOT_PIECES + 1], pieces: usize) -> Hash {\n     let platform = Platform::detect();\n     let parent = |l: &CVBytes, r: &CVBytes| crate::hasher::parent_output(l, r, key, flags, platform);\n     debug_assert!(pieces >= 2);\n     let mut stack: arrayvec::ArrayVec<CVBytes, 8> = arrayvec::ArrayVec::new();\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 709
+        },
+        "start": {
+          "column": 5,
+          "line": 645
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:649:9: replace Shared::run_multi_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 708
+      },
+      "start": {
+        "column": 9,
+        "line": 649
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::publish_open with ()\n@@ -1586,37 +1586,17 @@\n         match self.slots[front as usize].kind {\n             SlotKind::WaitSingle { group, .. } | SlotKind::WaitBatch { group, .. } | SlotKind::WaitAborted { group, .. } => group == open_g,\n             _ => false,\n         }\n     }\n \n     #[inline(never)]\n     fn publish_open(&mut self) {\n-        let Some((group_idx, epoch)) = self.open_group.take() else { return };\n-        let count = self.local_count;\n-        let group = &self.shared().storage.groups[group_idx as usize];\n-        // Sound: the group is not in flight (acquire_free_group gave it), so\n-        // its task, metas and epoch are the owner's to write before the\n-        // dispatch below.\n-        unsafe {\n-            let task = &mut *group.task.get();\n-            task.batch = self.local_batch;\n-            task.len = self.local_bytes;\n-            task.members = count;\n-            task.member[..count].copy_from_slice(&self.local_members[..count]);\n-            let metas = &mut *group.metas.get();\n-            for i in 0..count {\n-                metas[i] = GroupMemberMeta { room: self.local_rooms[i] };\n-            }\n-            *group.epoch.get() = epoch;\n-        }\n-        self.assigned_group_epoch[group_idx as usize] = epoch;\n-        let arg = pack_arg(KIND_GROUP, group_idx, 0, false);\n-        self.dispatch_one(arg);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline]\n     fn dispatch_one(&mut self, arg: u64) {\n         let ctx = self.shared as *const Shared as *const ();\n         match self.source_slot {\n             Some(_) => self.shared().storage.source.publish_actions(Shared::run_action, ctx, core::slice::from_ref(&arg)),\n             // Sound: `ctx` is this Pipeline's Shared, as run_action requires.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::publish_open",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1615
+        },
+        "start": {
+          "column": 5,
+          "line": 1592
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1594:9: replace Pipeline<T, B>::publish_open with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 1614
+      },
+      "start": {
+        "column": 9,
+        "line": 1594
+      }
+    }
+  }
+]
