@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::release with ()\n@@ -285,19 +285,17 @@\n #[cfg(test)]\n static STORAGES_MADE: AtomicUsize = AtomicUsize::new(0);\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n-        if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n-            FREE_STORAGES.lock().unwrap().push(st);\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize, key: &CVWords, flags: u8) -> &'static PipeStorage {\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let fits = |st: &&'static PipeStorage| {\n                 st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups\n             };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::release",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 296
+        },
+        "start": {
+          "column": 5,
+          "line": 289
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:293:9: replace PipeStorage::release with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 295
+      },
+      "start": {
+        "column": 9,
+        "line": 293
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in PipeStorage::release\n@@ -285,17 +285,17 @@\n #[cfg(test)]\n static STORAGES_MADE: AtomicUsize = AtomicUsize::new(0);\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n-        if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n+        if st.holders.fetch_sub(1, Ordering::AcqRel) != /* ~ changed by cargo-mutants ~ */ 1 {\n             FREE_STORAGES.lock().unwrap().push(st);\n         }\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize, key: &CVWords, flags: u8) -> &'static PipeStorage {\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let fits = |st: &&'static PipeStorage| {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::release",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 296
+        },
+        "start": {
+          "column": 5,
+          "line": 289
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:293:54: replace == with != in PipeStorage::release",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 56,
+        "line": 293
+      },
+      "start": {
+        "column": 54,
+        "line": 293
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))\n@@ -291,56 +291,17 @@\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n             FREE_STORAGES.lock().unwrap().push(st);\n         }\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize, key: &CVWords, flags: u8) -> &'static PipeStorage {\n-        let chosen = {\n-            let mut free = FREE_STORAGES.lock().unwrap();\n-            let fits = |st: &&'static PipeStorage| {\n-                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups\n-            };\n-            free.iter().position(fits).map(|at| free.swap_remove(at))\n-        };\n-        if let Some(st) = chosen {\n-            st.holders.store(1, Ordering::Release);\n-            for g in &st.groups[..groups] {\n-                let t = unsafe { &mut *g.task.get() };\n-                t.key = *key;\n-                t.flags = flags;\n-            }\n-            return st;\n-        }\n-        let actions = actions.max(1024);\n-        let messages = messages.max(64);\n-        let groups = groups.max(64);\n-        let dummy = GroupMemberMeta { room: NONE };\n-        #[cfg(test)]\n-        STORAGES_MADE.fetch_add(1, Ordering::Relaxed);\n-        Box::leak(Box::new(PipeStorage {\n-            source: Source::with_actions(actions),\n-            waker: WakerSlot::new(),\n-            rooms: Rooms::new(rooms),\n-            groups: (0..groups)\n-                .map(|_| MemberGroup {\n-                    task: UnsafeCell::new(Task::members(key, flags, None)),\n-                    metas: UnsafeCell::new([dummy; MEMBERS]),\n-                    epoch: UnsafeCell::new(0),\n-                    completed_epoch: OwnLine(AtomicU64::new(0)),\n-                })\n-                .collect(),\n-            loan_completed: (0..messages).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            saved_loan_epoch: UnsafeCell::new(1),\n-            saved_group_epoch: UnsafeCell::new(1),\n-            shared: UnsafeCell::new(core::ptr::null_mut()),\n-            holders: OwnLine(AtomicUsize::new(1)),\n-        }))\n+        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.\n #[must_use = \"commit from the room; a dropped Room gives back what is left of it\"]\n pub struct Room {\n     pipeline_id: u64,\n     index: u32,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 339
+        },
+        "start": {
+          "column": 5,
+          "line": 298
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:299:9: replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 338
+      },
+      "start": {
+        "column": 9,
+        "line": 299
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in PipeStorage::acquire\n@@ -294,17 +294,17 @@\n             FREE_STORAGES.lock().unwrap().push(st);\n         }\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize, key: &CVWords, flags: u8) -> &'static PipeStorage {\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let fits = |st: &&'static PipeStorage| {\n-                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups\n+                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms || /* ~ changed by cargo-mutants ~ */ st.groups.len() >= groups\n             };\n             free.iter().position(fits).map(|at| free.swap_remove(at))\n         };\n         if let Some(st) = chosen {\n             st.holders.store(1, Ordering::Release);\n             for g in &st.groups[..groups] {\n                 let t = unsafe { &mut *g.task.get() };\n                 t.key = *key;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 339
+        },
+        "start": {
+          "column": 5,
+          "line": 298
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:302:118: replace && with || in PipeStorage::acquire",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 120,
+        "line": 302
+      },
+      "start": {
+        "column": 118,
+        "line": 302
+      }
+    }
+  }
+]

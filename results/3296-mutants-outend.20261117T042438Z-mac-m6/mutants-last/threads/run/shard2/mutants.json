@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in PipeStorage::acquire\n@@ -294,17 +294,17 @@\n             FREE_STORAGES.lock().unwrap().push(st);\n         }\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize, key: &CVWords, flags: u8) -> &'static PipeStorage {\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let fits = |st: &&'static PipeStorage| {\n-                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups\n+                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count != /* ~ changed by cargo-mutants ~ */ rooms && st.groups.len() >= groups\n             };\n             free.iter().position(fits).map(|at| free.swap_remove(at))\n         };\n         if let Some(st) = chosen {\n             st.holders.store(1, Ordering::Release);\n             for g in &st.groups[..groups] {\n                 let t = unsafe { &mut *g.task.get() };\n                 t.key = *key;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 339
+        },
+        "start": {
+          "column": 5,
+          "line": 298
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:302:109: replace == with != in PipeStorage::acquire",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 111,
+        "line": 302
+      },
+      "start": {
+        "column": 109,
+        "line": 302
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace >= with < in PipeStorage::acquire\n@@ -294,17 +294,17 @@\n             FREE_STORAGES.lock().unwrap().push(st);\n         }\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize, key: &CVWords, flags: u8) -> &'static PipeStorage {\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let fits = |st: &&'static PipeStorage| {\n-                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups\n+                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() < /* ~ changed by cargo-mutants ~ */ groups\n             };\n             free.iter().position(fits).map(|at| free.swap_remove(at))\n         };\n         if let Some(st) = chosen {\n             st.holders.store(1, Ordering::Release);\n             for g in &st.groups[..groups] {\n                 let t = unsafe { &mut *g.task.get() };\n                 t.key = *key;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 339
+        },
+        "start": {
+          "column": 5,
+          "line": 298
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:302:137: replace >= with < in PipeStorage::acquire",
+    "package": "blake3-servil",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 139,
+        "line": 302
+      },
+      "start": {
+        "column": 137,
+        "line": 302
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for Room>::drop with ()\n@@ -401,22 +401,17 @@\n         self.storage.rooms.release_n(self.index, spent as usize);\n         self.commits += spent;\n     }\n }\n \n impl Drop for Room {\n     #[inline]\n     fn drop(&mut self) {\n-        self.storage.rooms.caller_held.fetch_sub(1, Ordering::Release);\n-        let unused = ROOM_CREDITS - (self.commits as usize);\n-        if self.storage.rooms.release_n(self.index, unused) {\n-            self.storage.waker.notify_after_seqcst();\n-        }\n-        PipeStorage::release(self.storage);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct PieceNode {\n     room: UnsafeCell<u32>,\n     offset: UnsafeCell<u32>,\n     len: UnsafeCell<u32>,\n     counter: UnsafeCell<u64>,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Room>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 415
+        },
+        "start": {
+          "column": 5,
+          "line": 407
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:409:9: replace <impl Drop for Room>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 414
+      },
+      "start": {
+        "column": 9,
+        "line": 409
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::make_room -> Room with Default::default()\n@@ -996,19 +996,17 @@\n         if self.source_slot.is_some() {\n             self.shared().storage.source.wake_for_waiting();\n         }\n         Poll::Pending\n     }\n \n     #[inline(always)]\n     fn make_room(&self, index: u32) -> Room {\n-        let storage = self.shared().storage;\n-        storage.holders.fetch_add(1, Ordering::Relaxed);\n-        Room { pipeline_id: self.id, index, offset: 0, commits: 0, ptr: storage.rooms.room_ptr(index as usize), storage }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn assert_room_can_progress(&self) {\n         assert!(self.limits.rooms > 0, \"Pipeline::room called on a Pipeline with Limits.rooms == 0\");\n         assert!(\n             self.shared().storage.rooms.caller_held.load(Ordering::Acquire) < self.limits.rooms,\n             \"Pipeline::room cannot make progress: all {} rooms are held by the caller\",\n             self.limits.rooms\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::make_room",
+      "return_type": "-> Room",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1007
+        },
+        "start": {
+          "column": 5,
+          "line": 1002
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1004:9: replace Pipeline<T, B>::make_room -> Room with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 122,
+        "line": 1006
+      },
+      "start": {
+        "column": 9,
+        "line": 1004
+      }
+    }
+  }
+]
