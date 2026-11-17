@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Ring<X>::push_back with ()\n@@ -81,25 +81,17 @@\n     fn front(&self) -> Option<&X> {\n         // Sound: the `len` items from `head` on are written (push_back) and\n         // not yet read out.\n         if self.len == 0 { None } else { Some(unsafe { self.buf[self.head].assume_init_ref() }) }\n     }\n \n     #[inline(always)]\n     fn push_back(&mut self, item: X) {\n-        let cap = self.buf.len();\n-        // In every build: one item more than the ring holds would be\n-        // written over the oldest, a queued message or event lost in\n-        // silence. Each ring's users keep within it (a slot, a piece or a\n-        // room is in one ring once), and this holds them to that.\n-        assert!(self.len < cap, \"Ring capacity exceeded\");\n-        let idx = (self.head + self.len) % cap;\n-        self.buf[idx].write(item);\n-        self.len += 1;\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn pop_front(&mut self) -> Option<X> {\n         if self.len == 0 {\n             return None;\n         }\n         // Sound: as `front`; the item is read out once, since `head` moves\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Ring<X>::push_back",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 98
+        },
+        "start": {
+          "column": 5,
+          "line": 87
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:89:9: replace Ring<X>::push_back with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 97
+      },
+      "start": {
+        "column": 9,
+        "line": 89
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Ring<X>::pop_front -> Option<X> with None\n@@ -94,25 +94,17 @@\n         assert!(self.len < cap, \"Ring capacity exceeded\");\n         let idx = (self.head + self.len) % cap;\n         self.buf[idx].write(item);\n         self.len += 1;\n     }\n \n     #[inline(always)]\n     fn pop_front(&mut self) -> Option<X> {\n-        if self.len == 0 {\n-            return None;\n-        }\n-        // Sound: as `front`; the item is read out once, since `head` moves\n-        // past it.\n-        let item = unsafe { self.buf[self.head].assume_init_read() };\n-        self.head = (self.head + 1) % self.buf.len();\n-        self.len -= 1;\n-        Some(item)\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<X> Drop for Ring<X> {\n     fn drop(&mut self) {\n         while self.pop_front().is_some() {}\n     }\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Ring<X>::pop_front",
+      "return_type": "-> Option<X>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 111
+        },
+        "start": {
+          "column": 5,
+          "line": 100
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:102:9: replace Ring<X>::pop_front -> Option<X> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 110
+      },
+      "start": {
+        "column": 9,
+        "line": 102
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Ring<X>::pop_front -> Option<X> with Some(Default::default())\n@@ -94,25 +94,17 @@\n         assert!(self.len < cap, \"Ring capacity exceeded\");\n         let idx = (self.head + self.len) % cap;\n         self.buf[idx].write(item);\n         self.len += 1;\n     }\n \n     #[inline(always)]\n     fn pop_front(&mut self) -> Option<X> {\n-        if self.len == 0 {\n-            return None;\n-        }\n-        // Sound: as `front`; the item is read out once, since `head` moves\n-        // past it.\n-        let item = unsafe { self.buf[self.head].assume_init_read() };\n-        self.head = (self.head + 1) % self.buf.len();\n-        self.len -= 1;\n-        Some(item)\n+        Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<X> Drop for Ring<X> {\n     fn drop(&mut self) {\n         while self.pop_front().is_some() {}\n     }\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Ring<X>::pop_front",
+      "return_type": "-> Option<X>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 111
+        },
+        "start": {
+          "column": 5,
+          "line": 100
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:102:9: replace Ring<X>::pop_front -> Option<X> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 110
+      },
+      "start": {
+        "column": 9,
+        "line": 102
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Rooms::room_ptr -> *mut u8 with Default::default()\n@@ -259,21 +259,17 @@\n             count,\n             refs: (0..count).map(|_| OwnLine(AtomicUsize::new(0))).collect(),\n             caller_held: OwnLine(AtomicUsize::new(0)),\n         }\n     }\n \n     #[inline(always)]\n     fn room_ptr(&self, index: usize) -> *mut u8 {\n-        debug_assert!(index < self.count);\n-        // Sound: `index` is a room of this storage (the callers take it from a\n-        // Room, a piece or a group of this Pipeline), so the offset is inside\n-        // the rooms' allocation.\n-        unsafe { self.buf.add(index * ROOM_LEN) }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn init_taken(&self, idx: u32) {\n         self.refs[idx as usize].store(ROOM_CREDITS, Ordering::Relaxed);\n         self.caller_held.fetch_add(1, Ordering::Relaxed);\n     }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Rooms::room_ptr",
+      "return_type": "-> *mut u8",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 272
+        },
+        "start": {
+          "column": 5,
+          "line": 265
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:267:9: replace Rooms::room_ptr -> *mut u8 with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 50,
+        "line": 271
+      },
+      "start": {
+        "column": 9,
+        "line": 267
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace free_storages_for_model -> (usize, usize) with (0, 0)\n@@ -342,35 +342,17 @@\n /// The model's alone (tests/shuttle_pipeline.rs): at the end of one run,\n /// every storage made in it is free again (returned: how many), and is\n /// freed here. A program never frees one; a model that ran thousands of\n /// schedules without freeing would hold them all, and Shuttle's atomics\n /// must not pass from one run to the next.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n pub(crate) fn free_storages_for_model() -> (usize, usize) {\n-    let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n-    let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n-    let back = free.len();\n-    for st in free {\n-        // Sound: the model's threads have all ended, and nothing holds a\n-        // storage that is on the free list.\n-        unsafe {\n-            let shared = *st.shared.get();\n-            if !shared.is_null() {\n-                drop(Box::from_raw(shared));\n-            }\n-            let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n-                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n-            }\n-            drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n-        }\n-    }\n-    (made, back)\n+    (0, 0) /* ~ changed by cargo-mutants ~ */\n }\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 369
+        },
+        "start": {
+          "column": 1,
+          "line": 342
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:350:5: replace free_storages_for_model -> (usize, usize) with (0, 0)",
+    "package": "blake3-servil",
+    "replacement": "(0, 0)",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 368
+      },
+      "start": {
+        "column": 5,
+        "line": 350
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace free_storages_for_model -> (usize, usize) with (0, 1)\n@@ -342,35 +342,17 @@\n /// The model's alone (tests/shuttle_pipeline.rs): at the end of one run,\n /// every storage made in it is free again (returned: how many), and is\n /// freed here. A program never frees one; a model that ran thousands of\n /// schedules without freeing would hold them all, and Shuttle's atomics\n /// must not pass from one run to the next.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n pub(crate) fn free_storages_for_model() -> (usize, usize) {\n-    let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n-    let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n-    let back = free.len();\n-    for st in free {\n-        // Sound: the model's threads have all ended, and nothing holds a\n-        // storage that is on the free list.\n-        unsafe {\n-            let shared = *st.shared.get();\n-            if !shared.is_null() {\n-                drop(Box::from_raw(shared));\n-            }\n-            let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n-                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n-            }\n-            drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n-        }\n-    }\n-    (made, back)\n+    (0, 1) /* ~ changed by cargo-mutants ~ */\n }\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 369
+        },
+        "start": {
+          "column": 1,
+          "line": 342
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:350:5: replace free_storages_for_model -> (usize, usize) with (0, 1)",
+    "package": "blake3-servil",
+    "replacement": "(0, 1)",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 368
+      },
+      "start": {
+        "column": 5,
+        "line": 350
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace free_storages_for_model -> (usize, usize) with (1, 0)\n@@ -342,35 +342,17 @@\n /// The model's alone (tests/shuttle_pipeline.rs): at the end of one run,\n /// every storage made in it is free again (returned: how many), and is\n /// freed here. A program never frees one; a model that ran thousands of\n /// schedules without freeing would hold them all, and Shuttle's atomics\n /// must not pass from one run to the next.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n pub(crate) fn free_storages_for_model() -> (usize, usize) {\n-    let free: Vec<&'static PipeStorage> = FREE_STORAGES.lock().unwrap().drain(..).collect();\n-    let made = STORAGES_MADE.swap(0, Ordering::SeqCst);\n-    let back = free.len();\n-    for st in free {\n-        // Sound: the model's threads have all ended, and nothing holds a\n-        // storage that is on the free list.\n-        unsafe {\n-            let shared = *st.shared.get();\n-            if !shared.is_null() {\n-                drop(Box::from_raw(shared));\n-            }\n-            let (at, len) = st.rooms.backing;\n-            if !at.is_null() {\n-                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(at, len)));\n-            }\n-            drop(Box::from_raw(st as *const PipeStorage as *mut PipeStorage));\n-        }\n-    }\n-    (made, back)\n+    (1, 0) /* ~ changed by cargo-mutants ~ */\n }\n \n impl PipeStorage {\n     /// Give up one hold on `st` (its Pipeline's, or a Room's): the last\n     /// one puts it on the free list. A Room may outlive its Pipeline, so\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "free_storages_for_model",
+      "return_type": "-> (usize, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 369
+        },
+        "start": {
+          "column": 1,
+          "line": 342
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:350:5: replace free_storages_for_model -> (usize, usize) with (1, 0)",
+    "package": "blake3-servil",
+    "replacement": "(1, 0)",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 368
+      },
+      "start": {
+        "column": 5,
+        "line": 350
+      }
+    }
+  }
+]
