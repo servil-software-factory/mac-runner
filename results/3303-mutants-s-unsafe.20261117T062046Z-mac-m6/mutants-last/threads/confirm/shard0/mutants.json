@@ -1,0 +1,194 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Ring<X>::push_back with ()\n@@ -79,25 +79,17 @@\n     fn front(&self) -> Option<&X> {\n         // Sound: the `len` items from `head` on are written (push_back) and\n         // not yet read out.\n         if self.len == 0 { None } else { Some(unsafe { self.buf[self.head].assume_init_ref() }) }\n     }\n \n     #[inline(always)]\n     fn push_back(&mut self, item: X) {\n-        let cap = self.buf.len();\n-        // In every build: one item more than the ring holds would be\n-        // written over the oldest, a queued message or event lost in\n-        // silence. Each ring's users keep within it (a slot, a piece or a\n-        // room is in one ring once), and this holds them to that.\n-        assert!(self.len < cap, \"Ring capacity exceeded\");\n-        let idx = (self.head + self.len) % cap;\n-        self.buf[idx].write(item);\n-        self.len += 1;\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn pop_front(&mut self) -> Option<X> {\n         if self.len == 0 {\n             return None;\n         }\n         // Sound: as `front`; the item is read out once, since `head` moves\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Ring<X>::push_back",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 96
+        },
+        "start": {
+          "column": 5,
+          "line": 85
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:87:9: replace Ring<X>::push_back with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 95
+      },
+      "start": {
+        "column": 9,
+        "line": 87
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Ring<X>::pop_front -> Option<X> with None\n@@ -92,25 +92,17 @@\n         assert!(self.len < cap, \"Ring capacity exceeded\");\n         let idx = (self.head + self.len) % cap;\n         self.buf[idx].write(item);\n         self.len += 1;\n     }\n \n     #[inline(always)]\n     fn pop_front(&mut self) -> Option<X> {\n-        if self.len == 0 {\n-            return None;\n-        }\n-        // Sound: as `front`; the item is read out once, since `head` moves\n-        // past it.\n-        let item = unsafe { self.buf[self.head].assume_init_read() };\n-        self.head = (self.head + 1) % self.buf.len();\n-        self.len -= 1;\n-        Some(item)\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<X> Drop for Ring<X> {\n     fn drop(&mut self) {\n         while self.pop_front().is_some() {}\n     }\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Ring<X>::pop_front",
+      "return_type": "-> Option<X>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 109
+        },
+        "start": {
+          "column": 5,
+          "line": 98
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:100:9: replace Ring<X>::pop_front -> Option<X> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 108
+      },
+      "start": {
+        "column": 9,
+        "line": 100
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_group with ()\n@@ -517,52 +517,17 @@\n             KIND_GROUP => shared.run_group(a, platform),\n             KIND_ROOM_PIECE => shared.run_room_piece(a, platform),\n             KIND_MULTI => shared.run_multi_piece(a, b, platform),\n             _ => unreachable!(),\n         }\n     }\n \n     fn run_group(&self, group_idx: usize, platform: Platform) {\n-        let storage = self.storage;\n-        let group = &storage.groups[group_idx];\n-        // Sound: the owner wrote this group's task, epoch and metas before it\n-        // dispatched the group (publish_open), and writes them again only\n-        // after it has seen `completed_epoch` reach this epoch, which is this\n-        // function's last store.\n-        let task = unsafe { &*group.task.get() };\n-        let count = task.members;\n-        let epoch = unsafe { *group.epoch.get() };\n-        task.run_members(platform);\n-        let metas = unsafe { &*group.metas.get() };\n-\n-        // Coalesce consecutive members sharing a Room into a single atomic subtraction.\n-        let mut cur_room = NONE;\n-        let mut cur_n = 0usize;\n-        for meta in &metas[..count] {\n-            if meta.room != NONE {\n-                if meta.room == cur_room {\n-                    cur_n += 1;\n-                } else {\n-                    if cur_room != NONE {\n-                        self.storage.rooms.release_n(cur_room, cur_n);\n-                    }\n-                    cur_room = meta.room;\n-                    cur_n = 1;\n-                }\n-            }\n-        }\n-        if cur_room != NONE {\n-            self.storage.rooms.release_n(cur_room, cur_n);\n-        }\n-\n-        // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n-        finished(storage, || {\n-            group.completed_epoch.swap(epoch, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) {\n         let pnode = &self.pieces[pnode_idx];\n         // Sound: the owner wrote the piece's fields before dispatching it\n         // (commit_multi), and touches the node again only once `done` is set,\n         // which is this function's last store.\n         let room_idx = unsafe { *pnode.room.get() };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_group",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 561
+        },
+        "start": {
+          "column": 5,
+          "line": 524
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:525:9: replace Shared::run_group with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 560
+      },
+      "start": {
+        "column": 9,
+        "line": 525
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::publish_open with ()\n@@ -1531,37 +1531,17 @@\n         match self.slots[front as usize].kind {\n             SlotKind::WaitSingle { group, .. } | SlotKind::WaitBatch { group, .. } | SlotKind::WaitAborted { group, .. } => group == open_g,\n             _ => false,\n         }\n     }\n \n     #[inline(never)]\n     fn publish_open(&mut self) {\n-        let Some((group_idx, epoch)) = self.open_group.take() else { return };\n-        let count = self.local_count;\n-        let group = &self.shared().storage.groups[group_idx as usize];\n-        // Sound: the group is not in flight (acquire_free_group gave it), so\n-        // its task, metas and epoch are the owner's to write before the\n-        // dispatch below.\n-        unsafe {\n-            let task = &mut *group.task.get();\n-            task.batch = self.local_batch;\n-            task.len = self.local_bytes;\n-            task.members = count;\n-            task.member[..count].copy_from_slice(&self.local_members[..count]);\n-            let metas = &mut *group.metas.get();\n-            for i in 0..count {\n-                metas[i] = GroupMemberMeta { room: self.local_rooms[i] };\n-            }\n-            *group.epoch.get() = epoch;\n-        }\n-        self.assigned_group_epoch[group_idx as usize] = epoch;\n-        let arg = pack_arg(KIND_GROUP, group_idx, 0, false);\n-        self.dispatch_one(arg);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline]\n     fn dispatch_one(&mut self, arg: u64) {\n         let ctx = self.shared as *const Shared as *const ();\n         match self.source_slot {\n             Some(_) => self.shared().storage.source.publish_actions(Shared::run_action, ctx, core::slice::from_ref(&arg)),\n             // Sound: `ctx` is this Pipeline's Shared, as run_action requires.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::publish_open",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1560
+        },
+        "start": {
+          "column": 5,
+          "line": 1537
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1539:9: replace Pipeline<T, B>::publish_open with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 1559
+      },
+      "start": {
+        "column": 9,
+        "line": 1539
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::dispatch_one with ()\n@@ -1556,22 +1556,17 @@\n         }\n         self.assigned_group_epoch[group_idx as usize] = epoch;\n         let arg = pack_arg(KIND_GROUP, group_idx, 0, false);\n         self.dispatch_one(arg);\n     }\n \n     #[inline]\n     fn dispatch_one(&mut self, arg: u64) {\n-        let ctx = self.shared as *const Shared as *const ();\n-        match self.source_slot {\n-            Some(_) => self.shared().storage.source.publish_actions(Shared::run_action, ctx, core::slice::from_ref(&arg)),\n-            // Sound: `ctx` is this Pipeline's Shared, as run_action requires.\n-            None => unsafe { Shared::run_action(ctx, arg, pool_platform()) },\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn dispatch_many(&mut self, count: usize) {\n         let ctx = self.shared as *const Shared as *const ();\n         match self.source_slot {\n             Some(_) => self.shared().storage.source.publish_actions(Shared::run_action, ctx, &self.action_buf[..count]),\n             None => {\n                 for i in 0..count {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::dispatch_one",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1570
+        },
+        "start": {
+          "column": 5,
+          "line": 1562
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1564:9: replace Pipeline<T, B>::dispatch_one with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1569
+      },
+      "start": {
+        "column": 9,
+        "line": 1564
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::dispatch_many with ()\n@@ -1565,27 +1565,17 @@\n         match self.source_slot {\n             Some(_) => self.shared().storage.source.publish_actions(Shared::run_action, ctx, core::slice::from_ref(&arg)),\n             // Sound: `ctx` is this Pipeline's Shared, as run_action requires.\n             None => unsafe { Shared::run_action(ctx, arg, pool_platform()) },\n         }\n     }\n \n     fn dispatch_many(&mut self, count: usize) {\n-        let ctx = self.shared as *const Shared as *const ();\n-        match self.source_slot {\n-            Some(_) => self.shared().storage.source.publish_actions(Shared::run_action, ctx, &self.action_buf[..count]),\n-            None => {\n-                for i in 0..count {\n-                    let arg = self.action_buf[i];\n-                    // Sound: as dispatch_one's.\n-                    unsafe { Shared::run_action(ctx, arg, pool_platform()) };\n-                }\n-            }\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn group_ready(&mut self, group: u32, epoch: u64) -> bool {\n         if group == NONE {\n             return true;\n         }\n         let gi = group as usize;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::dispatch_many",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1584
+        },
+        "start": {
+          "column": 5,
+          "line": 1572
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1573:9: replace Pipeline<T, B>::dispatch_many with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1583
+      },
+      "start": {
+        "column": 9,
+        "line": 1573
+      }
+    }
+  }
+]
