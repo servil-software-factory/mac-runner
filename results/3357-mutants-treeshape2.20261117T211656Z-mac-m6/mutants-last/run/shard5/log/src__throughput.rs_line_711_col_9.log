@@ -1,0 +1,70 @@
+
+*** src/throughput.rs:711:9: replace TreeHasher::last_parent_cv -> LastCv with Default::default()
+
+*** mutation diff:
+--- src/throughput.rs
++++ replace TreeHasher::last_parent_cv -> LastCv with Default::default()
+@@ -703,19 +703,17 @@
+ 
+     /// The parent of a whole subtree and the message's last subtree: the
+     /// last subtree a level up.
+     ///
+     /// Requires `left` at an even index and `right` beginning where it
+     /// ends, checked in every build. (A last subtree that begins there is
+     /// no longer than `left`: [`last_cv`](TreeHasher::last_cv) saw to it.)
+     pub fn last_parent_cv(&self, left: &Cv, right: &LastCv) -> LastCv {
+-        let (level, index) = (left.level(), left.index());
+-        assert!(index & 1 == 0 && right.first_chunk == (index + 1) << level, "the children are not siblings: {left:?} and {right:?}");
+-        LastCv { value: self.bare_parent_cv(&left.value, &right.value), first_chunk: index << level, len: (CHUNK << level) + right.len }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// A layer of parents: `out[i]` becomes the parent of `children[2 * i]`
+     /// and `children[2 * i + 1]`, side by side in the CPU's lanes.
+     ///
+     /// The places cost 3 to 5 ns a parent over its hashing (the values are
+     /// gathered for the kernels and labelled after): 2% of `b3sum
+     /// --outboard` on a 1 GiB file in memory (Ryzen 9700X), which makes a
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.9.0+dev --features=serde,zeroize
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3591]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3518]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5/version)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5)
+error[E0277]: the trait bound `LastCv: Default` is not satisfied
+   --> src/throughput.rs:711:9
+    |
+711 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `LastCv`
+   --> src/throughput.rs:335:1
+    |
+335 | pub struct LastCv {
+    | ^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.9.0+dev' '--features=serde,zeroize' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
