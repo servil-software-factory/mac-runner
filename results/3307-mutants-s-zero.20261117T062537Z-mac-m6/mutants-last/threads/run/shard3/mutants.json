@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::commit_multi with ()\n@@ -1172,77 +1172,17 @@\n             self.slots[s].kind = SlotKind::OpenShort { room: room.index, offset: start_offset, len: written as u32 };\n             return;\n         }\n         self.commit_multi(s, room, written);\n     }\n \n     #[inline(never)]\n     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {\n-        let start_offset = room.offset;\n-        let room_idx = room.index;\n-\n-        match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                debug_assert_eq!(written, ROOM_LEN);\n-                debug_assert_eq!(start_offset, 0);\n-                room.offset = ROOM_LEN as u32;\n-                self.room_streams[s] = RoomStream::EMPTY;\n-                self.slots[s].kind = SlotKind::OpenRooms { sealed: false };\n-            }\n-            SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {\n-                panic!(\"commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room\");\n-            }\n-            SlotKind::OpenRooms { ref mut sealed } => {\n-                if written == ROOM_LEN {\n-                    debug_assert_eq!(start_offset, 0);\n-                    room.offset = ROOM_LEN as u32;\n-                } else {\n-                    *sealed = true;\n-                    room.offset = ((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN) as u32;\n-                    if written == 0 {\n-                        return;\n-                    }\n-                }\n-            }\n-            _ => unreachable!(\"Message token refers to a non-open slot\"),\n-        }\n-\n-        room.take_credit();\n-        let counter = self.room_streams[s].room_pieces * (ROOM_LEN / CHUNK_LEN) as u64;\n-        self.room_streams[s].room_pieces += 1;\n-\n-        self.drain_slot_pieces(s);\n-        let pnode = self.alloc_piece_node(s);\n-        // Sound: as `shared()`. The node came off the free list, so no task\n-        // uses it: its fields are the owner's to write before the dispatch\n-        // below.\n-        let shared = unsafe { &*self.shared };\n-        let node = &shared.pieces[pnode as usize];\n-        unsafe {\n-            *node.room.get() = room_idx;\n-            *node.offset.get() = start_offset;\n-            *node.len.get() = written as u32;\n-            *node.counter.get() = counter;\n-            *node.next.get() = NONE;\n-        }\n-        node.done.store(false, Ordering::Relaxed);\n-\n-        let rs = &mut self.room_streams[s];\n-        if rs.tail_piece == NONE {\n-            rs.head_piece = pnode;\n-        } else {\n-            // Sound: `next` is the owner's alone (workers read a node's other\n-            // fields).\n-            unsafe { *shared.pieces[rs.tail_piece as usize].next.get() = pnode };\n-        }\n-        rs.tail_piece = pnode;\n-\n-        let arg = pack_arg(KIND_ROOM_PIECE, pnode, 0, written >= SME2_MIN_LEN);\n-        self.dispatch_one(arg);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {\n         if let Some(p) = self.free_pieces.pop_front() {\n             return p;\n         }\n         loop {\n             self.drain_slot_pieces(current_slot);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::commit_multi",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1241
+        },
+        "start": {
+          "column": 5,
+          "line": 1178
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1180:9: replace Pipeline<T, B>::commit_multi with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 1240
+      },
+      "start": {
+        "column": 9,
+        "line": 1180
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::end with ()\n@@ -1254,32 +1254,17 @@\n                 core::hint::spin_loop();\n             }\n         }\n     }\n \n     /// Finish `message` and queue its [`Event::Hashed`] in end order.\n     #[inline(always)]\n     pub fn end(&mut self, message: Message) {\n-        let (pid, s) = message.take();\n-        assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n-        self.open_messages -= 1;\n-\n-        match self.slots[s].kind {\n-            SlotKind::OpenShort { room: room_idx, offset, len } => {\n-                // Sound: the offset is within the room (commit checked\n-                // `written` against what was left).\n-                let ptr = unsafe { self.shared().storage.rooms.room_ptr(room_idx as usize).add(offset as usize) };\n-                let out = self.shared().hashes[s].get() as *mut u8;\n-                let (group, epoch) = self.push_member(ptr, len as usize, out, room_idx, None);\n-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group, epoch };\n-                self.end_queue.push_back(s as u32);\n-            }\n-            _ => self.end_slow(s),\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(never)]\n     fn end_slow(&mut self, s: usize) {\n         match self.slots[s].kind {\n             SlotKind::OpenEmpty => {\n                 let empty_hash = crate::hash_serial(&[], &self.shared().key, self.shared().flags);\n                 // Sound: no task runs for an empty message, so the slot's hash\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::end",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1278
+        },
+        "start": {
+          "column": 5,
+          "line": 1259
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1262:9: replace Pipeline<T, B>::end with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1277
+      },
+      "start": {
+        "column": 9,
+        "line": 1262
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete match arm SlotKind::OpenShort{room:room_idx, offset, len} in Pipeline<T, B>::end\n@@ -1259,25 +1259,17 @@\n     /// Finish `message` and queue its [`Event::Hashed`] in end order.\n     #[inline(always)]\n     pub fn end(&mut self, message: Message) {\n         let (pid, s) = message.take();\n         assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n         self.open_messages -= 1;\n \n         match self.slots[s].kind {\n-            SlotKind::OpenShort { room: room_idx, offset, len } => {\n-                // Sound: the offset is within the room (commit checked\n-                // `written` against what was left).\n-                let ptr = unsafe { self.shared().storage.rooms.room_ptr(room_idx as usize).add(offset as usize) };\n-                let out = self.shared().hashes[s].get() as *mut u8;\n-                let (group, epoch) = self.push_member(ptr, len as usize, out, room_idx, None);\n-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group, epoch };\n-                self.end_queue.push_back(s as u32);\n-            }\n+             /* ~ changed by cargo-mutants ~ */\n             _ => self.end_slow(s),\n         }\n     }\n \n     #[inline(never)]\n     fn end_slow(&mut self, s: usize) {\n         match self.slots[s].kind {\n             SlotKind::OpenEmpty => {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::end",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1278
+        },
+        "start": {
+          "column": 5,
+          "line": 1259
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/pipeline.rs:1267:13: delete match arm SlotKind::OpenShort{room:room_idx, offset, len} in Pipeline<T, B>::end",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1275
+      },
+      "start": {
+        "column": 13,
+        "line": 1267
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::end_slow with ()\n@@ -1274,35 +1274,17 @@\n                 self.end_queue.push_back(s as u32);\n             }\n             _ => self.end_slow(s),\n         }\n     }\n \n     #[inline(never)]\n     fn end_slow(&mut self, s: usize) {\n-        match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                let empty_hash = crate::hash_serial(&[], &self.shared().key, self.shared().flags);\n-                // Sound: no task runs for an empty message, so the slot's hash\n-                // is the owner's to write.\n-                unsafe { *self.shared().hashes[s].get() = *empty_hash.as_bytes() };\n-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group: NONE, epoch: 0 };\n-            }\n-            SlotKind::OpenShortDispatched { group, epoch } => {\n-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group, epoch };\n-            }\n-            SlotKind::OpenRooms { .. } => {\n-                self.shared().slot_done[s].store(false, Ordering::Relaxed);\n-                self.slots[s].kind = SlotKind::WaitRoomMulti;\n-                self.drain_slot_pieces(s);\n-            }\n-            _ => unreachable!(),\n-        }\n-        self.end_queue.push_back(s as u32);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Abort `message` and queue its [`Event::Aborted`] in end order.\n     pub fn abort(&mut self, message: Message) {\n         let (pid, s) = message.take();\n         assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n         self.open_messages -= 1;\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::end_slow",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1301
+        },
+        "start": {
+          "column": 5,
+          "line": 1280
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1282:9: replace Pipeline<T, B>::end_slow with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 1300
+      },
+      "start": {
+        "column": 9,
+        "line": 1282
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete match arm SlotKind::OpenEmpty in Pipeline<T, B>::end_slow\n@@ -1275,23 +1275,17 @@\n             }\n             _ => self.end_slow(s),\n         }\n     }\n \n     #[inline(never)]\n     fn end_slow(&mut self, s: usize) {\n         match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                let empty_hash = crate::hash_serial(&[], &self.shared().key, self.shared().flags);\n-                // Sound: no task runs for an empty message, so the slot's hash\n-                // is the owner's to write.\n-                unsafe { *self.shared().hashes[s].get() = *empty_hash.as_bytes() };\n-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group: NONE, epoch: 0 };\n-            }\n+             /* ~ changed by cargo-mutants ~ */\n             SlotKind::OpenShortDispatched { group, epoch } => {\n                 self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group, epoch };\n             }\n             SlotKind::OpenRooms { .. } => {\n                 self.shared().slot_done[s].store(false, Ordering::Relaxed);\n                 self.slots[s].kind = SlotKind::WaitRoomMulti;\n                 self.drain_slot_pieces(s);\n             }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::end_slow",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1301
+        },
+        "start": {
+          "column": 5,
+          "line": 1280
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/pipeline.rs:1283:13: delete match arm SlotKind::OpenEmpty in Pipeline<T, B>::end_slow",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1289
+      },
+      "start": {
+        "column": 13,
+        "line": 1283
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::batch with ()\n@@ -1353,65 +1353,17 @@\n             (&self.shared().storage.loan_completed[s].0, epoch)\n         };\n         self.end_queue.push_back(s as u32);\n         Lent { completed, epoch, _bytes: PhantomData }\n     }\n \n     /// Hash `batch` into `digests` and return both in [`Event::Batch`].\n     pub fn batch(&mut self, message: Message, batch: Batch<'static>, digests: Box<[[u8; OUT_LEN]]>) {\n-        let (pid, s) = message.take();\n-        assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n-        self.assert_uncommitted(s);\n-        crate::many::assert_slots(batch.bytes(), batch.message_len(), batch.slot(), digests.len());\n-        self.open_messages -= 1;\n-\n-        // Sound: the slot is open and holds no batch (assert_uncommitted); the\n-        // batch and digests stay in the slot until its event reads them out or\n-        // the Pipeline's drop drops them.\n-        let hold = unsafe { (*self.batches[s].get()).write((batch, digests)) };\n-        let msg_len = hold.0.message_len();\n-        let slot_len = hold.0.slot();\n-        let bytes = hold.0.bytes();\n-        let count = hold.1.len();\n-        let digests_ptr = hold.1.as_mut_ptr();\n-\n-        if count == 0 {\n-            self.shared().slot_done[s].store(true, Ordering::Relaxed);\n-            self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };\n-        } else if bytes.len() < TASK_LEN {\n-            let (group, epoch) = self.push_member(bytes.as_ptr(), bytes.len(), digests_ptr as *mut u8, NONE, Some(msg_len));\n-            self.slots[s].kind = SlotKind::WaitBatch { group, epoch };\n-        } else {\n-            self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };\n-            let per_part = (TASK_LEN / slot_len).max(1).max(count.div_ceil(MAX_SLOT_PIECES));\n-            let pieces = count.div_ceil(per_part);\n-            debug_assert!((1..=MAX_SLOT_PIECES).contains(&pieces));\n-            self.shared().slot_done[s].store(false, Ordering::Relaxed);\n-            self.shared().tasks_left[s].store(pieces, Ordering::Relaxed);\n-            // Sound: no task of this slot is in flight (it was open), so its\n-            // description is the owner's to write before the dispatch below.\n-            unsafe {\n-                *self.shared().multi[s].get() = MultiDesc {\n-                    input: bytes.as_ptr(),\n-                    total_len: count,\n-                    piece_len: 0,\n-                    pieces,\n-                    batch: Some((msg_len, slot_len, per_part)),\n-                    digests: digests_ptr,\n-                    loan_epoch: 0,\n-                }\n-            };\n-            let sme2 = per_part * slot_len >= SME2_MIN_LEN;\n-            for p in 0..pieces {\n-                self.action_buf[p] = pack_arg(KIND_MULTI, s as u32, p as u32, sme2);\n-            }\n-            self.dispatch_many(pieces);\n-        }\n-        self.end_queue.push_back(s as u32);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Pull the next finished [`Event`], if one is ready.\n     #[inline(always)]\n     pub fn next_event(&mut self) -> Option<Event<T, B>> {\n         if let Some(ev) = self.events.pop_front() {\n             return Some(ev);\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::batch",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1410
+        },
+        "start": {
+          "column": 5,
+          "line": 1359
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1361:9: replace Pipeline<T, B>::batch with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 1409
+      },
+      "start": {
+        "column": 9,
+        "line": 1361
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::submit_multi_slice with ()\n@@ -1482,33 +1482,17 @@\n             self.slots[s].kind = SlotKind::WaitSingle { has_owner, group, epoch };\n             return;\n         }\n         self.submit_multi_slice(s, ptr, len, has_owner, 0);\n     }\n \n     #[inline(never)]\n     fn submit_multi_slice(&mut self, s: usize, ptr: *const u8, len: usize, has_owner: bool, loan_epoch: u64) {\n-        let mut piece_len = TASK_LEN;\n-        while len.div_ceil(piece_len) > MAX_SLOT_PIECES {\n-            piece_len *= 2;\n-        }\n-        let pieces = len.div_ceil(piece_len);\n-        debug_assert!((2..=MAX_SLOT_PIECES).contains(&pieces));\n-        self.shared().slot_done[s].store(false, Ordering::Relaxed);\n-        self.shared().tasks_left[s].store(pieces, Ordering::Relaxed);\n-        // Sound: as `batch`'s, above.\n-        unsafe {\n-            *self.shared().multi[s].get() = MultiDesc { input: ptr, total_len: len, piece_len, pieces, batch: None, digests: core::ptr::null_mut(), loan_epoch }\n-        };\n-        self.slots[s].kind = SlotKind::WaitMulti { has_owner };\n-        for p in 0..pieces {\n-            self.action_buf[p] = pack_arg(KIND_MULTI, s as u32, p as u32, true);\n-        }\n-        self.dispatch_many(pieces);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn flush_sealed_short_rooms(&mut self) {\n         for s in 0..self.slots.len() {\n             if let SlotKind::OpenShort { room: room_idx, offset, len } = self.slots[s].kind {\n                 // Sound: as in `end`.\n                 let ptr = unsafe { self.shared().storage.rooms.room_ptr(room_idx as usize).add(offset as usize) };\n                 let out = self.shared().hashes[s].get() as *mut u8;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::submit_multi_slice",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1507
+        },
+        "start": {
+          "column": 5,
+          "line": 1488
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1490:9: replace Pipeline<T, B>::submit_multi_slice with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 36,
+        "line": 1506
+      },
+      "start": {
+        "column": 9,
+        "line": 1490
+      }
+    }
+  }
+]
