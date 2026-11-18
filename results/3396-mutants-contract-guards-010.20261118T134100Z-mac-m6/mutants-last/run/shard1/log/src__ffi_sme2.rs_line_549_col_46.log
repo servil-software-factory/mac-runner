@@ -1,0 +1,62 @@
+
+*** src/ffi_sme2.rs:549:46: replace + with - in scratch_layout
+
+*** mutation diff:
+--- src/ffi_sme2.rs
++++ replace + with - in scratch_layout
+@@ -541,17 +541,17 @@
+ const SCRATCH: usize = 64 * 1024;
+ 
+ /// Where the flat walk of `n` chunks keeps its chaining values and the
+ /// level above them, in bytes from the scratch's start (the pointer table
+ /// sits at 0): at 1 KiB and 3 KiB mod 4 KiB, past the table and the
+ /// values before them, with room for a padded group of 16 parents' inputs
+ /// (32 values) at either.
+ const fn scratch_layout(n: usize) -> (usize, usize) {
+-    let cvs = (8 * n).next_multiple_of(4096) + 1024;
++    let cvs = (8 * n).next_multiple_of(4096) - /* ~ changed by cargo-mutants ~ */ 1024;
+     let width = if n < 2 * GROUP { 2 * GROUP } else { n };
+     let half = cvs + (OUT_LEN * width).saturating_sub(2048).next_multiple_of(4096) + 2048;
+     (cvs, half)
+ }
+ 
+ // flat_walk checks flat_takes before using the layout. Check every
+ // size it admits at build time, including the last padded parent calls.
+ const _: () = {
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.9.0+dev --features=serde,zeroize
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3423]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3411]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+error[E0080]: evaluation panicked: the pointer table fits before the values
+   --> src/ffi_sme2.rs:565:9
+    |
+565 |         assert!(n * core::mem::size_of::<*const u8>() <= cvs, "the pointer table fits before the values");
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `sme2::_` failed here
+
+For more information about this error, try `rustc --explain E0080`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.9.0+dev' '--features=serde,zeroize' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
