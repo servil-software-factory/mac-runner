@@ -1,0 +1,258 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace << with >> in Shared::run_multi_piece\n@@ -660,17 +660,17 @@\n         // Sound: the owner, or the Lent guard, keeps all the message's\n         // bytes in place until the slot is done. The chunks of this slice\n         // are the same partition the submitter put in the action list.\n         let input = unsafe { core::slice::from_raw_parts(desc.input, desc.total_len) };\n         let level = desc.piece_level;\n         let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect(\"a piece within its message\");\n         let values = self.cvs[slot].get();\n         if piece_idx + 1 == desc.pieces {\n-            let value = self.tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);\n+            let value = self.tree.last_cv_on(platform, (piece_idx as u64) >> /* ~ changed by cargo-mutants ~ */ level, bytes);\n             // Sound: only the last piece writes this field.\n             unsafe { (*values).last = Some(value) };\n         } else {\n             let value = self.tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);\n             // Sound: a separate slot for each index (submit_multi_slice\n             // limits the count); form no borrow of other workers' slots.\n             unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 694
+        },
+        "start": {
+          "column": 5,
+          "line": 635
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:668:75: replace << with >> in Shared::run_multi_piece",
+    "package": "blake3-servil",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 77,
+        "line": 668
+      },
+      "start": {
+        "column": 75,
+        "line": 668
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace - with + in Shared::run_multi_piece\n@@ -677,17 +677,17 @@\n \n         let storage = self.storage;\n         if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n             // Sound: this is the slot's last task (`tasks_left` reached zero),\n             // so every piece's value is written and no one else reads or\n             // writes the slot's values or hash until `slot_done` below.\n             let values = unsafe { &mut *values };\n             let last = values.last.take().expect(\"the last piece supplied its value\");\n-            let hash = fold_multi_cvs(&self.tree, &values.whole[..desc.pieces - 1], last, desc.total_len as u64);\n+            let hash = fold_multi_cvs(&self.tree, &values.whole[..desc.pieces + /* ~ changed by cargo-mutants ~ */ 1], last, desc.total_len as u64);\n             unsafe { *self.hashes[slot].get() = *hash.as_bytes() };\n             if desc.loan_epoch != 0 {\n                 self.storage.loan_completed[slot].0.store(desc.loan_epoch, Ordering::Release);\n             }\n             finished(storage, || {\n                 self.slot_done[slot].swap(true, Ordering::SeqCst);\n             });\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 694
+        },
+        "start": {
+          "column": 5,
+          "line": 635
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:685:79: replace - with + in Shared::run_multi_piece",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 80,
+        "line": 685
+      },
+      "start": {
+        "column": 79,
+        "line": 685
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace merge_pieces -> usize with 0\n@@ -692,21 +692,17 @@\n             });\n         }\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n-    for _ in count.count_ones() as usize..used {\n-        stack[used - 2] = tree.parent_cv(&stack[used - 2], &stack[used - 1]);\n-        used -= 1;\n-    }\n-    used\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Add a whole piece. The same fold serves slice pieces and rooms.\n fn push_piece(tree: &TreeHasher, stack: &mut [Cv], used: &mut usize, preceding: u64, piece: Cv) {\n     let n = merge_pieces(tree, stack, *used, preceding);\n     stack[n] = piece;\n     *used = n + 1;\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "merge_pieces",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 705
+        },
+        "start": {
+          "column": 1,
+          "line": 697
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:700:5: replace merge_pieces -> usize with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 704
+      },
+      "start": {
+        "column": 5,
+        "line": 700
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace merge_pieces -> usize with 1\n@@ -692,21 +692,17 @@\n             });\n         }\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n-    for _ in count.count_ones() as usize..used {\n-        stack[used - 2] = tree.parent_cv(&stack[used - 2], &stack[used - 1]);\n-        used -= 1;\n-    }\n-    used\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Add a whole piece. The same fold serves slice pieces and rooms.\n fn push_piece(tree: &TreeHasher, stack: &mut [Cv], used: &mut usize, preceding: u64, piece: Cv) {\n     let n = merge_pieces(tree, stack, *used, preceding);\n     stack[n] = piece;\n     *used = n + 1;\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "merge_pieces",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 705
+        },
+        "start": {
+          "column": 1,
+          "line": 697
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:700:5: replace merge_pieces -> usize with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 704
+      },
+      "start": {
+        "column": 5,
+        "line": 700
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace - with + in merge_pieces\n@@ -693,17 +693,17 @@\n         }\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     for _ in count.count_ones() as usize..used {\n-        stack[used - 2] = tree.parent_cv(&stack[used - 2], &stack[used - 1]);\n+        stack[used + /* ~ changed by cargo-mutants ~ */ 2] = tree.parent_cv(&stack[used - 2], &stack[used - 1]);\n         used -= 1;\n     }\n     used\n }\n \n /// Add a whole piece. The same fold serves slice pieces and rooms.\n fn push_piece(tree: &TreeHasher, stack: &mut [Cv], used: &mut usize, preceding: u64, piece: Cv) {\n     let n = merge_pieces(tree, stack, *used, preceding);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "merge_pieces",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 705
+        },
+        "start": {
+          "column": 1,
+          "line": 697
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:701:20: replace - with + in merge_pieces",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 701
+      },
+      "start": {
+        "column": 20,
+        "line": 701
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace - with + in merge_pieces\n@@ -693,17 +693,17 @@\n         }\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     for _ in count.count_ones() as usize..used {\n-        stack[used - 2] = tree.parent_cv(&stack[used - 2], &stack[used - 1]);\n+        stack[used - 2] = tree.parent_cv(&stack[used + /* ~ changed by cargo-mutants ~ */ 2], &stack[used - 1]);\n         used -= 1;\n     }\n     used\n }\n \n /// Add a whole piece. The same fold serves slice pieces and rooms.\n fn push_piece(tree: &TreeHasher, stack: &mut [Cv], used: &mut usize, preceding: u64, piece: Cv) {\n     let n = merge_pieces(tree, stack, *used, preceding);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "merge_pieces",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 705
+        },
+        "start": {
+          "column": 1,
+          "line": 697
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:701:54: replace - with + in merge_pieces",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 55,
+        "line": 701
+      },
+      "start": {
+        "column": 54,
+        "line": 701
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace - with + in merge_pieces\n@@ -693,17 +693,17 @@\n         }\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     for _ in count.count_ones() as usize..used {\n-        stack[used - 2] = tree.parent_cv(&stack[used - 2], &stack[used - 1]);\n+        stack[used - 2] = tree.parent_cv(&stack[used - 2], &stack[used + /* ~ changed by cargo-mutants ~ */ 1]);\n         used -= 1;\n     }\n     used\n }\n \n /// Add a whole piece. The same fold serves slice pieces and rooms.\n fn push_piece(tree: &TreeHasher, stack: &mut [Cv], used: &mut usize, preceding: u64, piece: Cv) {\n     let n = merge_pieces(tree, stack, *used, preceding);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "merge_pieces",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 705
+        },
+        "start": {
+          "column": 1,
+          "line": 697
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:701:72: replace - with + in merge_pieces",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 73,
+        "line": 701
+      },
+      "start": {
+        "column": 72,
+        "line": 701
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace -= with += in merge_pieces\n@@ -694,17 +694,17 @@\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     for _ in count.count_ones() as usize..used {\n         stack[used - 2] = tree.parent_cv(&stack[used - 2], &stack[used - 1]);\n-        used -= 1;\n+        used += /* ~ changed by cargo-mutants ~ */ 1;\n     }\n     used\n }\n \n /// Add a whole piece. The same fold serves slice pieces and rooms.\n fn push_piece(tree: &TreeHasher, stack: &mut [Cv], used: &mut usize, preceding: u64, piece: Cv) {\n     let n = merge_pieces(tree, stack, *used, preceding);\n     stack[n] = piece;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "merge_pieces",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 705
+        },
+        "start": {
+          "column": 1,
+          "line": 697
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:702:14: replace -= with += in merge_pieces",
+    "package": "blake3-servil",
+    "replacement": "+=",
+    "span": {
+      "end": {
+        "column": 16,
+        "line": 702
+      },
+      "start": {
+        "column": 14,
+        "line": 702
+      }
+    }
+  }
+]
