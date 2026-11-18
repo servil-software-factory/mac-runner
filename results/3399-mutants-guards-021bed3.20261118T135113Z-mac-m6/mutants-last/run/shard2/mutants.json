@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::set_row with ()\n@@ -102,23 +102,17 @@\n     fn row(&self, i: usize) -> &[Cv] {\n         debug_assert!(self.is_row(i));\n         let n = self.widths[i % ROWS] as usize;\n         // Sound: a row's first `width` values were written when it was pushed or merged.\n         unsafe { core::slice::from_raw_parts((self.rows.as_ptr() as *const Cv).add((i % ROWS) * ROW), n) }\n     }\n \n     fn set_row(&mut self, i: usize, row: &[Cv]) {\n-        let slot = i % ROWS;\n-        // Sound: MaybeUninit has the same layout as Cv and permits every\n-        // byte here to be unwritten. clone_from may write a fresh slot.\n-        let rows = unsafe { &mut *self.rows.as_mut_ptr().cast::<[[core::mem::MaybeUninit<Cv>; ROW]; ROWS]>() };\n-        rows[slot][..row.len()].write_copy_of_slice(row);\n-        self.widths[slot] = row.len() as u8;\n-        self.wide |= 1 << i;\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Value `i`, below the length: a single entry's own, a row's\n     /// condensed a layer of parents at a time down to its two halves,\n     /// then their parent.\n     pub fn get<P: Parent>(&self, p: &P, i: usize) -> Cv {\n         assert!(i < self.len, \"a value below the stack's length\");\n         if !self.is_row(i) {\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::set_row",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 117
+        },
+        "start": {
+          "column": 5,
+          "line": 109
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:110:9: replace CvStack::set_row with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 116
+      },
+      "start": {
+        "column": 9,
+        "line": 110
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace % with + in CvStack::set_row\n@@ -102,17 +102,17 @@\n     fn row(&self, i: usize) -> &[Cv] {\n         debug_assert!(self.is_row(i));\n         let n = self.widths[i % ROWS] as usize;\n         // Sound: a row's first `width` values were written when it was pushed or merged.\n         unsafe { core::slice::from_raw_parts((self.rows.as_ptr() as *const Cv).add((i % ROWS) * ROW), n) }\n     }\n \n     fn set_row(&mut self, i: usize, row: &[Cv]) {\n-        let slot = i % ROWS;\n+        let slot = i + /* ~ changed by cargo-mutants ~ */ ROWS;\n         // Sound: MaybeUninit has the same layout as Cv and permits every\n         // byte here to be unwritten. clone_from may write a fresh slot.\n         let rows = unsafe { &mut *self.rows.as_mut_ptr().cast::<[[core::mem::MaybeUninit<Cv>; ROW]; ROWS]>() };\n         rows[slot][..row.len()].write_copy_of_slice(row);\n         self.widths[slot] = row.len() as u8;\n         self.wide |= 1 << i;\n     }\n \n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::set_row",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 117
+        },
+        "start": {
+          "column": 5,
+          "line": 109
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:110:22: replace % with + in CvStack::set_row",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 110
+      },
+      "start": {
+        "column": 22,
+        "line": 110
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::merge with ()\n@@ -221,59 +221,17 @@\n     /// While the stack holds more than `target` entries, its top two become\n     /// their parent (merge_cv_stack): two rows of one width, the row of\n     /// their parents; any other two, the parent of their values. Two are\n     /// there to merge whenever `target` is at least 1, as the Hasher's are.\n     /// A loop of a count fixed at its start (no condition a change could\n     /// keep true forever: a mutation test's endless loop, which only a clock\n     /// stops, becomes a wrong value a test catches).\n     pub fn merge<P: Parent>(&mut self, p: &P, target: usize) {\n-        for _ in target..self.len {\n-            assert!(self.len >= 2, \"two values to merge\");\n-            let (a, b) = (self.len - 2, self.len - 1);\n-            if self.is_row(a) && self.is_row(b) {\n-                // Two rows of different widths (one subtree cut by wider\n-                // kernels than its sibling was, or cut whole where the\n-                // sibling grew from narrower rows): the wider is halved\n-                // to the other's width first.\n-                // (Widths are powers of two: the wider is the other's\n-                // width times two to the count of halvings.)\n-                for (wide, narrow) in [(a, b), (b, a)] {\n-                    // (The narrower over the wider is 0: no halving.)\n-                    let times = self.row(wide).len() / self.row(narrow).len();\n-                    for _ in 0..times.max(1).trailing_zeros() {\n-                        self.halve(p, wide);\n-                    }\n-                }\n-                // The two rows' values in one place, then their parents\n-                // into the lower row's place. The place for the children\n-                // is written before it is read, and never zeroed first:\n-                // zeroing 2 KiB a merge cost more than the merge saved.\n-                let (left, right) = (self.row(a), self.row(b));\n-                let n = left.len();\n-                assert_eq!(n, right.len(), \"two rows merge at one width\");\n-                let mut children = core::mem::MaybeUninit::<[Cv; 2 * ROW]>::uninit();\n-                let at = children.as_mut_ptr() as *mut Cv;\n-                // Sound: 2n values written into room for 2 ROW, then read.\n-                let children = unsafe {\n-                    core::ptr::copy_nonoverlapping(left.as_ptr(), at, n);\n-                    core::ptr::copy_nonoverlapping(right.as_ptr(), at.add(n), n);\n-                    core::slice::from_raw_parts(at, 2 * n)\n-                };\n-                // Sound: row a's place, its first n values written (they are row a).\n-                let place = unsafe { core::slice::from_raw_parts_mut((self.rows.as_mut_ptr() as *mut Cv).add((a % ROWS) * ROW), n) };\n-                let made = p.parents(children, place);\n-                assert_eq!(made, n, \"a parent for every two children\");\n-            } else {\n-                let parent = p.parent(&self.get(p, a), &self.get(p, b));\n-                self.set(a, parent);\n-                self.wide &= !(1 << a);\n-            }\n-            self.len -= 1;\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// A chunk's state: its number and the bytes it has so far (at most\n /// CHUNK_LEN).\n pub trait Chunk {\n     fn counter(&self) -> u64;\n     fn len(&self) -> usize;\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::merge",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 272
+        },
+        "start": {
+          "column": 5,
+          "line": 221
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:229:9: replace CvStack::merge with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 271
+      },
+      "start": {
+        "column": 9,
+        "line": 229
+      }
+    }
+  }
+]
