@@ -1,0 +1,258 @@
+[
+  {
+    "diff": "--- src/lib.rs\n+++ replace throughput::update_multithreaded -> &'h mut crate::convenience::Hasher with Box::leak(Box::new(Default::default()))\n@@ -423,18 +423,17 @@\n     /// let input = vec![7u8; 3 << 20];\n     /// let mut hasher = Hasher::new(Mode::Plain, Some(input.len() as u64));\n     /// for piece in input.chunks(64 * 1024) {\n     ///     throughput::update_multithreaded(&mut hasher, piece);\n     /// }\n     /// assert_eq!(hasher.finalize(), blake3_servil::convenience::hash(&input));\n     /// ```\n     pub fn update_multithreaded<'h>(hasher: &'h mut crate::convenience::Hasher, input: &[u8]) -> &'h mut crate::convenience::Hasher {\n-        crate::lanes::require();\n-        hasher.update_with(input, crate::lanes::MIN_SPLIT_LEN, &crate::lanes::subtree_halves)\n+        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// [`hash_many`], using other CPU cores where that is faster: the same\n     /// hashes, never slower.\n     ///\n     /// ```\n     /// # blake3_servil::initialize_multithreaded(None);\n     /// use blake3_servil::Mode;\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "throughput::update_multithreaded",
+      "return_type": "-> &'h mut crate::convenience::Hasher",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 433
+        },
+        "start": {
+          "column": 5,
+          "line": 413
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:431:9: replace throughput::update_multithreaded -> &'h mut crate::convenience::Hasher with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 94,
+        "line": 432
+      },
+      "start": {
+        "column": 9,
+        "line": 431
+      }
+    }
+  },
+  {
+    "diff": "--- src/lib.rs\n+++ replace throughput::update_each_multithreaded with ()\n@@ -556,12 +556,11 @@\n     /// slower.\n     /// Requires each `i < hashers.len()`.\n     ///\n     /// # Key-dependent timing\n     ///\n     /// The same [key-independence contract](crate#key-dependent-timing) as\n     /// [`update_each`] applies when workers participate.\n     pub fn update_each_multithreaded(hashers: &mut [Hasher], pieces: &[(usize, &[u8])]) {\n-        crate::lanes::require();\n-        update_each_with(hashers, pieces, crate::lanes::MIN_SPLIT_LEN, &crate::lanes::subtree_halves);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "throughput::update_each_multithreaded",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 566
+        },
+        "start": {
+          "column": 5,
+          "line": 554
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:564:9: replace throughput::update_each_multithreaded with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 103,
+        "line": 565
+      },
+      "start": {
+        "column": 9,
+        "line": 564
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace prepare_thread with ()\n@@ -332,23 +332,17 @@\n }\n \n /// This thread's storage for its pool calls, made now: its scratch for\n /// [`PREPARED_PIECES`] pieces, its job source (`sources::job_source`,\n /// 640 bytes), and its storage for a collection's range\n /// (`each::prepare_thread`). After this, its calls on inputs the scratch\n /// holds allocate nothing.\n pub(crate) fn prepare_thread() {\n-    SCRATCH.with(|s| {\n-        let mut s = s.borrow_mut();\n-        s.pieces.reserve(PREPARED_PIECES);\n-        s.cvs.reserve(PREPARED_PIECES);\n-    });\n-    sources::job_source();\n-    crate::prepare_collection_thread();\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// `cut` fills this thread's scratch with a job's pieces; `job` runs with\n /// what `cut` returned, the pieces, and as many chaining values, unset.\n fn with_scratch<C, T>(cut: impl FnOnce(&mut Vec<Piece>) -> C, job: impl FnOnce(C, &[Piece], &mut [ChainingValue]) -> T) -> T {\n     SCRATCH.with(|s| {\n         let mut s = s.try_borrow_mut().expect(\"one pool call at a time on a thread\");\n         let Scratch { pieces, cvs } = &mut *s;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "prepare_thread",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 347
+        },
+        "start": {
+          "column": 1,
+          "line": 334
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:340:5: replace prepare_thread with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 346
+      },
+      "start": {
+        "column": 5,
+        "line": 340
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace tree_cvs -> T with Default::default()\n@@ -362,33 +362,17 @@\n \n /// The subtree pieces of `input` at chunk `counter` and their chaining\n /// values, hashed over the pool (the SME2 thread's prefix first, where it\n /// takes one), handed to `merge`: the whole pieces' values (every piece\n /// but the last), then the last piece's.\n /// `merge` gets `tree` kept to a core's own kernels too, as the pieces\n /// ran: the merges are the pool's work like them.\n fn tree_cvs<T>(pool: &Pool, input: &[u8], tree: &TreeHasher, counter: u64, merge: impl FnOnce(&[Piece], &mut [ChainingValue], LastCv, &TreeHasher) -> T) -> T {\n-    let turn = Sme2Turn::take(Platform::detect(), true);\n-    let plan = pool.plan(places::Kind::Tree, input.len());\n-    let threads = tree_threads(input.len(), plan.threads, turn.platform().simd_degree());\n-    let prefix = prefix_for(&turn, input.len(), threads);\n-    with_scratch(\n-        |pieces| cut_with_prefix(pieces, input.len(), threads, prefix),\n-        |own, pieces, cvs| {\n-            let own_core = tree.clone().on_this_core();\n-            let mut last = None;\n-            let work = Work::Tree { input, pieces, cvs: cvs.as_mut_ptr(), last: &mut last, tree: own_core.clone(), counter, own_platform: turn.platform() };\n-            pool.run_job(work, pieces.len(), own, threads, plan.near());\n-            plan.done();\n-            drop(turn);\n-            let whole = pieces.len() - 1;\n-            merge(pieces, &mut cvs[..whole], last.expect(\"the job hashed its last piece\"), &own_core)\n-        },\n-    )\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// The halves of the whole subtree the Hasher asks for (at least\n /// MIN_SPLIT_LEN), over the machine's threads. The Hasher checks the\n /// returned places before its stack takes the values.\n pub(crate) fn subtree_halves(tree: &TreeHasher, level: u32, index: u64, input: &[u8]) -> [ChainingValue; 2] {\n     let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().subtree_halves(level, index, input) };\n     tree_cvs(pool, input, tree, index << level, |pieces, cvs, last, own| {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "tree_cvs",
+      "return_type": "-> T",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 387
+        },
+        "start": {
+          "column": 1,
+          "line": 363
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:370:5: replace tree_cvs -> T with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 386
+      },
+      "start": {
+        "column": 5,
+        "line": 370
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace subtree_halves -> [ChainingValue; 2] with [Default::default(); 2]\n@@ -385,25 +385,17 @@\n         },\n     )\n }\n \n /// The halves of the whole subtree the Hasher asks for (at least\n /// MIN_SPLIT_LEN), over the machine's threads. The Hasher checks the\n /// returned places before its stack takes the values.\n pub(crate) fn subtree_halves(tree: &TreeHasher, level: u32, index: u64, input: &[u8]) -> [ChainingValue; 2] {\n-    let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().subtree_halves(level, index, input) };\n-    tree_cvs(pool, input, tree, index << level, |pieces, cvs, last, own| {\n-        let (left, right) = merge_to_children(pieces, cvs, last, own);\n-        // This job ends at the end of a whole subtree. The last value\n-        // must be whole too. Its size is bounded by the subtree aligned\n-        // at its first chunk, so a power-of-two size aligns there.\n-        let right_level = level_of(right.len());\n-        [left, ChainingValue::at(right_level, right.first_chunk() >> right_level, *right.as_bytes())]\n-    })\n+    [Default::default(); 2] /* ~ changed by cargo-mutants ~ */\n }\n \n /// The hashes of `batch`'s messages, two or more in MIN_SPLIT_LEN bytes\n /// or more, in `tree`'s mode, over the machine's threads (a smaller batch\n /// is the caller's, on its own thread: the public call's short path).\n pub(crate) fn hash_many_over_pool(tree: &TreeHasher, batch: crate::throughput::Part, outputs: &mut [[u8; crate::OUT_LEN]]) {\n     let (input, slot) = (batch.bytes(), batch.slot());\n     assert_eq!(Some(input.len()), slot.checked_mul(outputs.len()), \"input holds one slot per output\");\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "subtree_halves",
+      "return_type": "-> [ChainingValue; 2]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 402
+        },
+        "start": {
+          "column": 1,
+          "line": 389
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:393:5: replace subtree_halves -> [ChainingValue; 2] with [Default::default(); 2]",
+    "package": "blake3-servil",
+    "replacement": "[Default::default(); 2]",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 401
+      },
+      "start": {
+        "column": 5,
+        "line": 393
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace << with >> in subtree_halves\n@@ -386,17 +386,17 @@\n     )\n }\n \n /// The halves of the whole subtree the Hasher asks for (at least\n /// MIN_SPLIT_LEN), over the machine's threads. The Hasher checks the\n /// returned places before its stack takes the values.\n pub(crate) fn subtree_halves(tree: &TreeHasher, level: u32, index: u64, input: &[u8]) -> [ChainingValue; 2] {\n     let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().subtree_halves(level, index, input) };\n-    tree_cvs(pool, input, tree, index << level, |pieces, cvs, last, own| {\n+    tree_cvs(pool, input, tree, index >> /* ~ changed by cargo-mutants ~ */ level, |pieces, cvs, last, own| {\n         let (left, right) = merge_to_children(pieces, cvs, last, own);\n         // This job ends at the end of a whole subtree. The last value\n         // must be whole too. Its size is bounded by the subtree aligned\n         // at its first chunk, so a power-of-two size aligns there.\n         let right_level = level_of(right.len());\n         [left, ChainingValue::at(right_level, right.first_chunk() >> right_level, *right.as_bytes())]\n     })\n }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "subtree_halves",
+      "return_type": "-> [ChainingValue; 2]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 402
+        },
+        "start": {
+          "column": 1,
+          "line": 389
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:394:39: replace << with >> in subtree_halves",
+    "package": "blake3-servil",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 394
+      },
+      "start": {
+        "column": 39,
+        "line": 394
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace >> with << in subtree_halves\n@@ -392,17 +392,17 @@\n pub(crate) fn subtree_halves(tree: &TreeHasher, level: u32, index: u64, input: &[u8]) -> [ChainingValue; 2] {\n     let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().subtree_halves(level, index, input) };\n     tree_cvs(pool, input, tree, index << level, |pieces, cvs, last, own| {\n         let (left, right) = merge_to_children(pieces, cvs, last, own);\n         // This job ends at the end of a whole subtree. The last value\n         // must be whole too. Its size is bounded by the subtree aligned\n         // at its first chunk, so a power-of-two size aligns there.\n         let right_level = level_of(right.len());\n-        [left, ChainingValue::at(right_level, right.first_chunk() >> right_level, *right.as_bytes())]\n+        [left, ChainingValue::at(right_level, right.first_chunk() << /* ~ changed by cargo-mutants ~ */ right_level, *right.as_bytes())]\n     })\n }\n \n /// The hashes of `batch`'s messages, two or more in MIN_SPLIT_LEN bytes\n /// or more, in `tree`'s mode, over the machine's threads (a smaller batch\n /// is the caller's, on its own thread: the public call's short path).\n pub(crate) fn hash_many_over_pool(tree: &TreeHasher, batch: crate::throughput::Part, outputs: &mut [[u8; crate::OUT_LEN]]) {\n     let (input, slot) = (batch.bytes(), batch.slot());\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "subtree_halves",
+      "return_type": "-> [ChainingValue; 2]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 402
+        },
+        "start": {
+          "column": 1,
+          "line": 389
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:400:67: replace >> with << in subtree_halves",
+    "package": "blake3-servil",
+    "replacement": "<<",
+    "span": {
+      "end": {
+        "column": 69,
+        "line": 400
+      },
+      "start": {
+        "column": 67,
+        "line": 400
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace hash_each with ()\n@@ -423,28 +423,17 @@\n }\n \n /// [`crate::throughput::hash_each_multithreaded`]'s pool job: the items under\n /// MIN_SPLIT_LEN, cut into ranges of about [`next_piece_len`] of the\n /// bytes that remain, each range hashed by one thread. An item of\n /// MIN_SPLIT_LEN or more is set aside here (its digest zero, a stand-in)\n /// and hashed by the caller over the whole pool after.\n pub(crate) fn hash_each(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n-    let Some((pool, _caller)) = spare_pool() else {\n-        return hash_each_small(tree, items, out);\n-    };\n-    let plan = pool.plan(places::Kind::Each, items.iter().map(|i| i.1).sum());\n-    with_scratch(\n-        |pieces| cut_items(pieces, items, plan.threads, |item| crate::throughput::Block::bytes(item.0)[..item.1].len()),\n-        |(), pieces, _| {\n-            let work = Work::Each { items, tree: tree.clone().on_this_core(), pieces, outputs: out.as_mut_ptr() };\n-            pool.run_job(work, pieces.len(), 0, plan.threads, plan.near());\n-            plan.done();\n-        },\n-    )\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// The hashes of a collection's items under MIN_SPLIT_LEN, on this\n /// thread, in `tree`'s mode: each run of them between the longer items\n /// is a collection of its own. An item of MIN_SPLIT_LEN or more is left\n /// as it was: the caller hashes it over the pool after.\n pub(crate) fn hash_each_small(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n     let mut start = 0;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 443
+        },
+        "start": {
+          "column": 1,
+          "line": 425
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:431:5: replace hash_each with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 442
+      },
+      "start": {
+        "column": 5,
+        "line": 431
+      }
+    }
+  }
+]
