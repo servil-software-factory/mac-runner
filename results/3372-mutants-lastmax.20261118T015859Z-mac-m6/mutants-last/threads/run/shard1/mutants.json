@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace - with + in tree_cvs\n@@ -375,17 +375,17 @@\n         |pieces| cut_with_prefix(pieces, input.len(), threads, prefix),\n         |own, pieces, cvs| {\n             let own_core = tree.clone().on_this_core();\n             let mut last = None;\n             let work = Work::Tree { input, pieces, cvs: cvs.as_mut_ptr(), last: &mut last, tree: own_core.clone(), counter, own_platform: turn.platform() };\n             pool.run_job(work, pieces.len(), own, threads, plan.near());\n             plan.done();\n             drop(turn);\n-            let whole = pieces.len() - 1;\n+            let whole = pieces.len() + /* ~ changed by cargo-mutants ~ */ 1;\n             merge(pieces, &mut cvs[..whole], last.expect(\"the job hashed its last piece\"), &own_core)\n         },\n     )\n }\n \n /// The chaining values of the two halves of the subtree `input` at chunk\n /// `counter`, over the machine's threads: what `TreeHasher::subtree_halves`\n /// returns for a whole subtree.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "tree_cvs",
+      "return_type": "-> T",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 387
+        },
+        "start": {
+          "column": 1,
+          "line": 363
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:383:38: replace - with + in tree_cvs",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 39,
+        "line": 383
+      },
+      "start": {
+        "column": 38,
+        "line": 383
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace subtree_halves -> [BareCv; 2] with [Default::default(); 2]\n@@ -388,33 +388,17 @@\n \n /// The chaining values of the two halves of the subtree `input` at chunk\n /// `counter`, over the machine's threads: what `TreeHasher::subtree_halves`\n /// returns for a whole subtree.\n /// Requires a power-of-two number of chunks, at least MIN_SPLIT_LEN\n /// bytes, and `counter` a multiple\n /// of that number, as `Hasher::update` hands out.\n pub(crate) fn subtree_halves(tree: &TreeHasher, counter: u64, input: &[u8]) -> [BareCv; 2] {\n-    assert!(input.len().is_power_of_two() && input.len() >= MIN_SPLIT_LEN, \"a whole subtree of at least MIN_SPLIT_LEN bytes\");\n-    assert_eq!(counter % (input.len() / CHUNK_LEN) as u64, 0, \"a subtree starts at a multiple of its chunk count\");\n-    let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().bare_subtree_halves(counter, input) };\n-    tree_cvs(pool, input, tree, counter, |pieces, cvs, last, own| {\n-        let (left, right) = merge_to_children(pieces, cvs, last, own);\n-        // The two are the halves asked for: the calls that made them kept\n-        // each join to siblings, and this, in every build, the two to\n-        // their places.\n-        let level = level_of(input.len() as u64) - 1;\n-        let index = counter >> level;\n-        assert!(\n-            (left.level(), left.index(), right.first_chunk(), right.len()) == (level, index, (index + 1) << level, input.len() as u64 / 2),\n-            \"not the halves of {} bytes at chunk {counter}: {left:?} and {right:?}\",\n-            input.len()\n-        );\n-        [BareCv::from_bytes(*left.as_bytes()), BareCv::from_bytes(*right.as_bytes())]\n-    })\n+    [Default::default(); 2] /* ~ changed by cargo-mutants ~ */\n }\n \n /// The hashes of `batch`'s messages, two or more in MIN_SPLIT_LEN bytes\n /// or more, in `tree`'s mode, over the machine's threads (a smaller batch\n /// is the caller's, on its own thread: the public call's short path).\n pub(crate) fn hash_many_over_pool(tree: &TreeHasher, batch: crate::throughput::Part, outputs: &mut [[u8; crate::OUT_LEN]]) {\n     let (input, slot) = (batch.bytes(), batch.slot());\n     assert_eq!(Some(input.len()), slot.checked_mul(outputs.len()), \"input holds one slot per output\");\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "subtree_halves",
+      "return_type": "-> [BareCv; 2]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 413
+        },
+        "start": {
+          "column": 1,
+          "line": 389
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:396:5: replace subtree_halves -> [BareCv; 2] with [Default::default(); 2]",
+    "package": "blake3-servil",
+    "replacement": "[Default::default(); 2]",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 412
+      },
+      "start": {
+        "column": 5,
+        "line": 396
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace - with + in subtree_halves\n@@ -396,17 +396,17 @@\n     assert!(input.len().is_power_of_two() && input.len() >= MIN_SPLIT_LEN, \"a whole subtree of at least MIN_SPLIT_LEN bytes\");\n     assert_eq!(counter % (input.len() / CHUNK_LEN) as u64, 0, \"a subtree starts at a multiple of its chunk count\");\n     let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().bare_subtree_halves(counter, input) };\n     tree_cvs(pool, input, tree, counter, |pieces, cvs, last, own| {\n         let (left, right) = merge_to_children(pieces, cvs, last, own);\n         // The two are the halves asked for: the calls that made them kept\n         // each join to siblings, and this, in every build, the two to\n         // their places.\n-        let level = level_of(input.len() as u64) - 1;\n+        let level = level_of(input.len() as u64) + /* ~ changed by cargo-mutants ~ */ 1;\n         let index = counter >> level;\n         assert!(\n             (left.level(), left.index(), right.first_chunk(), right.len()) == (level, index, (index + 1) << level, input.len() as u64 / 2),\n             \"not the halves of {} bytes at chunk {counter}: {left:?} and {right:?}\",\n             input.len()\n         );\n         [BareCv::from_bytes(*left.as_bytes()), BareCv::from_bytes(*right.as_bytes())]\n     })\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "subtree_halves",
+      "return_type": "-> [BareCv; 2]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 413
+        },
+        "start": {
+          "column": 1,
+          "line": 389
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:404:50: replace - with + in subtree_halves",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 51,
+        "line": 404
+      },
+      "start": {
+        "column": 50,
+        "line": 404
+      }
+    }
+  }
+]
