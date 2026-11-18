@@ -1,0 +1,237 @@
+
+*** src/lanes.rs:2771:9: replace Task::run_members with ()
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace Task::run_members with ()
+@@ -2763,47 +2763,17 @@
+ }
+ 
+ impl Task {
+     /// The members' digests: messages of one length side by side on the
+     /// multi-lane kernels (`hash_many`'s, from a table of pointers) where
+     /// that length is one block, or on x86 two to sixteen blocks of a power
+     /// of two (128 B to 1 KiB); any others one at a time.
+     pub(crate) fn run_members(&self, tree: &TreeHasher, platform: Platform) {
+-        let members = &self.member[..self.members];
+-        if let Some(message_len) = self.batch {
+-            for m in members {
+-                // Sound: the stream keeps each batch's bytes and digest
+-                // space in place until the task's `left` is zero.
+-                let bytes = unsafe { core::slice::from_raw_parts(m.input, m.len) };
+-                let slot = crate::slot_len(message_len);
+-                let count = m.len / slot;
+-                let digests = unsafe { core::slice::from_raw_parts_mut(m.out as *mut [u8; crate::OUT_LEN], count) };
+-                tree.hash_slots_on(platform, bytes, message_len, slot, digests);
+-            }
+-            return;
+-        }
+-        let input = |i: usize| {
+-            let m = members[i];
+-            // Sound: the submission keeps each member's bytes readable
+-            // until the task publishes completion.
+-            unsafe { core::slice::from_raw_parts(m.input, m.len) }
+-        };
+-        let output = |i: usize, digest| {
+-            // Sound: each member has its own output, kept until completion.
+-            unsafe { members[i].out.cast::<[u8; crate::OUT_LEN]>().write(digest) };
+-        };
+-        if tree.try_hash_group_on(platform, members.len(), input, output) {
+-            crate::ran(crate::Ran::EqualMembers);
+-            return;
+-        }
+-        crate::ran(crate::Ran::MemberAlone);
+-        for i in 0..members.len() {
+-            output(i, *tree.hash_on(platform, input(i)).as_bytes());
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// The SME2 thread, on CPUs with SME2: it hashes tasks only, on SME2 (the
+ /// SME unit hashes a 64 KiB piece in 14 us where a NEON worker takes 22,
+ /// Mac, probe/queue-timeline), under the process's turn so that a caller of
+ /// hash() elsewhere keeps the unit; without the turn, on NEON. It takes
+ /// streams' tasks while any wait, and parks as soon as none does; every
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+warning: unused import: `slot_len`
+   --> src/lib.rs:210:131
+    |
+210 | ...latform, Sme2Turn, assert_slots, prepare_collection_thread, slot_len};
+    |                                                                ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tree`
+    --> src/lanes.rs:2770:38
+     |
+2770 |     pub(crate) fn run_members(&self, tree: &TreeHasher, platform: Platform) {
+     |                                      ^^^^ help: if this is intentional, prefix it with an underscore: `_tree`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `platform`
+    --> src/lanes.rs:2770:57
+     |
+2770 |     pub(crate) fn run_members(&self, tree: &TreeHasher, platform: Platform) {
+     |                                                         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_platform`
+
+warning: fields `input`, `len`, and `out` are never read
+    --> src/lanes.rs:2749:16
+     |
+2748 | pub(crate) struct Member {
+     |                   ------ fields in this struct
+2749 |     pub(crate) input: *const u8,
+     |                ^^^^^
+2750 |     pub(crate) len: usize,
+     |                ^^^
+2751 |     pub(crate) out: *mut u8,
+     |                ^^^
+     |
+     = note: `Member` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib) generated 4 warnings (run `cargo fix --lib -p blake3-servil` to apply 3 suggestions)
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1359:27
+     |
+1359 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+
+warning: `blake3-servil` (lib test) generated 4 warnings (3 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 7.31s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev --lib --tests
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: unused import: `slot_len`
+   --> src/lib.rs:210:131
+    |
+210 | ...latform, Sme2Turn, assert_slots, prepare_collection_thread, slot_len};
+    |                                                                ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tree`
+    --> src/lanes.rs:2770:38
+     |
+2770 |     pub(crate) fn run_members(&self, tree: &TreeHasher, platform: Platform) {
+     |                                      ^^^^ help: if this is intentional, prefix it with an underscore: `_tree`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `platform`
+    --> src/lanes.rs:2770:57
+     |
+2770 |     pub(crate) fn run_members(&self, tree: &TreeHasher, platform: Platform) {
+     |                                                         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_platform`
+
+warning: fields `input`, `len`, and `out` are never read
+    --> src/lanes.rs:2749:16
+     |
+2748 | pub(crate) struct Member {
+     |                   ------ fields in this struct
+2749 |     pub(crate) input: *const u8,
+     |                ^^^^^
+2750 |     pub(crate) len: usize,
+     |                ^^^
+2751 |     pub(crate) out: *mut u8,
+     |                ^^^
+     |
+     = note: `Member` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib) generated 4 warnings (run `cargo fix --lib -p blake3-servil` to apply 3 suggestions)
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1359:27
+     |
+1359 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+
+warning: `blake3-servil` (lib test) generated 4 warnings (3 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:29:1
+   |
+29 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.04s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID ba99fcc6-d99a-4cea-93bd-2aba23baab62 with nextest profile: mutants
+    Starting 121 tests across 10 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/121) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+       START [         ] (  1/121) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+        PASS [   0.026s] (  1/121) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  2/121) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+        PASS [   0.025s] (  2/121) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  3/121) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        PASS [   0.069s] (  3/121) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+       START [         ] (  4/121) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-1/mutants/build/blake3-servil/e8dedad9909bc7f3/out/blake3_servil-e8dedad9909bc7f3 --exact forms_test::test_every_multithreaded_call_inside_guard_pages --nocapture
+        FAIL [   0.028s] (  4/121) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+  stdout ───
+
+    running 1 test
+    test forms_test::test_every_multithreaded_call_inside_guard_pages ... FAILED
+
+    failures:
+
+    failures:
+        forms_test::test_every_multithreaded_call_inside_guard_pages
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'forms_test::test_every_multithreaded_call_inside_guard_pages' (53176188) panicked at src/forms_test.rs:198:83:
+    assertion `left == right` failed: pipeline lent, hash, 0 B, at end true
+      left: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+     right: [175, 19, 73, 185, 245, 249, 161, 166, 160, 64, 77, 234, 54, 220, 201, 73, 155, 203, 37, 201, 173, 193, 18, 183, 204, 154, 147, 202, 228, 31, 50, 98]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGKILL [   0.047s] (  5/121) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+  stdout ───
+
+    running 1 test
+
+    (test aborted with signal 9: SIGKILL)
+
+────────────
+     Summary [   0.102s] 5/121 tests run: 3 passed, 2 failed, 0 skipped
+warning: 116/121 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
