@@ -1,0 +1,194 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::assign -> Option<Places> with None\n@@ -1233,59 +1233,17 @@\n     /// The places for `cpus` (in any order) and `workers` workers, started\n     /// by a thread on CPU `starter`: None with fewer than two caches, or\n     /// more than 256. The places are numbered from the starter's, its\n     /// socket's first; worker k is of the place of CPU k + 1 in that\n     /// order (one CPU of the starter's place is left for the starter),\n     /// around again where there are more workers than CPUs.\n     #[cfg(any(target_os = \"linux\", test))]\n     pub(crate) fn assign(cpus: &[Cpu], starter: usize, workers: usize) -> Option<Places> {\n-        let mut caches: Vec<usize> = cpus.iter().map(|c| c.cache).collect();\n-        caches.sort_unstable();\n-        caches.dedup();\n-        if caches.len() < 2 || caches.len() > 256 || cpus.iter().any(|c| c.cpu >= CPUS) {\n-            return None;\n-        }\n-        let first = cpus.iter().find(|c| c.cpu == starter).unwrap_or(&cpus[0]);\n-        // The caches in order: the starter's, its socket's others, the rest.\n-        caches.sort_by_key(|&cache| {\n-            let socket = cpus.iter().find(|c| c.cache == cache).expect(\"a cache of some CPU\").socket;\n-            (cache != first.cache, socket != first.socket, socket, cache)\n-        });\n-        let place = |cache: usize| caches.iter().position(|&c| c == cache).expect(\"every CPU's cache is listed\");\n-        let mut order: Vec<(usize, Cpu)> = cpus.iter().map(|&c| (place(c.cache), c)).collect();\n-        order.sort_by_key(|&(place, c)| (place, c.cpu));\n-        let words = workers.div_ceil(64).max(1);\n-        let mut places = Places {\n-            of_cpu: std::vec![u16::MAX; CPUS].into(),\n-            cpus: std::vec![[0u64; CPUS / 64]; caches.len()].into(),\n-            of_worker: (0..workers).map(|k| order[(k + 1) % order.len()].0 as u8).collect(),\n-            near: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n-            beside: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n-            count: std::vec![0usize; caches.len()].into(),\n-        };\n-        let mut socket_of = std::vec![0usize; caches.len()];\n-        for &(place, c) in &order {\n-            places.of_cpu[c.cpu] = place as u16;\n-            places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);\n-            socket_of[place] = c.socket;\n-        }\n-        for k in 0..workers {\n-            let place = places.of_worker[k] as usize;\n-            places.count[place] += 1;\n-            for q in 0..caches.len() {\n-                if q == place {\n-                    places.near[q][k / 64] |= 1 << (k % 64);\n-                }\n-                if socket_of[q] == socket_of[place] {\n-                    places.beside[q][k / 64] |= 1 << (k % 64);\n-                }\n-            }\n-        }\n-        Some(places)\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[cfg(target_os = \"linux\")]\n     unsafe extern \"C\" {\n         fn sched_getcpu() -> i32;\n         fn sched_getaffinity(pid: i32, len: usize, set: *mut Set) -> i32;\n         fn sched_setaffinity(pid: i32, len: usize, set: *const Set) -> i32;\n     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::assign",
+      "return_type": "-> Option<Places>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1284
+        },
+        "start": {
+          "column": 5,
+          "line": 1233
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1241:9: replace places::assign -> Option<Places> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 1283
+      },
+      "start": {
+        "column": 9,
+        "line": 1241
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::assign -> Option<Places> with Some(Default::default())\n@@ -1233,59 +1233,17 @@\n     /// The places for `cpus` (in any order) and `workers` workers, started\n     /// by a thread on CPU `starter`: None with fewer than two caches, or\n     /// more than 256. The places are numbered from the starter's, its\n     /// socket's first; worker k is of the place of CPU k + 1 in that\n     /// order (one CPU of the starter's place is left for the starter),\n     /// around again where there are more workers than CPUs.\n     #[cfg(any(target_os = \"linux\", test))]\n     pub(crate) fn assign(cpus: &[Cpu], starter: usize, workers: usize) -> Option<Places> {\n-        let mut caches: Vec<usize> = cpus.iter().map(|c| c.cache).collect();\n-        caches.sort_unstable();\n-        caches.dedup();\n-        if caches.len() < 2 || caches.len() > 256 || cpus.iter().any(|c| c.cpu >= CPUS) {\n-            return None;\n-        }\n-        let first = cpus.iter().find(|c| c.cpu == starter).unwrap_or(&cpus[0]);\n-        // The caches in order: the starter's, its socket's others, the rest.\n-        caches.sort_by_key(|&cache| {\n-            let socket = cpus.iter().find(|c| c.cache == cache).expect(\"a cache of some CPU\").socket;\n-            (cache != first.cache, socket != first.socket, socket, cache)\n-        });\n-        let place = |cache: usize| caches.iter().position(|&c| c == cache).expect(\"every CPU's cache is listed\");\n-        let mut order: Vec<(usize, Cpu)> = cpus.iter().map(|&c| (place(c.cache), c)).collect();\n-        order.sort_by_key(|&(place, c)| (place, c.cpu));\n-        let words = workers.div_ceil(64).max(1);\n-        let mut places = Places {\n-            of_cpu: std::vec![u16::MAX; CPUS].into(),\n-            cpus: std::vec![[0u64; CPUS / 64]; caches.len()].into(),\n-            of_worker: (0..workers).map(|k| order[(k + 1) % order.len()].0 as u8).collect(),\n-            near: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n-            beside: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n-            count: std::vec![0usize; caches.len()].into(),\n-        };\n-        let mut socket_of = std::vec![0usize; caches.len()];\n-        for &(place, c) in &order {\n-            places.of_cpu[c.cpu] = place as u16;\n-            places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);\n-            socket_of[place] = c.socket;\n-        }\n-        for k in 0..workers {\n-            let place = places.of_worker[k] as usize;\n-            places.count[place] += 1;\n-            for q in 0..caches.len() {\n-                if q == place {\n-                    places.near[q][k / 64] |= 1 << (k % 64);\n-                }\n-                if socket_of[q] == socket_of[place] {\n-                    places.beside[q][k / 64] |= 1 << (k % 64);\n-                }\n-            }\n-        }\n-        Some(places)\n+        Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[cfg(target_os = \"linux\")]\n     unsafe extern \"C\" {\n         fn sched_getcpu() -> i32;\n         fn sched_getaffinity(pid: i32, len: usize, set: *mut Set) -> i32;\n         fn sched_setaffinity(pid: i32, len: usize, set: *const Set) -> i32;\n     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::assign",
+      "return_type": "-> Option<Places>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1284
+        },
+        "start": {
+          "column": 5,
+          "line": 1233
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1241:9: replace places::assign -> Option<Places> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 1283
+      },
+      "start": {
+        "column": 9,
+        "line": 1241
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::affinity -> std::io::Result<Set> with Ok(Default::default())\n@@ -1304,22 +1304,17 @@\n             .into_iter()\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n     }\n \n     /// The CPU mask of the calling thread.\n     #[cfg(target_os = \"linux\")]\n     fn affinity() -> std::io::Result<Set> {\n-        let mut allowed: Set = [0; CPUS / 64];\n-        // Sound: the set is `len` writable bytes.\n-        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n-            return Err(std::io::Error::last_os_error());\n-        }\n-        Ok(allowed)\n+        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The CPUs this thread may run on, in order.\n     #[cfg(target_os = \"linux\")]\n     fn allowed() -> Option<Vec<usize>> {\n         let allowed = affinity().ok()?;\n         Some((0..CPUS).filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1).collect())\n     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::affinity",
+      "return_type": "-> std::io::Result<Set>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1318
+        },
+        "start": {
+          "column": 5,
+          "line": 1309
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1312:9: replace places::affinity -> std::io::Result<Set> with Ok(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Ok(Default::default())",
+    "span": {
+      "end": {
+        "column": 20,
+        "line": 1317
+      },
+      "start": {
+        "column": 9,
+        "line": 1312
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace != with == in places::affinity\n@@ -1306,17 +1306,17 @@\n             .collect()\n     }\n \n     /// The CPU mask of the calling thread.\n     #[cfg(target_os = \"linux\")]\n     fn affinity() -> std::io::Result<Set> {\n         let mut allowed: Set = [0; CPUS / 64];\n         // Sound: the set is `len` writable bytes.\n-        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n+        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } == /* ~ changed by cargo-mutants ~ */ 0 {\n             return Err(std::io::Error::last_os_error());\n         }\n         Ok(allowed)\n     }\n \n     /// The CPUs this thread may run on, in order.\n     #[cfg(target_os = \"linux\")]\n     fn allowed() -> Option<Vec<usize>> {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::affinity",
+      "return_type": "-> std::io::Result<Set>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1318
+        },
+        "start": {
+          "column": 5,
+          "line": 1309
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1314:87: replace != with == in places::affinity",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 1314
+      },
+      "start": {
+        "column": 87,
+        "line": 1314
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::cpu_set -> Set with Default::default()\n@@ -1322,27 +1322,17 @@\n     fn allowed() -> Option<Vec<usize>> {\n         let allowed = affinity().ok()?;\n         Some((0..CPUS).filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1).collect())\n     }\n \n     /// A kernel CPU list, such as `0-3,8,10-11`, in the affinity layout.\n     #[cfg(target_os = \"linux\")]\n     fn cpu_set(list: &str) -> Set {\n-        let mut set = [0; CPUS / 64];\n-        for range in list.trim().split(',') {\n-            let (first, last) = range.split_once('-').unwrap_or((range, range));\n-            let first = first.parse::<usize>().expect(\"a Linux CPU number\");\n-            let last = last.parse::<usize>().expect(\"a Linux CPU number\");\n-            assert!(first <= last && last < CPUS, \"CPU range {range} outside the worker mask\");\n-            for cpu in first..=last {\n-                set[cpu / 64] |= 1u64.rotate_left(cpu as u32);\n-            }\n-        }\n-        set\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[cfg(target_os = \"linux\")]\n     fn multiple_nodes(online: std::io::Result<String>) -> bool {\n         match online {\n             Ok(list) => list.trim().parse::<usize>().is_err(),\n             Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,\n             Err(e) => panic!(\"read Linux memory nodes: {e}\"),\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::cpu_set",
+      "return_type": "-> Set",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1341
+        },
+        "start": {
+          "column": 5,
+          "line": 1327
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1330:9: replace places::cpu_set -> Set with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 1340
+      },
+      "start": {
+        "column": 9,
+        "line": 1330
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace / with % in places::cpu_set\n@@ -1322,17 +1322,17 @@\n     fn allowed() -> Option<Vec<usize>> {\n         let allowed = affinity().ok()?;\n         Some((0..CPUS).filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1).collect())\n     }\n \n     /// A kernel CPU list, such as `0-3,8,10-11`, in the affinity layout.\n     #[cfg(target_os = \"linux\")]\n     fn cpu_set(list: &str) -> Set {\n-        let mut set = [0; CPUS / 64];\n+        let mut set = [0; CPUS % /* ~ changed by cargo-mutants ~ */ 64];\n         for range in list.trim().split(',') {\n             let (first, last) = range.split_once('-').unwrap_or((range, range));\n             let first = first.parse::<usize>().expect(\"a Linux CPU number\");\n             let last = last.parse::<usize>().expect(\"a Linux CPU number\");\n             assert!(first <= last && last < CPUS, \"CPU range {range} outside the worker mask\");\n             for cpu in first..=last {\n                 set[cpu / 64] |= 1u64.rotate_left(cpu as u32);\n             }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::cpu_set",
+      "return_type": "-> Set",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1341
+        },
+        "start": {
+          "column": 5,
+          "line": 1327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1330:32: replace / with % in places::cpu_set",
+    "package": "blake3-servil",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 1330
+      },
+      "start": {
+        "column": 32,
+        "line": 1330
+      }
+    }
+  }
+]
