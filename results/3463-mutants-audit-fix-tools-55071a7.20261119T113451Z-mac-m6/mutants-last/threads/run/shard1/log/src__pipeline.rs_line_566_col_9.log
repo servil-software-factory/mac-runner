@@ -1,0 +1,58 @@
+
+*** src/pipeline.rs:566:9: replace Shared::tree -> &TreeHasher with Box::leak(Box::new(Default::default()))
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace Shared::tree -> &TreeHasher with Box::leak(Box::new(Default::default()))
+@@ -558,17 +558,17 @@
+ impl Shared {
+     /// The mode, for hashing one task's bytes or folding its values.
+     #[inline(always)]
+     fn tree(&self) -> &TreeHasher {
+         // Sound: `create` alone writes the mode, when every task of the
+         // Pipeline before is published done; a worker uses this borrow
+         // before it publishes its task, and the owner while its Pipeline
+         // lives.
+-        unsafe { &*self.tree.get() }
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     unsafe fn run_action(ctx: *const (), arg: u64, platform: Platform) {
+         // Sound: `ctx` is the `*const Shared` its Pipeline dispatched with
+         // (dispatch_one, dispatch_many), and a Shared is never freed.
+         let shared = unsafe { &*(ctx as *const Shared) };
+         let (kind, a, b) = unpack_arg(arg);
+         match kind {
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+error[E0277]: the trait bound `blake3_servil_core::throughput::TreeHasher: Default` is not satisfied
+   --> src/pipeline.rs:566:28
+    |
+566 |         Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+    |                            ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `blake3_servil_core::throughput::TreeHasher`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:28:1
+   |
+28 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
