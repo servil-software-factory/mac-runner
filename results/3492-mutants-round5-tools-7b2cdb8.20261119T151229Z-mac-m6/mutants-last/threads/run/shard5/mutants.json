@@ -1,0 +1,290 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in block_on::<impl Drop for Guard>::drop\n@@ -2397,17 +2397,17 @@\n /// ```\n pub fn block_on<F: Future>(future: F) -> F::Output {\n     /// The state of the `block_on` this one runs inside (0: none), and\n     /// whether this one took a wake.\n     struct Guard(u8, bool);\n     impl Drop for Guard {\n         fn drop(&mut self) {\n             BLOCK_ON_STATE.with(|f| f.set(self.0));\n-            if self.0 != 0 && self.1 {\n+            if self.0 != 0 || /* ~ changed by cargo-mutants ~ */ self.1 {\n                 // This `block_on` ran inside a poll of another, on the one\n                 // waker the two share: a wake it took may have been the\n                 // other's, which polls once more before it sleeps. Only\n                 // where it took one: an outer future that runs a\n                 // `block_on` in each poll would otherwise never sleep.\n                 BLOCK_ON_PARK.with(|park| park.woken.store(true, Ordering::Release));\n             }\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "block_on::<impl Drop for Guard>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 2413
+        },
+        "start": {
+          "column": 9,
+          "line": 2403
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2405:28: replace && with || in block_on::<impl Drop for Guard>::drop",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 2405
+      },
+      "start": {
+        "column": 28,
+        "line": 2405
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace != with == in block_on::<impl Drop for Guard>::drop\n@@ -2397,17 +2397,17 @@\n /// ```\n pub fn block_on<F: Future>(future: F) -> F::Output {\n     /// The state of the `block_on` this one runs inside (0: none), and\n     /// whether this one took a wake.\n     struct Guard(u8, bool);\n     impl Drop for Guard {\n         fn drop(&mut self) {\n             BLOCK_ON_STATE.with(|f| f.set(self.0));\n-            if self.0 != 0 && self.1 {\n+            if self.0 == /* ~ changed by cargo-mutants ~ */ 0 && self.1 {\n                 // This `block_on` ran inside a poll of another, on the one\n                 // waker the two share: a wake it took may have been the\n                 // other's, which polls once more before it sleeps. Only\n                 // where it took one: an outer future that runs a\n                 // `block_on` in each poll would otherwise never sleep.\n                 BLOCK_ON_PARK.with(|park| park.woken.store(true, Ordering::Release));\n             }\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "block_on::<impl Drop for Guard>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 2413
+        },
+        "start": {
+          "column": 9,
+          "line": 2403
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2405:23: replace != with == in block_on::<impl Drop for Guard>::drop",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 2405
+      },
+      "start": {
+        "column": 23,
+        "line": 2405
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace - with + in block_on\n@@ -2420,17 +2420,17 @@\n             let mut cx = Context::from_waker(waker);\n             if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n                 return output;\n             }\n             let started = crate::lanes::now();\n             let mut yielded = started;\n             loop {\n                 crate::lanes::poll_pause(&mut yielded);\n-                if crate::lanes::now() - started >= crate::lanes::SPIN_BEFORE_SLEEP {\n+                if crate::lanes::now() + /* ~ changed by cargo-mutants ~ */ started >= crate::lanes::SPIN_BEFORE_SLEEP {\n                     BLOCK_ON_STATE.with(|f| f.set(2));\n                     if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n                         return output;\n                     }\n                     // Asleep until a wake, one that came during the poll\n                     // included, whoever took the thread's park token since.\n                     while !park.woken.swap(false, Ordering::Acquire) {\n                         thread::park();\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "block_on",
+      "return_type": "-> F::Output",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2445
+        },
+        "start": {
+          "column": 1,
+          "line": 2240
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2428:40: replace - with + in block_on",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 2428
+      },
+      "start": {
+        "column": 40,
+        "line": 2428
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete ! in block_on\n@@ -2427,17 +2427,17 @@\n                 crate::lanes::poll_pause(&mut yielded);\n                 if crate::lanes::now() - started >= crate::lanes::SPIN_BEFORE_SLEEP {\n                     BLOCK_ON_STATE.with(|f| f.set(2));\n                     if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n                         return output;\n                     }\n                     // Asleep until a wake, one that came during the poll\n                     // included, whoever took the thread's park token since.\n-                    while !park.woken.swap(false, Ordering::Acquire) {\n+                    while  /* ~ changed by cargo-mutants ~ */park.woken.swap(false, Ordering::Acquire) {\n                         thread::park();\n                     }\n                     guard.1 = true;\n                 } else if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n                     return output;\n                 }\n             }\n         })\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "block_on",
+      "return_type": "-> F::Output",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2445
+        },
+        "start": {
+          "column": 1,
+          "line": 2240
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/pipeline.rs:2435:27: delete ! in block_on",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 2435
+      },
+      "start": {
+        "column": 27,
+        "line": 2435
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace test::message_in_flight -> usize with 0\n@@ -3245,22 +3245,17 @@\n         assert!(poll_once(pipe.room()).is_pending());\n         std::thread::spawn(move || drop(held)).join().unwrap();\n         assert_eq!(block_on(pipe.room()).index, index);\n     }\n \n     /// A message of `p` ended and, for all `p` can see, still being\n     /// hashed: its slot.\n     fn message_in_flight(p: &mut Pipeline<u32>) -> usize {\n-        let (_, s) = block_on(p.message(7, None)).take();\n-        p.open_messages -= 1;\n-        p.slots[s].kind = SlotKind::WaitMulti { has_owner: false };\n-        p.shared().slot_done[s].store(false, Ordering::SeqCst);\n-        p.end_queue.push_back(s as u32);\n-        s\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[test]\n     fn a_wait_keeps_no_waker_only_where_block_on_itself_polls_again() {\n         struct Count(AtomicUsize);\n         impl std::task::Wake for Count {\n             fn wake(self: Arc<Self>) {\n                 self.0.fetch_add(1, Ordering::SeqCst);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "test::message_in_flight",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3259
+        },
+        "start": {
+          "column": 5,
+          "line": 3250
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:3253:9: replace test::message_in_flight -> usize with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3258
+      },
+      "start": {
+        "column": 9,
+        "line": 3253
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace test::message_in_flight -> usize with 1\n@@ -3245,22 +3245,17 @@\n         assert!(poll_once(pipe.room()).is_pending());\n         std::thread::spawn(move || drop(held)).join().unwrap();\n         assert_eq!(block_on(pipe.room()).index, index);\n     }\n \n     /// A message of `p` ended and, for all `p` can see, still being\n     /// hashed: its slot.\n     fn message_in_flight(p: &mut Pipeline<u32>) -> usize {\n-        let (_, s) = block_on(p.message(7, None)).take();\n-        p.open_messages -= 1;\n-        p.slots[s].kind = SlotKind::WaitMulti { has_owner: false };\n-        p.shared().slot_done[s].store(false, Ordering::SeqCst);\n-        p.end_queue.push_back(s as u32);\n-        s\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[test]\n     fn a_wait_keeps_no_waker_only_where_block_on_itself_polls_again() {\n         struct Count(AtomicUsize);\n         impl std::task::Wake for Count {\n             fn wake(self: Arc<Self>) {\n                 self.0.fetch_add(1, Ordering::SeqCst);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "test::message_in_flight",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3259
+        },
+        "start": {
+          "column": 5,
+          "line": 3250
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:3253:9: replace test::message_in_flight -> usize with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3258
+      },
+      "start": {
+        "column": 9,
+        "line": 3253
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace -= with += in test::message_in_flight\n@@ -3246,17 +3246,17 @@\n         std::thread::spawn(move || drop(held)).join().unwrap();\n         assert_eq!(block_on(pipe.room()).index, index);\n     }\n \n     /// A message of `p` ended and, for all `p` can see, still being\n     /// hashed: its slot.\n     fn message_in_flight(p: &mut Pipeline<u32>) -> usize {\n         let (_, s) = block_on(p.message(7, None)).take();\n-        p.open_messages -= 1;\n+        p.open_messages += /* ~ changed by cargo-mutants ~ */ 1;\n         p.slots[s].kind = SlotKind::WaitMulti { has_owner: false };\n         p.shared().slot_done[s].store(false, Ordering::SeqCst);\n         p.end_queue.push_back(s as u32);\n         s\n     }\n \n     #[test]\n     fn a_wait_keeps_no_waker_only_where_block_on_itself_polls_again() {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "test::message_in_flight",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3259
+        },
+        "start": {
+          "column": 5,
+          "line": 3250
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:3254:25: replace -= with += in test::message_in_flight",
+    "package": "blake3-servil",
+    "replacement": "+=",
+    "span": {
+      "end": {
+        "column": 27,
+        "line": 3254
+      },
+      "start": {
+        "column": 25,
+        "line": 3254
+      }
+    }
+  },
+  {
+    "diff": "--- src/waker.rs\n+++ replace <impl Drop for EndOnUnwind>::drop with ()\n@@ -21,17 +21,17 @@\n pub(crate) struct Line<T>(pub(crate) T);\n \n /// Ends the process if it is dropped: held across a call that must not\n /// unwind, and forgotten when the call returns.\n struct EndOnUnwind;\n \n impl Drop for EndOnUnwind {\n     fn drop(&mut self) {\n-        std::process::abort()\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n pub(crate) struct WakerSlot {\n     state: Line<AtomicUsize>,\n     waker: UnsafeCell<Option<Waker>>,\n }\n \n",
+    "file": "src/waker.rs",
+    "function": {
+      "function_name": "<impl Drop for EndOnUnwind>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 30
+        },
+        "start": {
+          "column": 5,
+          "line": 28
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/waker.rs:29:9: replace <impl Drop for EndOnUnwind>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 29
+      },
+      "start": {
+        "column": 9,
+        "line": 29
+      }
+    }
+  },
+  {
+    "diff": "--- src/waker.rs\n+++ replace WakerSlot::wake_slow with ()\n@@ -82,27 +82,11 @@\n         if self.state.0.load(Ordering::SeqCst) == REGISTERED {\n             self.wake_slow();\n         }\n     }\n \n     #[cold]\n     #[inline(never)]\n     fn wake_slow(&self) {\n-        if self.state.0.compare_exchange(REGISTERED, WAKING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {\n-            let waker = unsafe { with_mut(&self.waker, Option::take) };\n-            self.state.0.store(IDLE, Ordering::SeqCst);\n-            if let Some(w) = waker {\n-                // The waker is the program's code, and it runs here in the\n-                // middle of whatever gave the notice: a worker's task, or\n-                // a call of the Pipeline's owner that has just freed a\n-                // room and not yet recorded what it freed. A panic out of\n-                // it would leave that half done for the program to find (a\n-                // room's credit given back twice, a room handed out while\n-                // in use). It ends the process, on whichever thread, as a\n-                // panic on a worker does; the panic's own words come first.\n-                let ends = EndOnUnwind;\n-                w.wake();\n-                core::mem::forget(ends);\n-            }\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n",
+    "file": "src/waker.rs",
+    "function": {
+      "function_name": "WakerSlot::wake_slow",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 107
+        },
+        "start": {
+          "column": 5,
+          "line": 87
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/waker.rs:90:9: replace WakerSlot::wake_slow with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 106
+      },
+      "start": {
+        "column": 9,
+        "line": 90
+      }
+    }
+  }
+]
