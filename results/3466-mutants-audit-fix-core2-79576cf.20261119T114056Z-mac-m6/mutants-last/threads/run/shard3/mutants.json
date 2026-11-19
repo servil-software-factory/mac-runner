@@ -1,0 +1,386 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_room -> Poll<Room> with Poll::from(Default::default())\n@@ -1217,49 +1217,17 @@\n                     self.local_free_rooms.push_back(i as u32);\n                 }\n             }\n         }\n         self.pop_cached_room()\n     }\n \n     fn poll_room(&mut self, cx: &mut Context<'_>) -> Poll<Room> {\n-        if let Some(r) = self.try_take_room() {\n-            return Poll::Ready(r);\n-        }\n-        self.reap();\n-        self.flush_sealed_short_rooms();\n-        self.publish_open();\n-        if let Some(r) = self.try_take_room() {\n-            return Poll::Ready(r);\n-        }\n-        self.assert_room_can_progress();\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                if let Some(r) = self.try_take_room() {\n-                    return Poll::Ready(r);\n-                }\n-            }\n-            if block_on_polls_again(cx) {\n-                if self.source_slot.is_some() {\n-                    self.shared().storage.source.wake_for_waiting();\n-                }\n-                return Poll::Pending;\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        if let Some(r) = self.try_take_room() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(r);\n-        }\n-        self.assert_room_can_progress();\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::from(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn make_room(&self, index: u32) -> Room {\n         let storage = self.shared().storage;\n         storage.holders.fetch_add(1, Ordering::Relaxed);\n         Room { pipeline_id: self.id, index, offset: 0, commits: 0, ptr: storage.rooms.room_ptr(index as usize), storage }\n     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_room",
+      "return_type": "-> Poll<Room>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1258
+        },
+        "start": {
+          "column": 5,
+          "line": 1224
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1225:9: replace Pipeline<T, B>::poll_room -> Poll<Room> with Poll::from(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Poll::from(Default::default())",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1257
+      },
+      "start": {
+        "column": 9,
+        "line": 1225
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::assert_room_can_progress with ()\n@@ -1263,17 +1263,17 @@\n         storage.holders.fetch_add(1, Ordering::Relaxed);\n         Room { pipeline_id: self.id, index, offset: 0, commits: 0, ptr: storage.rooms.room_ptr(index as usize), storage }\n     }\n \n     /// A Pipeline with no Rooms has none to wait for. One whose Rooms are\n     /// all alive may be waited on: a Room is `Send`, and another thread's\n     /// drop of one ends the wait (`Room::drop` wakes it).\n     fn assert_room_can_progress(&self) {\n-        assert!(self.limits.rooms > 0, \"Pipeline::room called on a Pipeline with Limits.rooms == 0\");\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Commit the first `written` bytes of `room` as `message`'s next bytes.\n     ///\n     /// `room` advances to the next 64-byte boundary. Every commit to a\n     /// message except its last must be a whole room (`ROOM_LEN` bytes).\n     #[inline(always)]\n     pub fn commit(&mut self, message: &mut Message, room: &mut Room, written: usize) {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::assert_room_can_progress",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1272
+        },
+        "start": {
+          "column": 5,
+          "line": 1267
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1271:9: replace Pipeline<T, B>::assert_room_can_progress with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 102,
+        "line": 1271
+      },
+      "start": {
+        "column": 9,
+        "line": 1271
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::alloc_piece_node -> u32 with 0\n@@ -1356,40 +1356,17 @@\n         }\n         rs.tail_piece = pnode;\n \n         let arg = pack_arg(KIND_ROOM_PIECE, pnode, 0, written >= SME2_MIN_LEN);\n         self.dispatch_one(arg);\n     }\n \n     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {\n-        if let Some(p) = self.free_pieces.pop_front() {\n-            return p;\n-        }\n-        loop {\n-            self.drain_slot_pieces(current_slot);\n-            self.reap();\n-            if self.free_pieces.is_empty() {\n-                // Every node may be another open message's: its later\n-                // pieces finished while a worker was on an earlier one,\n-                // and only a commit to it or its end would fold them.\n-                // (A slot with no pieces has none to fold.)\n-                for other in 0..self.slots.len() {\n-                    if other != current_slot {\n-                        self.drain_pieces(other, true);\n-                    }\n-                }\n-            }\n-            if let Some(p) = self.free_pieces.pop_front() {\n-                return p;\n-            }\n-            if !self.shared().storage.source.run_waiting_action() {\n-                core::hint::spin_loop();\n-            }\n-        }\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Finish `message` and queue its [`Event::Hashed`] in end order.\n     #[inline(always)]\n     pub fn end(&mut self, message: Message) {\n         let (pid, s) = message.take();\n         assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n         self.open_messages -= 1;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::alloc_piece_node",
+      "return_type": "-> u32",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1388
+        },
+        "start": {
+          "column": 5,
+          "line": 1363
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1364:9: replace Pipeline<T, B>::alloc_piece_node -> u32 with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1387
+      },
+      "start": {
+        "column": 9,
+        "line": 1364
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::alloc_piece_node -> u32 with 1\n@@ -1356,40 +1356,17 @@\n         }\n         rs.tail_piece = pnode;\n \n         let arg = pack_arg(KIND_ROOM_PIECE, pnode, 0, written >= SME2_MIN_LEN);\n         self.dispatch_one(arg);\n     }\n \n     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {\n-        if let Some(p) = self.free_pieces.pop_front() {\n-            return p;\n-        }\n-        loop {\n-            self.drain_slot_pieces(current_slot);\n-            self.reap();\n-            if self.free_pieces.is_empty() {\n-                // Every node may be another open message's: its later\n-                // pieces finished while a worker was on an earlier one,\n-                // and only a commit to it or its end would fold them.\n-                // (A slot with no pieces has none to fold.)\n-                for other in 0..self.slots.len() {\n-                    if other != current_slot {\n-                        self.drain_pieces(other, true);\n-                    }\n-                }\n-            }\n-            if let Some(p) = self.free_pieces.pop_front() {\n-                return p;\n-            }\n-            if !self.shared().storage.source.run_waiting_action() {\n-                core::hint::spin_loop();\n-            }\n-        }\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Finish `message` and queue its [`Event::Hashed`] in end order.\n     #[inline(always)]\n     pub fn end(&mut self, message: Message) {\n         let (pid, s) = message.take();\n         assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n         self.open_messages -= 1;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::alloc_piece_node",
+      "return_type": "-> u32",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1388
+        },
+        "start": {
+          "column": 5,
+          "line": 1363
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1364:9: replace Pipeline<T, B>::alloc_piece_node -> u32 with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1387
+      },
+      "start": {
+        "column": 9,
+        "line": 1364
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace != with == in Pipeline<T, B>::alloc_piece_node\n@@ -1368,17 +1368,17 @@\n             self.drain_slot_pieces(current_slot);\n             self.reap();\n             if self.free_pieces.is_empty() {\n                 // Every node may be another open message's: its later\n                 // pieces finished while a worker was on an earlier one,\n                 // and only a commit to it or its end would fold them.\n                 // (A slot with no pieces has none to fold.)\n                 for other in 0..self.slots.len() {\n-                    if other != current_slot {\n+                    if other == /* ~ changed by cargo-mutants ~ */ current_slot {\n                         self.drain_pieces(other, true);\n                     }\n                 }\n             }\n             if let Some(p) = self.free_pieces.pop_front() {\n                 return p;\n             }\n             if !self.shared().storage.source.run_waiting_action() {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::alloc_piece_node",
+      "return_type": "-> u32",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1388
+        },
+        "start": {
+          "column": 5,
+          "line": 1363
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1376:30: replace != with == in Pipeline<T, B>::alloc_piece_node",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 1376
+      },
+      "start": {
+        "column": 30,
+        "line": 1376
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::end_slow with ()\n@@ -1405,35 +1405,17 @@\n                 self.end_queue.push_back(s as u32);\n             }\n             _ => self.end_slow(s),\n         }\n     }\n \n     #[inline(never)]\n     fn end_slow(&mut self, s: usize) {\n-        match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                let empty_hash = self.shared().tree().hash(&[]);\n-                // Sound: no task runs for an empty message, so the slot's hash\n-                // is the owner's to write.\n-                unsafe { *self.shared().hashes[s].get() = *empty_hash.as_bytes() };\n-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group: NONE, epoch: 0 };\n-            }\n-            SlotKind::OpenShortDispatched { group, epoch } => {\n-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group, epoch };\n-            }\n-            SlotKind::OpenRooms { .. } => {\n-                self.shared().slot_done[s].store(false, Ordering::Relaxed);\n-                self.slots[s].kind = SlotKind::WaitRoomMulti;\n-                self.drain_slot_pieces(s);\n-            }\n-            _ => unreachable!(),\n-        }\n-        self.end_queue.push_back(s as u32);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Abort `message` and queue its [`Event::Aborted`] in end order.\n     pub fn abort(&mut self, message: Message) {\n         let (pid, s) = message.take();\n         assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n         self.open_messages -= 1;\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::end_slow",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1432
+        },
+        "start": {
+          "column": 5,
+          "line": 1411
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1413:9: replace Pipeline<T, B>::end_slow with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 1431
+      },
+      "start": {
+        "column": 9,
+        "line": 1413
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete match arm SlotKind::OpenEmpty in Pipeline<T, B>::end_slow\n@@ -1406,23 +1406,17 @@\n             }\n             _ => self.end_slow(s),\n         }\n     }\n \n     #[inline(never)]\n     fn end_slow(&mut self, s: usize) {\n         match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                let empty_hash = self.shared().tree().hash(&[]);\n-                // Sound: no task runs for an empty message, so the slot's hash\n-                // is the owner's to write.\n-                unsafe { *self.shared().hashes[s].get() = *empty_hash.as_bytes() };\n-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group: NONE, epoch: 0 };\n-            }\n+             /* ~ changed by cargo-mutants ~ */\n             SlotKind::OpenShortDispatched { group, epoch } => {\n                 self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group, epoch };\n             }\n             SlotKind::OpenRooms { .. } => {\n                 self.shared().slot_done[s].store(false, Ordering::Relaxed);\n                 self.slots[s].kind = SlotKind::WaitRoomMulti;\n                 self.drain_slot_pieces(s);\n             }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::end_slow",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1432
+        },
+        "start": {
+          "column": 5,
+          "line": 1411
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/pipeline.rs:1414:13: delete match arm SlotKind::OpenEmpty in Pipeline<T, B>::end_slow",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1420
+      },
+      "start": {
+        "column": 13,
+        "line": 1414
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::abort with ()\n@@ -1428,46 +1428,17 @@\n             }\n             _ => unreachable!(),\n         }\n         self.end_queue.push_back(s as u32);\n     }\n \n     /// Abort `message` and queue its [`Event::Aborted`] in end order.\n     pub fn abort(&mut self, message: Message) {\n-        let (pid, s) = message.take();\n-        assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n-        self.open_messages -= 1;\n-\n-        match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };\n-            }\n-            SlotKind::OpenShort { room: room_idx, .. } => {\n-                // The record first, whole, and the wake last: the wake runs\n-                // the program's waker, which may panic, and a slot that\n-                // still said it held the room's credit would give it back\n-                // a second time (at this Pipeline's drop, or as a group).\n-                self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };\n-                self.end_queue.push_back(s as u32);\n-                if self.shared().storage.rooms.release_n(room_idx, 1) {\n-                    self.shared().storage.waker.notify_after_seqcst();\n-                }\n-                return;\n-            }\n-            SlotKind::OpenShortDispatched { group, epoch } => {\n-                self.slots[s].kind = SlotKind::WaitAborted { group, epoch };\n-            }\n-            SlotKind::OpenRooms { .. } => {\n-                self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };\n-                self.drain_slot_pieces(s);\n-            }\n-            _ => unreachable!(),\n-        }\n-        self.end_queue.push_back(s as u32);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Hash `bytes` in place on loan, returning a [`Lent`] guard.\n     ///\n     /// # Safety\n     /// The returned [`Lent`] guard must be dropped and never leaked\n     /// (`core::mem::forget`, `Box::leak`, a reference cycle, or a leaked\n     /// task holding it).\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::abort",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1466
+        },
+        "start": {
+          "column": 5,
+          "line": 1434
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1436:9: replace Pipeline<T, B>::abort with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 1465
+      },
+      "start": {
+        "column": 9,
+        "line": 1436
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete match arm SlotKind::OpenShort{room:room_idx, ..} in Pipeline<T, B>::abort\n@@ -1436,28 +1436,17 @@\n         let (pid, s) = message.take();\n         assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n         self.open_messages -= 1;\n \n         match self.slots[s].kind {\n             SlotKind::OpenEmpty => {\n                 self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };\n             }\n-            SlotKind::OpenShort { room: room_idx, .. } => {\n-                // The record first, whole, and the wake last: the wake runs\n-                // the program's waker, which may panic, and a slot that\n-                // still said it held the room's credit would give it back\n-                // a second time (at this Pipeline's drop, or as a group).\n-                self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };\n-                self.end_queue.push_back(s as u32);\n-                if self.shared().storage.rooms.release_n(room_idx, 1) {\n-                    self.shared().storage.waker.notify_after_seqcst();\n-                }\n-                return;\n-            }\n+             /* ~ changed by cargo-mutants ~ */\n             SlotKind::OpenShortDispatched { group, epoch } => {\n                 self.slots[s].kind = SlotKind::WaitAborted { group, epoch };\n             }\n             SlotKind::OpenRooms { .. } => {\n                 self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };\n                 self.drain_slot_pieces(s);\n             }\n             _ => unreachable!(),\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::abort",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1466
+        },
+        "start": {
+          "column": 5,
+          "line": 1434
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/pipeline.rs:1444:13: delete match arm SlotKind::OpenShort{room:room_idx, ..} in Pipeline<T, B>::abort",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1455
+      },
+      "start": {
+        "column": 13,
+        "line": 1444
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_ready -> Poll<()> with Poll::new()\n@@ -1568,52 +1568,17 @@\n     /// If no message has been ended (or aborted, or handed over whole)\n     /// whose event is still to come: nothing would end the wait.\n     #[inline(always)]\n     pub fn ready(&mut self) -> impl Future<Output = ()> + '_ {\n         ReadyFut { pipe: self }\n     }\n \n     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<()> {\n-        self.reap();\n-        if !self.events.is_empty() {\n-            return Poll::Ready(());\n-        }\n-        assert!(!self.end_queue.is_empty(), \"Pipeline::ready cannot make progress: no ended messages are in flight\");\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-            self.reap();\n-            if !self.events.is_empty() {\n-                return Poll::Ready(());\n-            }\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if !self.events.is_empty() {\n-                    return Poll::Ready(());\n-                }\n-            }\n-            if block_on_polls_again(cx) {\n-                if self.source_slot.is_some() {\n-                    self.shared().storage.source.wake_for_waiting();\n-                }\n-                return Poll::Pending;\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if !self.events.is_empty() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(());\n-        }\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::new() /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn assert_uncommitted(&self, s: usize) {\n         match self.slots[s].kind {\n             SlotKind::OpenEmpty => {}\n             SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { .. } => {\n                 panic!(\"bytes given two ways: Message already has committed room bytes\")\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_ready",
+      "return_type": "-> Poll<()>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1612
+        },
+        "start": {
+          "column": 5,
+          "line": 1575
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1576:9: replace Pipeline<T, B>::poll_ready -> Poll<()> with Poll::new()",
+    "package": "blake3-servil",
+    "replacement": "Poll::new()",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1611
+      },
+      "start": {
+        "column": 9,
+        "line": 1576
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_ready -> Poll<()> with Poll::from_iter([()])\n@@ -1568,52 +1568,17 @@\n     /// If no message has been ended (or aborted, or handed over whole)\n     /// whose event is still to come: nothing would end the wait.\n     #[inline(always)]\n     pub fn ready(&mut self) -> impl Future<Output = ()> + '_ {\n         ReadyFut { pipe: self }\n     }\n \n     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<()> {\n-        self.reap();\n-        if !self.events.is_empty() {\n-            return Poll::Ready(());\n-        }\n-        assert!(!self.end_queue.is_empty(), \"Pipeline::ready cannot make progress: no ended messages are in flight\");\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-            self.reap();\n-            if !self.events.is_empty() {\n-                return Poll::Ready(());\n-            }\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if !self.events.is_empty() {\n-                    return Poll::Ready(());\n-                }\n-            }\n-            if block_on_polls_again(cx) {\n-                if self.source_slot.is_some() {\n-                    self.shared().storage.source.wake_for_waiting();\n-                }\n-                return Poll::Pending;\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if !self.events.is_empty() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(());\n-        }\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::from_iter([()]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn assert_uncommitted(&self, s: usize) {\n         match self.slots[s].kind {\n             SlotKind::OpenEmpty => {}\n             SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { .. } => {\n                 panic!(\"bytes given two ways: Message already has committed room bytes\")\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_ready",
+      "return_type": "-> Poll<()>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1612
+        },
+        "start": {
+          "column": 5,
+          "line": 1575
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1576:9: replace Pipeline<T, B>::poll_ready -> Poll<()> with Poll::from_iter([()])",
+    "package": "blake3-servil",
+    "replacement": "Poll::from_iter([()])",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1611
+      },
+      "start": {
+        "column": 9,
+        "line": 1576
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_ready -> Poll<()> with Poll::new(())\n@@ -1568,52 +1568,17 @@\n     /// If no message has been ended (or aborted, or handed over whole)\n     /// whose event is still to come: nothing would end the wait.\n     #[inline(always)]\n     pub fn ready(&mut self) -> impl Future<Output = ()> + '_ {\n         ReadyFut { pipe: self }\n     }\n \n     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<()> {\n-        self.reap();\n-        if !self.events.is_empty() {\n-            return Poll::Ready(());\n-        }\n-        assert!(!self.end_queue.is_empty(), \"Pipeline::ready cannot make progress: no ended messages are in flight\");\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-            self.reap();\n-            if !self.events.is_empty() {\n-                return Poll::Ready(());\n-            }\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if !self.events.is_empty() {\n-                    return Poll::Ready(());\n-                }\n-            }\n-            if block_on_polls_again(cx) {\n-                if self.source_slot.is_some() {\n-                    self.shared().storage.source.wake_for_waiting();\n-                }\n-                return Poll::Pending;\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if !self.events.is_empty() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(());\n-        }\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::new(()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn assert_uncommitted(&self, s: usize) {\n         match self.slots[s].kind {\n             SlotKind::OpenEmpty => {}\n             SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { .. } => {\n                 panic!(\"bytes given two ways: Message already has committed room bytes\")\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_ready",
+      "return_type": "-> Poll<()>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1612
+        },
+        "start": {
+          "column": 5,
+          "line": 1575
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1576:9: replace Pipeline<T, B>::poll_ready -> Poll<()> with Poll::new(())",
+    "package": "blake3-servil",
+    "replacement": "Poll::new(())",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1611
+      },
+      "start": {
+        "column": 9,
+        "line": 1576
+      }
+    }
+  }
+]
