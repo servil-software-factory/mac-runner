@@ -1,0 +1,418 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace pool_has_workers -> bool with false\n@@ -2273,17 +2273,17 @@\n /// thread if it has one.\n fn at_rest(parked: usize, workers: usize, sme2: bool, sme2_parked: bool) -> bool {\n     parked == workers && (!sme2 || sme2_parked)\n }\n \n /// Whether any thread but a caller takes work: false in a pool of one\n /// thread, which starts no worker and no SME2 thread.\n pub(crate) fn pool_has_workers() -> bool {\n-    pool().workers() > 0\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// The pool. The caller must have called\n /// [`crate::initialize_multithreaded`] before; a call before it panics. The\n /// check is the load of the pool, which every call makes anyway.\n #[inline]\n fn pool() -> &'static Pool {\n     match POOL.get() {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "pool_has_workers",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2282
+        },
+        "start": {
+          "column": 1,
+          "line": 2278
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:2281:5: replace pool_has_workers -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 2281
+      },
+      "start": {
+        "column": 5,
+        "line": 2281
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_room_piece with ()\n@@ -612,44 +612,17 @@\n \n         // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n         finished(storage, || {\n             group.completed_epoch.swap(epoch, Ordering::SeqCst);\n         });\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) {\n-        let pnode = &self.pieces[pnode_idx];\n-        // Sound: the owner wrote the piece's fields before dispatching it\n-        // (commit_multi), and touches the node again only once `done` is set,\n-        // which is this function's last store.\n-        let room_idx = unsafe { *pnode.room.get() };\n-        let offset = unsafe { *pnode.offset.get() } as usize;\n-        let len = unsafe { *pnode.len.get() } as usize;\n-        let index = unsafe { *pnode.index.get() };\n-        let rooms = &self.storage.rooms;\n-        assert!((room_idx as usize) < rooms.count && offset <= ROOM_LEN && len <= ROOM_LEN - offset, \"a piece stays within its room\");\n-        // Sound: these are just the committed bytes. The Room's credit keeps\n-        // them from being written again until this task releases them below.\n-        let ptr = unsafe { rooms.room_ptr(room_idx as usize).add(offset) };\n-        let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };\n-        let value = if index == 0 {\n-            RoomValue::First(self.tree().subtree_halves_on(platform, ROOM_LEVEL, index, bytes))\n-        } else if len == ROOM_LEN {\n-            RoomValue::Whole(self.tree().subtree_cv_on(platform, ROOM_LEVEL, index, bytes))\n-        } else {\n-            RoomValue::Last(self.tree().last_cv_on(platform, index << ROOM_LEVEL, bytes))\n-        };\n-        // Sound: this piece's output is its worker's alone until `done`.\n-        unsafe { *pnode.out.0.get() = value };\n-        let storage = self.storage;\n-        storage.rooms.release_n(room_idx, 1);\n-        finished(storage, || {\n-            pnode.done.swap(true, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) {\n         // Sound: the owner wrote the description before dispatching the slot's\n         // tasks (batch, submit_multi_slice), and writes it again only after\n         // `slot_done`.\n         let desc = unsafe { *self.multi[slot].get() };\n         assert!(piece_idx < desc.pieces, \"the action names a piece of its submission\");\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_room_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 648
+        },
+        "start": {
+          "column": 5,
+          "line": 619
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:620:9: replace Shared::run_room_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 647
+      },
+      "start": {
+        "column": 9,
+        "line": 620
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_multi_piece with ()\n@@ -646,71 +646,17 @@\n             pnode.done.swap(true, Ordering::SeqCst);\n         });\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) {\n         // Sound: the owner wrote the description before dispatching the slot's\n         // tasks (batch, submit_multi_slice), and writes it again only after\n         // `slot_done`.\n-        let desc = unsafe { *self.multi[slot].get() };\n-        assert!(piece_idx < desc.pieces, \"the action names a piece of its submission\");\n-        if let Some((message_len, slot_len, per_part)) = desc.batch {\n-            let first = piece_idx * per_part;\n-            let count = (desc.total_len - first).min(per_part);\n-            // Sound: the batch and its digests stay in the slot (`batches[s]`)\n-            // until the slot's event, which waits for `slot_done`; this task's\n-            // messages and digests are its own range of them (`first`,\n-            // `count`).\n-            let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };\n-            let digests = unsafe { core::slice::from_raw_parts_mut(desc.digests.add(first), count) };\n-            self.tree().hash_slots_on(platform, bytes, message_len, slot_len, digests);\n-            let storage = self.storage;\n-            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-                finished(storage, || {\n-                    self.slot_done[slot].swap(true, Ordering::SeqCst);\n-                });\n-            }\n-            return;\n-        }\n-\n-        // Sound: the owner, or the Lent guard, keeps all the message's\n-        // bytes in place until the slot is done. The chunks of this slice\n-        // are the same partition the submitter put in the action list.\n-        let input = unsafe { core::slice::from_raw_parts(desc.input, desc.total_len) };\n-        let level = desc.piece_level;\n-        let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect(\"a piece within its message\");\n-        let values = self.cvs[slot].get();\n-        if piece_idx + 1 == desc.pieces {\n-            let value = self.tree().last_cv_on(platform, (piece_idx as u64) << level, bytes);\n-            // Sound: only the last piece writes this field.\n-            unsafe { (*values).last = Some(value) };\n-        } else {\n-            let value = self.tree().subtree_cv_on(platform, level, piece_idx as u64, bytes);\n-            // Sound: a separate slot for each index (submit_multi_slice\n-            // limits the count); form no borrow of other workers' slots.\n-            unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n-        }\n-\n-        let storage = self.storage;\n-        if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-            // Sound: this is the slot's last task (`tasks_left` reached zero),\n-            // so every piece's value is written and no one else reads or\n-            // writes the slot's values or hash until `slot_done` below.\n-            let values = unsafe { &mut *values };\n-            let last = values.last.take().expect(\"the last piece supplied its value\");\n-            let hash = fold_multi_cvs(self.tree(), &values.whole[..desc.pieces - 1], last, desc.total_len as u64);\n-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };\n-            if desc.loan_epoch != 0 {\n-                self.storage.loan_completed[slot].0.store(desc.loan_epoch, Ordering::Release);\n-            }\n-            finished(storage, || {\n-                self.slot_done[slot].swap(true, Ordering::SeqCst);\n-            });\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     for _ in count.count_ones() as usize..used {\n         stack[used - 2] = tree.parent_cv(&stack[used - 2], &stack[used - 1]);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 709
+        },
+        "start": {
+          "column": 5,
+          "line": 650
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:654:9: replace Shared::run_multi_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 708
+      },
+      "start": {
+        "column": 9,
+        "line": 654
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in Pipeline<T, B>::alloc_piece_node\n@@ -1331,17 +1331,17 @@\n         loop {\n             self.drain_slot_pieces(current_slot);\n             self.reap();\n             if self.free_pieces.is_empty() {\n                 // Every node may be another open message's: its later\n                 // pieces finished while a worker was on an earlier one,\n                 // and only a commit to it or its end would fold them.\n                 for other in 0..self.slots.len() {\n-                    if other != current_slot && matches!(self.slots[other].kind, SlotKind::OpenRooms { .. }) {\n+                    if other != current_slot || /* ~ changed by cargo-mutants ~ */ matches!(self.slots[other].kind, SlotKind::OpenRooms { .. }) {\n                         self.drain_pieces(other, true);\n                     }\n                 }\n             }\n             if let Some(p) = self.free_pieces.pop_front() {\n                 return p;\n             }\n             if !self.shared().storage.source.run_waiting_action() {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::alloc_piece_node",
+      "return_type": "-> u32",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1351
+        },
+        "start": {
+          "column": 5,
+          "line": 1327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1339:46: replace && with || in Pipeline<T, B>::alloc_piece_node",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 1339
+      },
+      "start": {
+        "column": 46,
+        "line": 1339
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace != with == in Pipeline<T, B>::alloc_piece_node\n@@ -1331,17 +1331,17 @@\n         loop {\n             self.drain_slot_pieces(current_slot);\n             self.reap();\n             if self.free_pieces.is_empty() {\n                 // Every node may be another open message's: its later\n                 // pieces finished while a worker was on an earlier one,\n                 // and only a commit to it or its end would fold them.\n                 for other in 0..self.slots.len() {\n-                    if other != current_slot && matches!(self.slots[other].kind, SlotKind::OpenRooms { .. }) {\n+                    if other == /* ~ changed by cargo-mutants ~ */ current_slot && matches!(self.slots[other].kind, SlotKind::OpenRooms { .. }) {\n                         self.drain_pieces(other, true);\n                     }\n                 }\n             }\n             if let Some(p) = self.free_pieces.pop_front() {\n                 return p;\n             }\n             if !self.shared().storage.source.run_waiting_action() {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::alloc_piece_node",
+      "return_type": "-> u32",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1351
+        },
+        "start": {
+          "column": 5,
+          "line": 1327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1339:30: replace != with == in Pipeline<T, B>::alloc_piece_node",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 1339
+      },
+      "start": {
+        "column": 30,
+        "line": 1339
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::drain_slot_pieces with ()\n@@ -1750,17 +1750,17 @@\n             return true;\n         }\n         let now = self.shared().storage.groups[gi].completed_epoch.load(Ordering::Acquire);\n         self.seen_group_epoch[gi] = now;\n         now >= epoch\n     }\n \n     fn drain_slot_pieces(&mut self, s: usize) {\n-        self.drain_pieces(s, false);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Fold slot `s`'s finished pieces, in order, up to the first still\n     /// being hashed. `keep_last` leaves the newest piece: an open\n     /// message may end with it, and the last piece folds as the root.\n     fn drain_pieces(&mut self, s: usize, keep_last: bool) {\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::drain_slot_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1759
+        },
+        "start": {
+          "column": 5,
+          "line": 1757
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1758:9: replace Pipeline<T, B>::drain_slot_pieces with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 1758
+      },
+      "start": {
+        "column": 9,
+        "line": 1758
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::drain_pieces with ()\n@@ -1758,63 +1758,17 @@\n         self.drain_pieces(s, false);\n     }\n \n     /// Fold slot `s`'s finished pieces, in order, up to the first still\n     /// being hashed. `keep_last` leaves the newest piece: an open\n     /// message may end with it, and the last piece folds as the root.\n     fn drain_pieces(&mut self, s: usize, keep_last: bool) {\n         // Sound: as `shared()`.\n-        let shared = unsafe { &*self.shared };\n-        let tree = shared.tree();\n-        let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n-        let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n-\n-        loop {\n-            let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.pieces[head as usize].done.load(Ordering::Acquire) {\n-                return;\n-            }\n-            // Sound: the piece is done (checked above), so its `next` and\n-            // `out` are the owner's again.\n-            let next = unsafe { *shared.pieces[head as usize].next.get() };\n-            let out = unsafe { *shared.pieces[head as usize].out.0.get() };\n-            self.free_pieces.push_back(head);\n-\n-            let rs = &mut self.room_streams[s];\n-            rs.head_piece = next;\n-            if next == NONE {\n-                rs.tail_piece = NONE;\n-            }\n-            if aborted {\n-                continue;\n-            }\n-\n-            // Sound: the caller alone writes a room message's stack\n-            // (workers write a slice message's slots, never both for one slot).\n-            let cvs = unsafe { &mut (*shared.cvs[s].get()).whole };\n-            if ended && rs.merged_pieces + 1 == rs.len.div_ceil(ROOM_LEN as u64) {\n-                let root = match out {\n-                    RoomValue::First([left, right]) => tree.root_hash(&left, &right.into(), rs.len),\n-                    RoomValue::Whole(cv) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, cv.into(), rs.len),\n-                    RoomValue::Last(last) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, last, rs.len),\n-                };\n-                // Sound: the room message is done, with no other writer.\n-                unsafe { *shared.hashes[s].get() = *root.as_bytes() };\n-                shared.slot_done[s].store(true, Ordering::Relaxed);\n-                return;\n-            }\n-            let cv = match out {\n-                RoomValue::First([left, right]) => tree.parent_cv(&left, &right),\n-                RoomValue::Whole(cv) => cv,\n-                RoomValue::Last(_) => panic!(\"a short room is the last piece\"),\n-            };\n-            push_piece(tree, cvs, &mut rs.stack_len, rs.merged_pieces, cv);\n-            rs.merged_pieces += 1;\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn try_reap_one(&mut self) -> Option<Event<T, B>> {\n         let &front = self.end_queue.front()?;\n         let s = front as usize;\n \n         let ready = match self.slots[s].kind {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1813
+        },
+        "start": {
+          "column": 5,
+          "line": 1761
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1766:9: replace Pipeline<T, B>::drain_pieces with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1812
+      },
+      "start": {
+        "column": 9,
+        "line": 1766
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Pipeline<T, B>::drain_pieces\n@@ -1765,17 +1765,17 @@\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n         let tree = shared.tree();\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head != /* ~ changed by cargo-mutants ~ */ NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1813
+        },
+        "start": {
+          "column": 5,
+          "line": 1761
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1773:21: replace == with != in Pipeline<T, B>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 1773
+      },
+      "start": {
+        "column": 21,
+        "line": 1773
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in Pipeline<T, B>::drain_pieces\n@@ -1765,17 +1765,17 @@\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n         let tree = shared.tree();\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last || /* ~ changed by cargo-mutants ~ */ head == self.room_streams[s].tail_piece) || !shared.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1813
+        },
+        "start": {
+          "column": 5,
+          "line": 1761
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1773:43: replace && with || in Pipeline<T, B>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 45,
+        "line": 1773
+      },
+      "start": {
+        "column": 43,
+        "line": 1773
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Pipeline<T, B>::drain_pieces\n@@ -1765,17 +1765,17 @@\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n         let tree = shared.tree();\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last && head != /* ~ changed by cargo-mutants ~ */ self.room_streams[s].tail_piece) || !shared.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1813
+        },
+        "start": {
+          "column": 5,
+          "line": 1761
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1773:51: replace == with != in Pipeline<T, B>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 1773
+      },
+      "start": {
+        "column": 51,
+        "line": 1773
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Pipeline<T, B>::drain_pieces\n@@ -1776,17 +1776,17 @@\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n             let rs = &mut self.room_streams[s];\n             rs.head_piece = next;\n-            if next == NONE {\n+            if next != /* ~ changed by cargo-mutants ~ */ NONE {\n                 rs.tail_piece = NONE;\n             }\n             if aborted {\n                 continue;\n             }\n \n             // Sound: the caller alone writes a room message's stack\n             // (workers write a slice message's slots, never both for one slot).\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1813
+        },
+        "start": {
+          "column": 5,
+          "line": 1761
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1784:21: replace == with != in Pipeline<T, B>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 1784
+      },
+      "start": {
+        "column": 21,
+        "line": 1784
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in Pipeline<T, B>::drain_pieces\n@@ -1786,17 +1786,17 @@\n             }\n             if aborted {\n                 continue;\n             }\n \n             // Sound: the caller alone writes a room message's stack\n             // (workers write a slice message's slots, never both for one slot).\n             let cvs = unsafe { &mut (*shared.cvs[s].get()).whole };\n-            if ended && rs.merged_pieces + 1 == rs.len.div_ceil(ROOM_LEN as u64) {\n+            if ended || /* ~ changed by cargo-mutants ~ */ rs.merged_pieces + 1 == rs.len.div_ceil(ROOM_LEN as u64) {\n                 let root = match out {\n                     RoomValue::First([left, right]) => tree.root_hash(&left, &right.into(), rs.len),\n                     RoomValue::Whole(cv) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, cv.into(), rs.len),\n                     RoomValue::Last(last) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, last, rs.len),\n                 };\n                 // Sound: the room message is done, with no other writer.\n                 unsafe { *shared.hashes[s].get() = *root.as_bytes() };\n                 shared.slot_done[s].store(true, Ordering::Relaxed);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1813
+        },
+        "start": {
+          "column": 5,
+          "line": 1761
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1794:22: replace && with || in Pipeline<T, B>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 1794
+      },
+      "start": {
+        "column": 22,
+        "line": 1794
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Pipeline<T, B>::drain_pieces\n@@ -1786,17 +1786,17 @@\n             }\n             if aborted {\n                 continue;\n             }\n \n             // Sound: the caller alone writes a room message's stack\n             // (workers write a slice message's slots, never both for one slot).\n             let cvs = unsafe { &mut (*shared.cvs[s].get()).whole };\n-            if ended && rs.merged_pieces + 1 == rs.len.div_ceil(ROOM_LEN as u64) {\n+            if ended && rs.merged_pieces + 1 != /* ~ changed by cargo-mutants ~ */ rs.len.div_ceil(ROOM_LEN as u64) {\n                 let root = match out {\n                     RoomValue::First([left, right]) => tree.root_hash(&left, &right.into(), rs.len),\n                     RoomValue::Whole(cv) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, cv.into(), rs.len),\n                     RoomValue::Last(last) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, last, rs.len),\n                 };\n                 // Sound: the room message is done, with no other writer.\n                 unsafe { *shared.hashes[s].get() = *root.as_bytes() };\n                 shared.slot_done[s].store(true, Ordering::Relaxed);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1813
+        },
+        "start": {
+          "column": 5,
+          "line": 1761
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1794:46: replace == with != in Pipeline<T, B>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 1794
+      },
+      "start": {
+        "column": 46,
+        "line": 1794
+      }
+    }
+  }
+]

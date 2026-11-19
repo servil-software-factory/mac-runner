@@ -1,0 +1,200 @@
+
+*** src/pipeline.rs:970:9: replace Pipeline<T, B>::create -> Self with Default::default()
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace Pipeline<T, B>::create -> Self with Default::default()
+@@ -962,140 +962,17 @@
+ impl<T, B> Pipeline<T, B> {
+     #[inline(always)]
+     fn shared(&self) -> &Shared {
+         // Sound: `shared` is this Pipeline's Shared (create), never freed.
+         unsafe { &*self.shared }
+     }
+ 
+     fn create(mode: Mode, limits: Limits) -> Self {
+-        crate::lanes::require();
+-        prepare_thread();
+-        assert!(limits.messages > 0, "Pipeline Limits.messages must be at least 1");
+-        let tree = TreeHasher::new(mode);
+-        let m = limits.messages;
+-        let p_cap = limits.rooms + m + 1;
+-        let g_cap = m.clamp(4, 256);
+-        let actions_cap = m * MAX_SLOT_PIECES + p_cap + g_cap;
+-        // An action names a slot, a piece or a group in 29 bits (pack_arg).
+-        assert!(m < 1 << 29 && p_cap < 1 << 29, "Pipeline Limits beyond what an action can name");
+-
+-        let storage = PipeStorage::acquire(actions_cap, m, limits.rooms, g_cap);
+-        // Sound: this Pipeline now holds the storage alone
+-        // (PipeStorage::acquire), and these cells are its holder's.
+-        let next_loan_epoch = unsafe { *storage.saved_loan_epoch.get() };
+-        let next_group_epoch = unsafe { *storage.saved_group_epoch.get() };
+-        // A pool of one thread has no worker to take a published action,
+-        // and only this crate's block_on would run it: an outside executor
+-        // waited for ever. Unregistered, every action runs where it is
+-        // dispatched, as when no slot is free.
+-        let source_slot = if crate::lanes::pool_has_workers() { storage.source.register() } else { None };
+-        crate::lanes::sources::opened();
+-
+-        let mut local_free_rooms = Ring::new(limits.rooms.max(1));
+-        for i in 0..limits.rooms {
+-            local_free_rooms.push_back(i as u32);
+-        }
+-        // The storage's `Shared`, where it has one of this size: every task
+-        // of the Pipeline before is done (its drop saw to that), and only
+-        // the mode is this Pipeline's own.
+-        // Sound: as the saved epochs above. A Shared the storage keeps was the
+-        // Pipeline before's, whose every task is published done (its drop saw
+-        // to that), so reading its lengths races with no worker.
+-        let held = unsafe { *storage.shared.get() };
+-        let shared: *mut Shared = if !held.is_null() && unsafe { (&(*held).hashes).len() >= m } {
+-            // A storage has one count of rooms, so pieces enough too.
+-            assert!(unsafe { (&(*held).pieces).len() } >= p_cap, "a Shared of as many messages has as many pieces");
+-            // Sound: nor does writing its mode. A worker may still be
+-            // returning from that last task with its `&Shared`: the mode is
+-            // in a cell, and the worker's borrow of it ended before it
+-            // published the task (Shared::tree).
+-            unsafe {
+-                *(*held).tree.get() = tree;
+-            }
+-            held
+-        } else {
+-            // One it replaces stays allocated: a worker of an earlier
+-            // Pipeline may still be reading it.
+-            let new = Box::into_raw(Box::new(Shared {
+-                tree: UnsafeCell::new(tree),
+-                storage,
+-                hashes: (0..m).map(|_| UnsafeCell::new([0u8; OUT_LEN])).collect(),
+-                cvs: (0..m).map(|_| UnsafeCell::new(PieceValues { whole: [Cv::unset(); MAX_SLOT_PIECES], last: None })).collect(),
+-                slot_done: (0..m).map(|_| OwnLine(AtomicBool::new(true))).collect(),
+-                tasks_left: (0..m).map(|_| OwnLine(AtomicUsize::new(0))).collect(),
+-                multi: (0..m)
+-                    .map(|_| {
+-                        UnsafeCell::new(MultiDesc {
+-                            input: core::ptr::null(),
+-                            total_len: 0,
+-                            piece_level: level_of(TASK_LEN as u64),
+-                            pieces: 0,
+-                            batch: None,
+-                            digests: core::ptr::null_mut(),
+-                            loan_epoch: 0,
+-                        })
+-                    })
+-                    .collect(),
+-                pieces: (0..p_cap)
+-                    .map(|_| PieceNode {
+-                        room: UnsafeCell::new(0),
+-                        offset: UnsafeCell::new(0),
+-                        len: UnsafeCell::new(0),
+-                        index: UnsafeCell::new(0),
+-                        out: OwnLine(UnsafeCell::new(RoomValue::Whole(Cv::unset()))),
+-                        done: OwnLine(AtomicBool::new(true)),
+-                        next: UnsafeCell::new(NONE),
+-                    })
+-                    .collect(),
+-            }));
+-            // Sound: as above; the Shared is kept for the next Pipeline.
+-            unsafe { *storage.shared.get() = new };
+-            new
+-        };
+-
+-        let mut free_slots = Ring::new(m);
+-        for i in 0..m {
+-            free_slots.push_back(i as u32);
+-        }
+-        let mut free_pieces = Ring::new(p_cap);
+-        for i in 0..p_cap {
+-            free_pieces.push_back(i as u32);
+-        }
+-
+-        Pipeline {
+-            id: NEXT_PIPELINE_ID.fetch_add(1, Ordering::Relaxed),
+-            limits,
+-            group_count: g_cap,
+-            source_slot,
+-            shared,
+-            slots: (0..m).map(|_| SlotMeta { tag: None, kind: SlotKind::Free }).collect(),
+-            room_streams: vec![RoomStream::EMPTY; m].into_boxed_slice(),
+-            owners: (0..m).map(|_| UnsafeCell::new(MaybeUninit::uninit())).collect(),
+-            batches: (0..m).map(|_| UnsafeCell::new(MaybeUninit::uninit())).collect(),
+-            free_slots,
+-            open_messages: 0,
+-            end_queue: Ring::new(m),
+-            events: Ring::new(m),
+-            local_free_rooms,
+-            room_cursor: 0,
+-            free_pieces,
+-            group_cursor: 0,
+-            open_group: None,
+-            local_count: 0,
+-            local_bytes: 0,
+-            local_batch: None,
+-            local_members: Box::new([Member { input: core::ptr::null(), len: 0, out: core::ptr::null_mut() }; MEMBERS]),
+-            local_rooms: Box::new([NONE; MEMBERS]),
+-            next_loan_epoch,
+-            next_group_epoch,
+-            assigned_group_epoch: vec![0u64; g_cap].into_boxed_slice(),
+-            seen_group_epoch: vec![0u64; g_cap].into_boxed_slice(),
+-            action_buf: [0; MAX_SLOT_PIECES],
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Wait for a free message slot and open a [`Message`].
+     #[inline(always)]
+     pub fn message(&mut self, tag: T, length_hint: Option<u64>) -> impl Future<Output = Message> + '_ {
+         let _ = length_hint;
+         MessageFut { pipe: self, tag: Some(tag) }
+     }
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.9.0+dev
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-3/Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.9.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3/version)
+   Compiling blake3-servil v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3/threads)
+   Compiling blake3-servil-core v0.9.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-3)
+error[E0277]: the trait bound `Pipeline<T, B>: Default` is not satisfied
+   --> src/pipeline.rs:970:9
+    |
+970 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `Pipeline<T, B>`
+   --> src/pipeline.rs:860:1
+    |
+860 | pub struct Pipeline<T, B = ()> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `pipeline::Pipeline<T, B>: Default` is not satisfied
+   --> src/pipeline.rs:970:9
+    |
+970 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `pipeline::Pipeline<T, B>`
+   --> src/pipeline.rs:860:1
+    |
+860 | pub struct Pipeline<T, B = ()> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:28:1
+   |
+28 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.9.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
