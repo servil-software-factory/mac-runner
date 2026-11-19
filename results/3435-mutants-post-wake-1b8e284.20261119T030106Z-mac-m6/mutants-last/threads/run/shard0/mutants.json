@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/lib.rs\n+++ replace initialize_multithreaded with ()\n@@ -362,29 +362,17 @@\n ///\n /// ```\n /// blake3_servil::initialize_multithreaded(None);\n /// let message = vec![blake3_servil::throughput::Block::ZERO; (1 << 20) / 64];\n /// let hash = blake3_servil::throughput::hash_multithreaded(blake3_servil::Mode::Plain, &message, 1 << 20);\n /// assert_eq!(hash, blake3_servil::convenience::hash(&[0u8; 1 << 20]));\n /// ```\n pub fn initialize_multithreaded(threads: Option<core::num::NonZeroUsize>) {\n-    static STARTED: std::sync::OnceLock<usize> = std::sync::OnceLock::new();\n-    let started = *STARTED.get_or_init(|| {\n-        initialize();\n-        lanes::initialize(threads)\n-    });\n-    lanes::prepare_thread();\n-    if let Some(threads) = threads {\n-        assert_eq!(\n-            started,\n-            threads.get(),\n-            \"blake3-servil: the multithreaded calls were started with {started} threads; initialize_multithreaded cannot change that to {threads}\"\n-        );\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Keep the command-line tool's main thread on one memory node before\n /// it starts its file readers and hash workers.\n #[cfg(target_os = \"linux\")]\n #[doc(hidden)]\n pub fn __confine_cli_to_one_node() {\n     lanes::places::confine_cli_thread();\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "initialize_multithreaded",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 383
+        },
+        "start": {
+          "column": 1,
+          "line": 298
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:370:5: replace initialize_multithreaded with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 382
+      },
+      "start": {
+        "column": 5,
+        "line": 370
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace initialize -> usize with 0\n@@ -843,79 +843,17 @@\n     park: crate::park::Park,\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n-    #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n-    let threads = requested.map_or_else(\n-        || {\n-            let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = &node {\n-                return available.min(node.cpu_count());\n-            }\n-            available\n-        },\n-        |n| n.get(),\n-    );\n-    // With one thread, none beside the caller: no SME2 thread either.\n-    let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n-    let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(Pool::workers_of(threads), crate::park::FANOUT) };\n-    assert!(POOL.set(pool).is_ok(), \"initialize_multithreaded creates the pool once\");\n-    if threads == 1 {\n-        return threads;\n-    }\n-    // Before any thread starts: a child forked from here on has none of\n-    // them, and its multithreaded calls stop at `pool` (FORKED).\n-    unsafe extern \"C\" {\n-        fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n-    }\n-    // Sound: the handler only stores to an atomic, which a forked child\n-    // may do.\n-    assert_eq!(unsafe { pthread_atfork(None, None, Some(mark_forked)) }, 0, \"registering the fork handler\");\n-    if sme2 {\n-        #[cfg(target_os = \"linux\")]\n-        let sme2_node = node.clone();\n-        std::thread::Builder::new()\n-            .name(\"blake3-sme2\".into())\n-            .spawn(move || {\n-                #[cfg(target_os = \"linux\")]\n-                if let Some(node) = sme2_node {\n-                    node.bind_worker();\n-                }\n-                sme2_main();\n-            })\n-            .expect(\"spawning the SME2 thread\");\n-    }\n-    std::thread::Builder::new()\n-        .name(\"blake3-worker-1\".into())\n-        .spawn(move || {\n-            // Bind before starting the other workers, which inherit this\n-            // mask. The caller keeps its own affinity.\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = node {\n-                node.bind_worker();\n-            }\n-            for worker in 2..threads {\n-                std::thread::Builder::new().name(format!(\"blake3-worker-{worker}\")).spawn(move || worker_main(worker - 1)).expect(\"spawning a BLAKE3 worker\");\n-            }\n-            // After the workers have started, never before: reading the\n-            // machine's caches takes 2 ms on a machine of 96 CPUs, and\n-            // b3sum has hashed a 16 MiB file by then (read first, it made\n-            // b3sum's warm 16 MiB 1.4 ms slower on two servers).\n-            places::settle(Pool::workers_of(threads));\n-            worker_main(0)\n-        })\n-        .expect(\"spawning a BLAKE3 worker\");\n-    threads\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The workers' places. On a machine with more than one last-level cache\n /// (several sockets, or an EPYC's cores in groups of six or eight), each\n /// worker runs on the CPUs under one of them, its place, and a waker wakes\n /// the workers of its own place first, then its socket's, then any.\n ///\n /// Work a caller has just written is in its cache, and a worker under\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 914
+        },
+        "start": {
+          "column": 1,
+          "line": 846
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:851:5: replace initialize -> usize with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 913
+      },
+      "start": {
+        "column": 5,
+        "line": 851
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace initialize -> usize with 1\n@@ -843,79 +843,17 @@\n     park: crate::park::Park,\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n-    #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n-    let threads = requested.map_or_else(\n-        || {\n-            let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = &node {\n-                return available.min(node.cpu_count());\n-            }\n-            available\n-        },\n-        |n| n.get(),\n-    );\n-    // With one thread, none beside the caller: no SME2 thread either.\n-    let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n-    let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(Pool::workers_of(threads), crate::park::FANOUT) };\n-    assert!(POOL.set(pool).is_ok(), \"initialize_multithreaded creates the pool once\");\n-    if threads == 1 {\n-        return threads;\n-    }\n-    // Before any thread starts: a child forked from here on has none of\n-    // them, and its multithreaded calls stop at `pool` (FORKED).\n-    unsafe extern \"C\" {\n-        fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n-    }\n-    // Sound: the handler only stores to an atomic, which a forked child\n-    // may do.\n-    assert_eq!(unsafe { pthread_atfork(None, None, Some(mark_forked)) }, 0, \"registering the fork handler\");\n-    if sme2 {\n-        #[cfg(target_os = \"linux\")]\n-        let sme2_node = node.clone();\n-        std::thread::Builder::new()\n-            .name(\"blake3-sme2\".into())\n-            .spawn(move || {\n-                #[cfg(target_os = \"linux\")]\n-                if let Some(node) = sme2_node {\n-                    node.bind_worker();\n-                }\n-                sme2_main();\n-            })\n-            .expect(\"spawning the SME2 thread\");\n-    }\n-    std::thread::Builder::new()\n-        .name(\"blake3-worker-1\".into())\n-        .spawn(move || {\n-            // Bind before starting the other workers, which inherit this\n-            // mask. The caller keeps its own affinity.\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = node {\n-                node.bind_worker();\n-            }\n-            for worker in 2..threads {\n-                std::thread::Builder::new().name(format!(\"blake3-worker-{worker}\")).spawn(move || worker_main(worker - 1)).expect(\"spawning a BLAKE3 worker\");\n-            }\n-            // After the workers have started, never before: reading the\n-            // machine's caches takes 2 ms on a machine of 96 CPUs, and\n-            // b3sum has hashed a 16 MiB file by then (read first, it made\n-            // b3sum's warm 16 MiB 1.4 ms slower on two servers).\n-            places::settle(Pool::workers_of(threads));\n-            worker_main(0)\n-        })\n-        .expect(\"spawning a BLAKE3 worker\");\n-    threads\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The workers' places. On a machine with more than one last-level cache\n /// (several sockets, or an EPYC's cores in groups of six or eight), each\n /// worker runs on the CPUs under one of them, its place, and a waker wakes\n /// the workers of its own place first, then its socket's, then any.\n ///\n /// Work a caller has just written is in its cache, and a worker under\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 914
+        },
+        "start": {
+          "column": 1,
+          "line": 846
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:851:5: replace initialize -> usize with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 913
+      },
+      "start": {
+        "column": 5,
+        "line": 851
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace == with != in initialize\n@@ -844,17 +844,17 @@\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n     #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n+    let node = if requested != /* ~ changed by cargo-mutants ~ */ Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n     let threads = requested.map_or_else(\n         || {\n             let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n             #[cfg(target_os = \"linux\")]\n             if let Some(node) = &node {\n                 return available.min(node.cpu_count());\n             }\n             available\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 914
+        },
+        "start": {
+          "column": 1,
+          "line": 846
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:852:29: replace == with != in initialize",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 852
+      },
+      "start": {
+        "column": 29,
+        "line": 852
+      }
+    }
+  }
+]
