@@ -1,0 +1,66 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace initialize -> usize with 0\n@@ -939,84 +939,17 @@\n     park: crate::park::Park,\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n-    #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n-    let threads = requested.map_or_else(\n-        || {\n-            let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = &node {\n-                return available.min(node.cpu_count());\n-            }\n-            available\n-        },\n-        |n| n.get(),\n-    );\n-    // With one thread, none beside the caller: no SME2 thread either.\n-    let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n-    let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(Pool::workers_of(threads), crate::park::FANOUT) };\n-    if threads > 1 {\n-        // Before any thread starts: a child forked from here on has none\n-        // of them, and its multithreaded calls stop at `pool` (FORKED).\n-        // Before the pool is published, too: a refusal here is a panic\n-        // that leaves no pool behind.\n-        unsafe extern \"C\" {\n-            fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n-        }\n-        // Sound: the handler only stores to an atomic, which a forked\n-        // child may do.\n-        assert_eq!(unsafe { pthread_atfork(None, None, Some(mark_forked)) }, 0, \"registering the fork handler\");\n-    }\n-    assert!(POOL.set(pool).is_ok(), \"initialize_multithreaded creates the pool once\");\n-    if threads == 1 {\n-        return threads;\n-    }\n-    // The pool is published and says it has workers: from here a thread\n-    // that cannot start ends the process (`started`). A panic would leave\n-    // that pool to a caller that caught it, and to every other thread.\n-    if sme2 {\n-        #[cfg(target_os = \"linux\")]\n-        let sme2_node = node.clone();\n-        started(std::thread::Builder::new().name(\"blake3-sme2\".into()).spawn(move || {\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = sme2_node {\n-                node.bind();\n-            }\n-            sme2_main();\n-        }));\n-    }\n-    started(std::thread::Builder::new().name(\"blake3-worker-1\".into()).spawn(move || {\n-        // Bind before starting the other workers, which inherit this\n-        // mask. The caller keeps its own affinity.\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(node) = node {\n-            node.bind();\n-        }\n-        // The pool is published, and calls may already wait on these\n-        // workers: a failure from here on ends the process, as a\n-        // worker's own panic does (worker_main).\n-        let _starting = AbortOnUnwind;\n-        for worker in 2..threads {\n-            started(std::thread::Builder::new().name(format!(\"blake3-worker-{worker}\")).spawn(move || worker_main(worker - 1)));\n-        }\n-        // After the workers have started, never before: reading the\n-        // machine's caches takes 2 ms on a machine of 96 CPUs, and\n-        // b3sum has hashed a 16 MiB file by then (read first, it made\n-        // b3sum's warm 16 MiB 1.4 ms slower on two servers).\n-        places::settle(Pool::workers_of(threads));\n-        worker_main(0)\n-    }));\n-    threads\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The workers' places. On a machine with more than one last-level cache\n /// (several sockets, or an EPYC's cores in groups of six or eight), each\n /// worker runs on the CPUs under one of them, its place, and a waker wakes\n /// the workers of its own place first, then its socket's, then any.\n ///\n /// Work a caller has just written is in its cache, and a worker under\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1015
+        },
+        "start": {
+          "column": 1,
+          "line": 942
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:947:5: replace initialize -> usize with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 1014
+      },
+      "start": {
+        "column": 5,
+        "line": 947
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace initialize -> usize with 1\n@@ -939,84 +939,17 @@\n     park: crate::park::Park,\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n-    #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n-    let threads = requested.map_or_else(\n-        || {\n-            let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = &node {\n-                return available.min(node.cpu_count());\n-            }\n-            available\n-        },\n-        |n| n.get(),\n-    );\n-    // With one thread, none beside the caller: no SME2 thread either.\n-    let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n-    let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(Pool::workers_of(threads), crate::park::FANOUT) };\n-    if threads > 1 {\n-        // Before any thread starts: a child forked from here on has none\n-        // of them, and its multithreaded calls stop at `pool` (FORKED).\n-        // Before the pool is published, too: a refusal here is a panic\n-        // that leaves no pool behind.\n-        unsafe extern \"C\" {\n-            fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n-        }\n-        // Sound: the handler only stores to an atomic, which a forked\n-        // child may do.\n-        assert_eq!(unsafe { pthread_atfork(None, None, Some(mark_forked)) }, 0, \"registering the fork handler\");\n-    }\n-    assert!(POOL.set(pool).is_ok(), \"initialize_multithreaded creates the pool once\");\n-    if threads == 1 {\n-        return threads;\n-    }\n-    // The pool is published and says it has workers: from here a thread\n-    // that cannot start ends the process (`started`). A panic would leave\n-    // that pool to a caller that caught it, and to every other thread.\n-    if sme2 {\n-        #[cfg(target_os = \"linux\")]\n-        let sme2_node = node.clone();\n-        started(std::thread::Builder::new().name(\"blake3-sme2\".into()).spawn(move || {\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = sme2_node {\n-                node.bind();\n-            }\n-            sme2_main();\n-        }));\n-    }\n-    started(std::thread::Builder::new().name(\"blake3-worker-1\".into()).spawn(move || {\n-        // Bind before starting the other workers, which inherit this\n-        // mask. The caller keeps its own affinity.\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(node) = node {\n-            node.bind();\n-        }\n-        // The pool is published, and calls may already wait on these\n-        // workers: a failure from here on ends the process, as a\n-        // worker's own panic does (worker_main).\n-        let _starting = AbortOnUnwind;\n-        for worker in 2..threads {\n-            started(std::thread::Builder::new().name(format!(\"blake3-worker-{worker}\")).spawn(move || worker_main(worker - 1)));\n-        }\n-        // After the workers have started, never before: reading the\n-        // machine's caches takes 2 ms on a machine of 96 CPUs, and\n-        // b3sum has hashed a 16 MiB file by then (read first, it made\n-        // b3sum's warm 16 MiB 1.4 ms slower on two servers).\n-        places::settle(Pool::workers_of(threads));\n-        worker_main(0)\n-    }));\n-    threads\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The workers' places. On a machine with more than one last-level cache\n /// (several sockets, or an EPYC's cores in groups of six or eight), each\n /// worker runs on the CPUs under one of them, its place, and a waker wakes\n /// the workers of its own place first, then its socket's, then any.\n ///\n /// Work a caller has just written is in its cache, and a worker under\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1015
+        },
+        "start": {
+          "column": 1,
+          "line": 942
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:947:5: replace initialize -> usize with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 1014
+      },
+      "start": {
+        "column": 5,
+        "line": 947
+      }
+    }
+  }
+]
