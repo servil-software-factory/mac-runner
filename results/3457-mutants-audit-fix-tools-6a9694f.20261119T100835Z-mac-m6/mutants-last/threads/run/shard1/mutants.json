@@ -1,0 +1,194 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace > with >= in pool_has_workers\n@@ -2273,17 +2273,17 @@\n /// thread if it has one.\n fn at_rest(parked: usize, workers: usize, sme2: bool, sme2_parked: bool) -> bool {\n     parked == workers && (!sme2 || sme2_parked)\n }\n \n /// Whether any thread but a caller takes work: false in a pool of one\n /// thread, which starts no worker and no SME2 thread.\n pub(crate) fn pool_has_workers() -> bool {\n-    pool().workers() > 0\n+    pool().workers() >= /* ~ changed by cargo-mutants ~ */ 0\n }\n \n /// The pool. The caller must have called\n /// [`crate::initialize_multithreaded`] before; a call before it panics. The\n /// check is the load of the pool, which every call makes anyway.\n #[inline]\n fn pool() -> &'static Pool {\n     match POOL.get() {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "pool_has_workers",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2282
+        },
+        "start": {
+          "column": 1,
+          "line": 2278
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:2281:22: replace > with >= in pool_has_workers",
+    "package": "blake3-servil",
+    "replacement": ">=",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 2281
+      },
+      "start": {
+        "column": 22,
+        "line": 2281
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::tree -> &TreeHasher with Box::leak(Box::new(Default::default()))\n@@ -556,17 +556,17 @@\n impl Shared {\n     /// The mode, for hashing one task's bytes or folding its values.\n     #[inline(always)]\n     fn tree(&self) -> &TreeHasher {\n         // Sound: `create` alone writes the mode, when every task of the\n         // Pipeline before is published done; a worker uses this borrow\n         // before it publishes its task, and the owner while its Pipeline\n         // lives.\n-        unsafe { &*self.tree.get() }\n+        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n     }\n \n     unsafe fn run_action(ctx: *const (), arg: u64, platform: Platform) {\n         // Sound: `ctx` is the `*const Shared` its Pipeline dispatched with\n         // (dispatch_one, dispatch_many), and a Shared is never freed.\n         let shared = unsafe { &*(ctx as *const Shared) };\n         let (kind, a, b) = unpack_arg(arg);\n         match kind {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::tree",
+      "return_type": "-> &TreeHasher",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 565
+        },
+        "start": {
+          "column": 5,
+          "line": 557
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:564:9: replace Shared::tree -> &TreeHasher with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 564
+      },
+      "start": {
+        "column": 9,
+        "line": 564
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_group with ()\n@@ -573,52 +573,17 @@\n             KIND_GROUP => shared.run_group(a, platform),\n             KIND_ROOM_PIECE => shared.run_room_piece(a, platform),\n             KIND_MULTI => shared.run_multi_piece(a, b, platform),\n             _ => unreachable!(),\n         }\n     }\n \n     fn run_group(&self, group_idx: usize, platform: Platform) {\n-        let storage = self.storage;\n-        let group = &storage.groups[group_idx];\n-        // Sound: the owner wrote this group's task, epoch and metas before it\n-        // dispatched the group (publish_open), and writes them again only\n-        // after it has seen `completed_epoch` reach this epoch, which is this\n-        // function's last store.\n-        let task = unsafe { &*group.task.get() };\n-        let count = task.members;\n-        let epoch = unsafe { *group.epoch.get() };\n-        task.run_members(self.tree(), platform);\n-        let metas = unsafe { &*group.metas.get() };\n-\n-        // Coalesce consecutive members sharing a Room into a single atomic subtraction.\n-        let mut cur_room = NONE;\n-        let mut cur_n = 0usize;\n-        for meta in &metas[..count] {\n-            if meta.room != NONE {\n-                if meta.room == cur_room {\n-                    cur_n += 1;\n-                } else {\n-                    if cur_room != NONE {\n-                        self.storage.rooms.release_n(cur_room, cur_n);\n-                    }\n-                    cur_room = meta.room;\n-                    cur_n = 1;\n-                }\n-            }\n-        }\n-        if cur_room != NONE {\n-            self.storage.rooms.release_n(cur_room, cur_n);\n-        }\n-\n-        // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n-        finished(storage, || {\n-            group.completed_epoch.swap(epoch, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) {\n         let pnode = &self.pieces[pnode_idx];\n         // Sound: the owner wrote the piece's fields before dispatching it\n         // (commit_multi), and touches the node again only once `done` is set,\n         // which is this function's last store.\n         let room_idx = unsafe { *pnode.room.get() };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_group",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 617
+        },
+        "start": {
+          "column": 5,
+          "line": 580
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:581:9: replace Shared::run_group with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 616
+      },
+      "start": {
+        "column": 9,
+        "line": 581
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_room_piece with ()\n@@ -612,44 +612,17 @@\n \n         // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n         finished(storage, || {\n             group.completed_epoch.swap(epoch, Ordering::SeqCst);\n         });\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) {\n-        let pnode = &self.pieces[pnode_idx];\n-        // Sound: the owner wrote the piece's fields before dispatching it\n-        // (commit_multi), and touches the node again only once `done` is set,\n-        // which is this function's last store.\n-        let room_idx = unsafe { *pnode.room.get() };\n-        let offset = unsafe { *pnode.offset.get() } as usize;\n-        let len = unsafe { *pnode.len.get() } as usize;\n-        let index = unsafe { *pnode.index.get() };\n-        let rooms = &self.storage.rooms;\n-        assert!((room_idx as usize) < rooms.count && offset <= ROOM_LEN && len <= ROOM_LEN - offset, \"a piece stays within its room\");\n-        // Sound: these are just the committed bytes. The Room's credit keeps\n-        // them from being written again until this task releases them below.\n-        let ptr = unsafe { rooms.room_ptr(room_idx as usize).add(offset) };\n-        let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };\n-        let value = if index == 0 {\n-            RoomValue::First(self.tree().subtree_halves_on(platform, ROOM_LEVEL, index, bytes))\n-        } else if len == ROOM_LEN {\n-            RoomValue::Whole(self.tree().subtree_cv_on(platform, ROOM_LEVEL, index, bytes))\n-        } else {\n-            RoomValue::Last(self.tree().last_cv_on(platform, index << ROOM_LEVEL, bytes))\n-        };\n-        // Sound: this piece's output is its worker's alone until `done`.\n-        unsafe { *pnode.out.0.get() = value };\n-        let storage = self.storage;\n-        storage.rooms.release_n(room_idx, 1);\n-        finished(storage, || {\n-            pnode.done.swap(true, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) {\n         // Sound: the owner wrote the description before dispatching the slot's\n         // tasks (batch, submit_multi_slice), and writes it again only after\n         // `slot_done`.\n         let desc = unsafe { *self.multi[slot].get() };\n         assert!(piece_idx < desc.pieces, \"the action names a piece of its submission\");\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_room_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 648
+        },
+        "start": {
+          "column": 5,
+          "line": 619
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:620:9: replace Shared::run_room_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 647
+      },
+      "start": {
+        "column": 9,
+        "line": 620
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Shared::run_room_piece\n@@ -626,17 +626,17 @@\n         let len = unsafe { *pnode.len.get() } as usize;\n         let index = unsafe { *pnode.index.get() };\n         let rooms = &self.storage.rooms;\n         assert!((room_idx as usize) < rooms.count && offset <= ROOM_LEN && len <= ROOM_LEN - offset, \"a piece stays within its room\");\n         // Sound: these are just the committed bytes. The Room's credit keeps\n         // them from being written again until this task releases them below.\n         let ptr = unsafe { rooms.room_ptr(room_idx as usize).add(offset) };\n         let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };\n-        let value = if index == 0 {\n+        let value = if index != /* ~ changed by cargo-mutants ~ */ 0 {\n             RoomValue::First(self.tree().subtree_halves_on(platform, ROOM_LEVEL, index, bytes))\n         } else if len == ROOM_LEN {\n             RoomValue::Whole(self.tree().subtree_cv_on(platform, ROOM_LEVEL, index, bytes))\n         } else {\n             RoomValue::Last(self.tree().last_cv_on(platform, index << ROOM_LEVEL, bytes))\n         };\n         // Sound: this piece's output is its worker's alone until `done`.\n         unsafe { *pnode.out.0.get() = value };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_room_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 648
+        },
+        "start": {
+          "column": 5,
+          "line": 619
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:634:30: replace == with != in Shared::run_room_piece",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 634
+      },
+      "start": {
+        "column": 30,
+        "line": 634
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Shared::run_room_piece\n@@ -628,17 +628,17 @@\n         let rooms = &self.storage.rooms;\n         assert!((room_idx as usize) < rooms.count && offset <= ROOM_LEN && len <= ROOM_LEN - offset, \"a piece stays within its room\");\n         // Sound: these are just the committed bytes. The Room's credit keeps\n         // them from being written again until this task releases them below.\n         let ptr = unsafe { rooms.room_ptr(room_idx as usize).add(offset) };\n         let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };\n         let value = if index == 0 {\n             RoomValue::First(self.tree().subtree_halves_on(platform, ROOM_LEVEL, index, bytes))\n-        } else if len == ROOM_LEN {\n+        } else if len != /* ~ changed by cargo-mutants ~ */ ROOM_LEN {\n             RoomValue::Whole(self.tree().subtree_cv_on(platform, ROOM_LEVEL, index, bytes))\n         } else {\n             RoomValue::Last(self.tree().last_cv_on(platform, index << ROOM_LEVEL, bytes))\n         };\n         // Sound: this piece's output is its worker's alone until `done`.\n         unsafe { *pnode.out.0.get() = value };\n         let storage = self.storage;\n         storage.rooms.release_n(room_idx, 1);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_room_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 648
+        },
+        "start": {
+          "column": 5,
+          "line": 619
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:636:23: replace == with != in Shared::run_room_piece",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 636
+      },
+      "start": {
+        "column": 23,
+        "line": 636
+      }
+    }
+  }
+]
