@@ -1,0 +1,866 @@
+[
+  {
+    "diff": "--- src/lib.rs\n+++ replace __confine_cli_to_one_node with ()\n@@ -382,17 +382,17 @@\n     }\n }\n \n /// Keep the command-line tool's main thread on one memory node before\n /// it starts its file readers and hash workers.\n #[cfg(target_os = \"linux\")]\n #[doc(hidden)]\n pub fn __confine_cli_to_one_node() {\n-    lanes::places::confine_cli_thread();\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Whether every worker of the multithreaded calls' pool is parked (false\n /// before [`initialize_multithreaded`]). Undocumented and unstable, for\n /// tests only: a test that needs the pool idle waits for this, not for a\n /// sleep that a loaded machine could outlast.\n #[doc(hidden)]\n pub fn __all_workers_parked() -> bool {\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "__confine_cli_to_one_node",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 391
+        },
+        "start": {
+          "column": 1,
+          "line": 385
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:390:5: replace __confine_cli_to_one_node with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 390
+      },
+      "start": {
+        "column": 5,
+        "line": 390
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace == with != in initialize\n@@ -844,17 +844,17 @@\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n     #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n+    let node = if requested != /* ~ changed by cargo-mutants ~ */ Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n     let threads = requested.map_or_else(\n         || {\n             let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n             #[cfg(target_os = \"linux\")]\n             if let Some(node) = &node {\n                 return available.min(node.cpu_count());\n             }\n             available\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 914
+        },
+        "start": {
+          "column": 1,
+          "line": 846
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:852:29: replace == with != in initialize",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 852
+      },
+      "start": {
+        "column": 29,
+        "line": 852
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace == with != in initialize\n@@ -860,17 +860,17 @@\n             available\n         },\n         |n| n.get(),\n     );\n     // With one thread, none beside the caller: no SME2 thread either.\n     let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n     let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(Pool::workers_of(threads), crate::park::FANOUT) };\n     assert!(POOL.set(pool).is_ok(), \"initialize_multithreaded creates the pool once\");\n-    if threads == 1 {\n+    if threads != /* ~ changed by cargo-mutants ~ */ 1 {\n         return threads;\n     }\n     // Before any thread starts: a child forked from here on has none of\n     // them, and its multithreaded calls stop at `pool` (FORKED).\n     unsafe extern \"C\" {\n         fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n     }\n     // Sound: the handler only stores to an atomic, which a forked child\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 914
+        },
+        "start": {
+          "column": 1,
+          "line": 846
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:868:16: replace == with != in initialize",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 18,
+        "line": 868
+      },
+      "start": {
+        "column": 16,
+        "line": 868
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::affinity -> std::io::Result<Set> with Ok(Default::default())\n@@ -1304,22 +1304,17 @@\n             .into_iter()\n             .map(|cpu| Some(Cpu { cpu, cache: number(cpu, \"cache/index3/id\")?, socket: number(cpu, \"topology/physical_package_id\")? }))\n             .collect()\n     }\n \n     /// The CPU mask of the calling thread.\n     #[cfg(target_os = \"linux\")]\n     fn affinity() -> std::io::Result<Set> {\n-        let mut allowed: Set = [0; CPUS / 64];\n-        // Sound: the set is `len` writable bytes.\n-        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n-            return Err(std::io::Error::last_os_error());\n-        }\n-        Ok(allowed)\n+        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The CPUs this thread may run on, in order.\n     #[cfg(target_os = \"linux\")]\n     fn allowed() -> Option<Vec<usize>> {\n         let allowed = affinity().ok()?;\n         Some((0..CPUS).filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1).collect())\n     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::affinity",
+      "return_type": "-> std::io::Result<Set>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1318
+        },
+        "start": {
+          "column": 5,
+          "line": 1309
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1312:9: replace places::affinity -> std::io::Result<Set> with Ok(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Ok(Default::default())",
+    "span": {
+      "end": {
+        "column": 20,
+        "line": 1317
+      },
+      "start": {
+        "column": 9,
+        "line": 1312
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace != with == in places::affinity\n@@ -1306,17 +1306,17 @@\n             .collect()\n     }\n \n     /// The CPU mask of the calling thread.\n     #[cfg(target_os = \"linux\")]\n     fn affinity() -> std::io::Result<Set> {\n         let mut allowed: Set = [0; CPUS / 64];\n         // Sound: the set is `len` writable bytes.\n-        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {\n+        if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } == /* ~ changed by cargo-mutants ~ */ 0 {\n             return Err(std::io::Error::last_os_error());\n         }\n         Ok(allowed)\n     }\n \n     /// The CPUs this thread may run on, in order.\n     #[cfg(target_os = \"linux\")]\n     fn allowed() -> Option<Vec<usize>> {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::affinity",
+      "return_type": "-> std::io::Result<Set>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1318
+        },
+        "start": {
+          "column": 5,
+          "line": 1309
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1314:87: replace != with == in places::affinity",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 1314
+      },
+      "start": {
+        "column": 87,
+        "line": 1314
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::cpu_set -> Set with Default::default()\n@@ -1322,27 +1322,17 @@\n     fn allowed() -> Option<Vec<usize>> {\n         let allowed = affinity().ok()?;\n         Some((0..CPUS).filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1).collect())\n     }\n \n     /// A kernel CPU list, such as `0-3,8,10-11`, in the affinity layout.\n     #[cfg(target_os = \"linux\")]\n     fn cpu_set(list: &str) -> Set {\n-        let mut set = [0; CPUS / 64];\n-        for range in list.trim().split(',') {\n-            let (first, last) = range.split_once('-').unwrap_or((range, range));\n-            let first = first.parse::<usize>().expect(\"a Linux CPU number\");\n-            let last = last.parse::<usize>().expect(\"a Linux CPU number\");\n-            assert!(first <= last && last < CPUS, \"CPU range {range} outside the worker mask\");\n-            for cpu in first..=last {\n-                set[cpu / 64] |= 1u64.rotate_left(cpu as u32);\n-            }\n-        }\n-        set\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[cfg(target_os = \"linux\")]\n     fn multiple_nodes(online: std::io::Result<String>) -> bool {\n         match online {\n             Ok(list) => list.trim().parse::<usize>().is_err(),\n             Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,\n             Err(e) => panic!(\"read Linux memory nodes: {e}\"),\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::cpu_set",
+      "return_type": "-> Set",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1341
+        },
+        "start": {
+          "column": 5,
+          "line": 1327
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1330:9: replace places::cpu_set -> Set with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 1340
+      },
+      "start": {
+        "column": 9,
+        "line": 1330
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace / with % in places::cpu_set\n@@ -1322,17 +1322,17 @@\n     fn allowed() -> Option<Vec<usize>> {\n         let allowed = affinity().ok()?;\n         Some((0..CPUS).filter(|c| allowed[c / 64] >> (c % 64) & 1 == 1).collect())\n     }\n \n     /// A kernel CPU list, such as `0-3,8,10-11`, in the affinity layout.\n     #[cfg(target_os = \"linux\")]\n     fn cpu_set(list: &str) -> Set {\n-        let mut set = [0; CPUS / 64];\n+        let mut set = [0; CPUS % /* ~ changed by cargo-mutants ~ */ 64];\n         for range in list.trim().split(',') {\n             let (first, last) = range.split_once('-').unwrap_or((range, range));\n             let first = first.parse::<usize>().expect(\"a Linux CPU number\");\n             let last = last.parse::<usize>().expect(\"a Linux CPU number\");\n             assert!(first <= last && last < CPUS, \"CPU range {range} outside the worker mask\");\n             for cpu in first..=last {\n                 set[cpu / 64] |= 1u64.rotate_left(cpu as u32);\n             }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::cpu_set",
+      "return_type": "-> Set",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1341
+        },
+        "start": {
+          "column": 5,
+          "line": 1327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1330:32: replace / with % in places::cpu_set",
+    "package": "blake3-servil",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 1330
+      },
+      "start": {
+        "column": 32,
+        "line": 1330
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace |= with &= in places::cpu_set\n@@ -1329,17 +1329,17 @@\n     fn cpu_set(list: &str) -> Set {\n         let mut set = [0; CPUS / 64];\n         for range in list.trim().split(',') {\n             let (first, last) = range.split_once('-').unwrap_or((range, range));\n             let first = first.parse::<usize>().expect(\"a Linux CPU number\");\n             let last = last.parse::<usize>().expect(\"a Linux CPU number\");\n             assert!(first <= last && last < CPUS, \"CPU range {range} outside the worker mask\");\n             for cpu in first..=last {\n-                set[cpu / 64] |= 1u64.rotate_left(cpu as u32);\n+                set[cpu / 64] &= /* ~ changed by cargo-mutants ~ */ 1u64.rotate_left(cpu as u32);\n             }\n         }\n         set\n     }\n \n     #[cfg(target_os = \"linux\")]\n     fn multiple_nodes(online: std::io::Result<String>) -> bool {\n         match online {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::cpu_set",
+      "return_type": "-> Set",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1341
+        },
+        "start": {
+          "column": 5,
+          "line": 1327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1337:31: replace |= with &= in places::cpu_set",
+    "package": "blake3-servil",
+    "replacement": "&=",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 1337
+      },
+      "start": {
+        "column": 31,
+        "line": 1337
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace / with % in places::cpu_set\n@@ -1329,17 +1329,17 @@\n     fn cpu_set(list: &str) -> Set {\n         let mut set = [0; CPUS / 64];\n         for range in list.trim().split(',') {\n             let (first, last) = range.split_once('-').unwrap_or((range, range));\n             let first = first.parse::<usize>().expect(\"a Linux CPU number\");\n             let last = last.parse::<usize>().expect(\"a Linux CPU number\");\n             assert!(first <= last && last < CPUS, \"CPU range {range} outside the worker mask\");\n             for cpu in first..=last {\n-                set[cpu / 64] |= 1u64.rotate_left(cpu as u32);\n+                set[cpu % /* ~ changed by cargo-mutants ~ */ 64] |= 1u64.rotate_left(cpu as u32);\n             }\n         }\n         set\n     }\n \n     #[cfg(target_os = \"linux\")]\n     fn multiple_nodes(online: std::io::Result<String>) -> bool {\n         match online {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::cpu_set",
+      "return_type": "-> Set",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1341
+        },
+        "start": {
+          "column": 5,
+          "line": 1327
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1337:25: replace / with % in places::cpu_set",
+    "package": "blake3-servil",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 26,
+        "line": 1337
+      },
+      "start": {
+        "column": 25,
+        "line": 1337
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::multiple_nodes -> bool with true\n@@ -1337,21 +1337,17 @@\n                 set[cpu / 64] |= 1u64.rotate_left(cpu as u32);\n             }\n         }\n         set\n     }\n \n     #[cfg(target_os = \"linux\")]\n     fn multiple_nodes(online: std::io::Result<String>) -> bool {\n-        match online {\n-            Ok(list) => list.trim().parse::<usize>().is_err(),\n-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,\n-            Err(e) => panic!(\"read Linux memory nodes: {e}\"),\n-        }\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The initiating thread's node, intersected with its allowed CPUs.\n     /// None when there is no additional restriction to apply.\n     #[cfg(target_os = \"linux\")]\n     #[derive(Clone)]\n     pub(super) struct Node(Set);\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::multiple_nodes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1350
+        },
+        "start": {
+          "column": 5,
+          "line": 1343
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1345:9: replace places::multiple_nodes -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1349
+      },
+      "start": {
+        "column": 9,
+        "line": 1345
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::multiple_nodes -> bool with false\n@@ -1337,21 +1337,17 @@\n                 set[cpu / 64] |= 1u64.rotate_left(cpu as u32);\n             }\n         }\n         set\n     }\n \n     #[cfg(target_os = \"linux\")]\n     fn multiple_nodes(online: std::io::Result<String>) -> bool {\n-        match online {\n-            Ok(list) => list.trim().parse::<usize>().is_err(),\n-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,\n-            Err(e) => panic!(\"read Linux memory nodes: {e}\"),\n-        }\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The initiating thread's node, intersected with its allowed CPUs.\n     /// None when there is no additional restriction to apply.\n     #[cfg(target_os = \"linux\")]\n     #[derive(Clone)]\n     pub(super) struct Node(Set);\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::multiple_nodes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1350
+        },
+        "start": {
+          "column": 5,
+          "line": 1343
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1345:9: replace places::multiple_nodes -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1349
+      },
+      "start": {
+        "column": 9,
+        "line": 1345
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace match guard e.kind() == std::io::ErrorKind::NotFound with true in places::multiple_nodes\n@@ -1339,17 +1339,17 @@\n         }\n         set\n     }\n \n     #[cfg(target_os = \"linux\")]\n     fn multiple_nodes(online: std::io::Result<String>) -> bool {\n         match online {\n             Ok(list) => list.trim().parse::<usize>().is_err(),\n-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,\n+            Err(e) if true /* ~ changed by cargo-mutants ~ */ => false,\n             Err(e) => panic!(\"read Linux memory nodes: {e}\"),\n         }\n     }\n \n     /// The initiating thread's node, intersected with its allowed CPUs.\n     /// None when there is no additional restriction to apply.\n     #[cfg(target_os = \"linux\")]\n     #[derive(Clone)]\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::multiple_nodes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1350
+        },
+        "start": {
+          "column": 5,
+          "line": 1343
+        }
+      }
+    },
+    "genre": "MatchArmGuard",
+    "name": "src/lanes.rs:1347:23: replace match guard e.kind() == std::io::ErrorKind::NotFound with true in places::multiple_nodes",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 63,
+        "line": 1347
+      },
+      "start": {
+        "column": 23,
+        "line": 1347
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace match guard e.kind() == std::io::ErrorKind::NotFound with false in places::multiple_nodes\n@@ -1339,17 +1339,17 @@\n         }\n         set\n     }\n \n     #[cfg(target_os = \"linux\")]\n     fn multiple_nodes(online: std::io::Result<String>) -> bool {\n         match online {\n             Ok(list) => list.trim().parse::<usize>().is_err(),\n-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,\n+            Err(e) if false /* ~ changed by cargo-mutants ~ */ => false,\n             Err(e) => panic!(\"read Linux memory nodes: {e}\"),\n         }\n     }\n \n     /// The initiating thread's node, intersected with its allowed CPUs.\n     /// None when there is no additional restriction to apply.\n     #[cfg(target_os = \"linux\")]\n     #[derive(Clone)]\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::multiple_nodes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1350
+        },
+        "start": {
+          "column": 5,
+          "line": 1343
+        }
+      }
+    },
+    "genre": "MatchArmGuard",
+    "name": "src/lanes.rs:1347:23: replace match guard e.kind() == std::io::ErrorKind::NotFound with false in places::multiple_nodes",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 63,
+        "line": 1347
+      },
+      "start": {
+        "column": 23,
+        "line": 1347
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace == with != in places::multiple_nodes\n@@ -1339,17 +1339,17 @@\n         }\n         set\n     }\n \n     #[cfg(target_os = \"linux\")]\n     fn multiple_nodes(online: std::io::Result<String>) -> bool {\n         match online {\n             Ok(list) => list.trim().parse::<usize>().is_err(),\n-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,\n+            Err(e) if e.kind() != /* ~ changed by cargo-mutants ~ */ std::io::ErrorKind::NotFound => false,\n             Err(e) => panic!(\"read Linux memory nodes: {e}\"),\n         }\n     }\n \n     /// The initiating thread's node, intersected with its allowed CPUs.\n     /// None when there is no additional restriction to apply.\n     #[cfg(target_os = \"linux\")]\n     #[derive(Clone)]\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::multiple_nodes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1350
+        },
+        "start": {
+          "column": 5,
+          "line": 1343
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1347:32: replace == with != in places::multiple_nodes",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 34,
+        "line": 1347
+      },
+      "start": {
+        "column": 32,
+        "line": 1347
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Node::current -> Option<Self> with None\n@@ -1353,31 +1353,17 @@\n     /// None when there is no additional restriction to apply.\n     #[cfg(target_os = \"linux\")]\n     #[derive(Clone)]\n     pub(super) struct Node(Set);\n \n     #[cfg(target_os = \"linux\")]\n     impl Node {\n         pub(super) fn current() -> Option<Self> {\n-            if !multiple_nodes(std::fs::read_to_string(\"/sys/devices/system/node/online\")) {\n-                return None;\n-            }\n-            // Sound: sched_getcpu takes no arguments and accesses no caller memory.\n-            let cpu = unsafe { sched_getcpu() };\n-            assert!(cpu >= 0, \"find the initiating thread's CPU\");\n-            let node = std::fs::read_dir(format!(\"/sys/devices/system/cpu/cpu{cpu}\"))\n-                .expect(\"read the initiating CPU's topology\")\n-                .find_map(|entry| {\n-                    let name = entry.expect(\"read a CPU topology entry\").file_name();\n-                    name.to_str()?.strip_prefix(\"node\")?.parse::<usize>().ok()\n-                })\n-                .expect(\"the initiating CPU belongs to a memory node\");\n-            let list = std::fs::read_to_string(format!(\"/sys/devices/system/node/node{node}/cpulist\")).expect(\"read the memory node's CPUs\");\n-            Self::within(affinity().expect(\"read the initiating thread's allowed CPUs\"), cpu_set(&list))\n+            None /* ~ changed by cargo-mutants ~ */\n         }\n \n         fn within(allowed: Set, node: Set) -> Option<Self> {\n             let mask = Self(core::array::from_fn(|i| allowed[i] & node[i]));\n             assert!(mask.cpu_count() > 0, \"the selected memory node has no allowed CPU\");\n             (mask.0 != allowed).then_some(mask)\n         }\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::current",
+      "return_type": "-> Option<Self>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1376
+        },
+        "start": {
+          "column": 9,
+          "line": 1360
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1361:13: replace places::Node::current -> Option<Self> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 105,
+        "line": 1375
+      },
+      "start": {
+        "column": 13,
+        "line": 1361
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Node::current -> Option<Self> with Some(Default::default())\n@@ -1353,31 +1353,17 @@\n     /// None when there is no additional restriction to apply.\n     #[cfg(target_os = \"linux\")]\n     #[derive(Clone)]\n     pub(super) struct Node(Set);\n \n     #[cfg(target_os = \"linux\")]\n     impl Node {\n         pub(super) fn current() -> Option<Self> {\n-            if !multiple_nodes(std::fs::read_to_string(\"/sys/devices/system/node/online\")) {\n-                return None;\n-            }\n-            // Sound: sched_getcpu takes no arguments and accesses no caller memory.\n-            let cpu = unsafe { sched_getcpu() };\n-            assert!(cpu >= 0, \"find the initiating thread's CPU\");\n-            let node = std::fs::read_dir(format!(\"/sys/devices/system/cpu/cpu{cpu}\"))\n-                .expect(\"read the initiating CPU's topology\")\n-                .find_map(|entry| {\n-                    let name = entry.expect(\"read a CPU topology entry\").file_name();\n-                    name.to_str()?.strip_prefix(\"node\")?.parse::<usize>().ok()\n-                })\n-                .expect(\"the initiating CPU belongs to a memory node\");\n-            let list = std::fs::read_to_string(format!(\"/sys/devices/system/node/node{node}/cpulist\")).expect(\"read the memory node's CPUs\");\n-            Self::within(affinity().expect(\"read the initiating thread's allowed CPUs\"), cpu_set(&list))\n+            Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n         }\n \n         fn within(allowed: Set, node: Set) -> Option<Self> {\n             let mask = Self(core::array::from_fn(|i| allowed[i] & node[i]));\n             assert!(mask.cpu_count() > 0, \"the selected memory node has no allowed CPU\");\n             (mask.0 != allowed).then_some(mask)\n         }\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::current",
+      "return_type": "-> Option<Self>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1376
+        },
+        "start": {
+          "column": 9,
+          "line": 1360
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1361:13: replace places::Node::current -> Option<Self> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 105,
+        "line": 1375
+      },
+      "start": {
+        "column": 13,
+        "line": 1361
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in places::Node::current\n@@ -1353,17 +1353,17 @@\n     /// None when there is no additional restriction to apply.\n     #[cfg(target_os = \"linux\")]\n     #[derive(Clone)]\n     pub(super) struct Node(Set);\n \n     #[cfg(target_os = \"linux\")]\n     impl Node {\n         pub(super) fn current() -> Option<Self> {\n-            if !multiple_nodes(std::fs::read_to_string(\"/sys/devices/system/node/online\")) {\n+            if  /* ~ changed by cargo-mutants ~ */multiple_nodes(std::fs::read_to_string(\"/sys/devices/system/node/online\")) {\n                 return None;\n             }\n             // Sound: sched_getcpu takes no arguments and accesses no caller memory.\n             let cpu = unsafe { sched_getcpu() };\n             assert!(cpu >= 0, \"find the initiating thread's CPU\");\n             let node = std::fs::read_dir(format!(\"/sys/devices/system/cpu/cpu{cpu}\"))\n                 .expect(\"read the initiating CPU's topology\")\n                 .find_map(|entry| {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::current",
+      "return_type": "-> Option<Self>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1376
+        },
+        "start": {
+          "column": 9,
+          "line": 1360
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:1361:16: delete ! in places::Node::current",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 1361
+      },
+      "start": {
+        "column": 16,
+        "line": 1361
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Node::within -> Option<Self> with None\n@@ -1371,19 +1371,17 @@\n                     name.to_str()?.strip_prefix(\"node\")?.parse::<usize>().ok()\n                 })\n                 .expect(\"the initiating CPU belongs to a memory node\");\n             let list = std::fs::read_to_string(format!(\"/sys/devices/system/node/node{node}/cpulist\")).expect(\"read the memory node's CPUs\");\n             Self::within(affinity().expect(\"read the initiating thread's allowed CPUs\"), cpu_set(&list))\n         }\n \n         fn within(allowed: Set, node: Set) -> Option<Self> {\n-            let mask = Self(core::array::from_fn(|i| allowed[i] & node[i]));\n-            assert!(mask.cpu_count() > 0, \"the selected memory node has no allowed CPU\");\n-            (mask.0 != allowed).then_some(mask)\n+            None /* ~ changed by cargo-mutants ~ */\n         }\n \n         pub(super) fn cpu_count(&self) -> usize {\n             self.0.iter().map(|word| word.count_ones() as usize).sum()\n         }\n \n         fn bind(&self) -> std::io::Result<()> {\n             // Sound: the set is `len` readable bytes.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::within",
+      "return_type": "-> Option<Self>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1382
+        },
+        "start": {
+          "column": 9,
+          "line": 1378
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1379:13: replace places::Node::within -> Option<Self> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 1381
+      },
+      "start": {
+        "column": 13,
+        "line": 1379
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Node::within -> Option<Self> with Some(Default::default())\n@@ -1371,19 +1371,17 @@\n                     name.to_str()?.strip_prefix(\"node\")?.parse::<usize>().ok()\n                 })\n                 .expect(\"the initiating CPU belongs to a memory node\");\n             let list = std::fs::read_to_string(format!(\"/sys/devices/system/node/node{node}/cpulist\")).expect(\"read the memory node's CPUs\");\n             Self::within(affinity().expect(\"read the initiating thread's allowed CPUs\"), cpu_set(&list))\n         }\n \n         fn within(allowed: Set, node: Set) -> Option<Self> {\n-            let mask = Self(core::array::from_fn(|i| allowed[i] & node[i]));\n-            assert!(mask.cpu_count() > 0, \"the selected memory node has no allowed CPU\");\n-            (mask.0 != allowed).then_some(mask)\n+            Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n         }\n \n         pub(super) fn cpu_count(&self) -> usize {\n             self.0.iter().map(|word| word.count_ones() as usize).sum()\n         }\n \n         fn bind(&self) -> std::io::Result<()> {\n             // Sound: the set is `len` readable bytes.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::within",
+      "return_type": "-> Option<Self>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1382
+        },
+        "start": {
+          "column": 9,
+          "line": 1378
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1379:13: replace places::Node::within -> Option<Self> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 1381
+      },
+      "start": {
+        "column": 13,
+        "line": 1379
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace & with | in places::Node::within\n@@ -1371,17 +1371,17 @@\n                     name.to_str()?.strip_prefix(\"node\")?.parse::<usize>().ok()\n                 })\n                 .expect(\"the initiating CPU belongs to a memory node\");\n             let list = std::fs::read_to_string(format!(\"/sys/devices/system/node/node{node}/cpulist\")).expect(\"read the memory node's CPUs\");\n             Self::within(affinity().expect(\"read the initiating thread's allowed CPUs\"), cpu_set(&list))\n         }\n \n         fn within(allowed: Set, node: Set) -> Option<Self> {\n-            let mask = Self(core::array::from_fn(|i| allowed[i] & node[i]));\n+            let mask = Self(core::array::from_fn(|i| allowed[i] | /* ~ changed by cargo-mutants ~ */ node[i]));\n             assert!(mask.cpu_count() > 0, \"the selected memory node has no allowed CPU\");\n             (mask.0 != allowed).then_some(mask)\n         }\n \n         pub(super) fn cpu_count(&self) -> usize {\n             self.0.iter().map(|word| word.count_ones() as usize).sum()\n         }\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::within",
+      "return_type": "-> Option<Self>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1382
+        },
+        "start": {
+          "column": 9,
+          "line": 1378
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1379:65: replace & with | in places::Node::within",
+    "package": "blake3-servil",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 66,
+        "line": 1379
+      },
+      "start": {
+        "column": 65,
+        "line": 1379
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace != with == in places::Node::within\n@@ -1373,17 +1373,17 @@\n                 .expect(\"the initiating CPU belongs to a memory node\");\n             let list = std::fs::read_to_string(format!(\"/sys/devices/system/node/node{node}/cpulist\")).expect(\"read the memory node's CPUs\");\n             Self::within(affinity().expect(\"read the initiating thread's allowed CPUs\"), cpu_set(&list))\n         }\n \n         fn within(allowed: Set, node: Set) -> Option<Self> {\n             let mask = Self(core::array::from_fn(|i| allowed[i] & node[i]));\n             assert!(mask.cpu_count() > 0, \"the selected memory node has no allowed CPU\");\n-            (mask.0 != allowed).then_some(mask)\n+            (mask.0 == /* ~ changed by cargo-mutants ~ */ allowed).then_some(mask)\n         }\n \n         pub(super) fn cpu_count(&self) -> usize {\n             self.0.iter().map(|word| word.count_ones() as usize).sum()\n         }\n \n         fn bind(&self) -> std::io::Result<()> {\n             // Sound: the set is `len` readable bytes.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::within",
+      "return_type": "-> Option<Self>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1382
+        },
+        "start": {
+          "column": 9,
+          "line": 1378
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1381:21: replace != with == in places::Node::within",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 1381
+      },
+      "start": {
+        "column": 21,
+        "line": 1381
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Node::cpu_count -> usize with 0\n@@ -1377,17 +1377,17 @@\n \n         fn within(allowed: Set, node: Set) -> Option<Self> {\n             let mask = Self(core::array::from_fn(|i| allowed[i] & node[i]));\n             assert!(mask.cpu_count() > 0, \"the selected memory node has no allowed CPU\");\n             (mask.0 != allowed).then_some(mask)\n         }\n \n         pub(super) fn cpu_count(&self) -> usize {\n-            self.0.iter().map(|word| word.count_ones() as usize).sum()\n+            0 /* ~ changed by cargo-mutants ~ */\n         }\n \n         fn bind(&self) -> std::io::Result<()> {\n             // Sound: the set is `len` readable bytes.\n             if unsafe { sched_setaffinity(0, core::mem::size_of::<Set>(), &self.0) } != 0 {\n                 return Err(std::io::Error::last_os_error());\n             }\n             Ok(())\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::cpu_count",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1386
+        },
+        "start": {
+          "column": 9,
+          "line": 1384
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1385:13: replace places::Node::cpu_count -> usize with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 71,
+        "line": 1385
+      },
+      "start": {
+        "column": 13,
+        "line": 1385
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Node::cpu_count -> usize with 1\n@@ -1377,17 +1377,17 @@\n \n         fn within(allowed: Set, node: Set) -> Option<Self> {\n             let mask = Self(core::array::from_fn(|i| allowed[i] & node[i]));\n             assert!(mask.cpu_count() > 0, \"the selected memory node has no allowed CPU\");\n             (mask.0 != allowed).then_some(mask)\n         }\n \n         pub(super) fn cpu_count(&self) -> usize {\n-            self.0.iter().map(|word| word.count_ones() as usize).sum()\n+            1 /* ~ changed by cargo-mutants ~ */\n         }\n \n         fn bind(&self) -> std::io::Result<()> {\n             // Sound: the set is `len` readable bytes.\n             if unsafe { sched_setaffinity(0, core::mem::size_of::<Set>(), &self.0) } != 0 {\n                 return Err(std::io::Error::last_os_error());\n             }\n             Ok(())\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::cpu_count",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1386
+        },
+        "start": {
+          "column": 9,
+          "line": 1384
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1385:13: replace places::Node::cpu_count -> usize with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 71,
+        "line": 1385
+      },
+      "start": {
+        "column": 13,
+        "line": 1385
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Node::bind -> std::io::Result<()> with Ok(())\n@@ -1382,20 +1382,17 @@\n         }\n \n         pub(super) fn cpu_count(&self) -> usize {\n             self.0.iter().map(|word| word.count_ones() as usize).sum()\n         }\n \n         fn bind(&self) -> std::io::Result<()> {\n             // Sound: the set is `len` readable bytes.\n-            if unsafe { sched_setaffinity(0, core::mem::size_of::<Set>(), &self.0) } != 0 {\n-                return Err(std::io::Error::last_os_error());\n-            }\n-            Ok(())\n+            Ok(()) /* ~ changed by cargo-mutants ~ */\n         }\n \n         pub(super) fn bind_worker(&self) {\n             if let Err(error) = self.bind() {\n                 // The published pool requires this worker. Panicking only on\n                 // this thread would strand calls waiting for it.\n                 use std::io::Write;\n                 let _ = writeln!(std::io::stderr().lock(), \"BLAKE3: keep the worker on one memory node: {error}\");\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::bind",
+      "return_type": "-> std::io::Result<()>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1394
+        },
+        "start": {
+          "column": 9,
+          "line": 1388
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1390:13: replace places::Node::bind -> std::io::Result<()> with Ok(())",
+    "package": "blake3-servil",
+    "replacement": "Ok(())",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 1393
+      },
+      "start": {
+        "column": 13,
+        "line": 1390
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace != with == in places::Node::bind\n@@ -1382,17 +1382,17 @@\n         }\n \n         pub(super) fn cpu_count(&self) -> usize {\n             self.0.iter().map(|word| word.count_ones() as usize).sum()\n         }\n \n         fn bind(&self) -> std::io::Result<()> {\n             // Sound: the set is `len` readable bytes.\n-            if unsafe { sched_setaffinity(0, core::mem::size_of::<Set>(), &self.0) } != 0 {\n+            if unsafe { sched_setaffinity(0, core::mem::size_of::<Set>(), &self.0) } == /* ~ changed by cargo-mutants ~ */ 0 {\n                 return Err(std::io::Error::last_os_error());\n             }\n             Ok(())\n         }\n \n         pub(super) fn bind_worker(&self) {\n             if let Err(error) = self.bind() {\n                 // The published pool requires this worker. Panicking only on\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::bind",
+      "return_type": "-> std::io::Result<()>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1394
+        },
+        "start": {
+          "column": 9,
+          "line": 1388
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1390:86: replace != with == in places::Node::bind",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 1390
+      },
+      "start": {
+        "column": 86,
+        "line": 1390
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::Node::bind_worker with ()\n@@ -1389,23 +1389,17 @@\n             // Sound: the set is `len` readable bytes.\n             if unsafe { sched_setaffinity(0, core::mem::size_of::<Set>(), &self.0) } != 0 {\n                 return Err(std::io::Error::last_os_error());\n             }\n             Ok(())\n         }\n \n         pub(super) fn bind_worker(&self) {\n-            if let Err(error) = self.bind() {\n-                // The published pool requires this worker. Panicking only on\n-                // this thread would strand calls waiting for it.\n-                use std::io::Write;\n-                let _ = writeln!(std::io::stderr().lock(), \"BLAKE3: keep the worker on one memory node: {error}\");\n-                std::process::abort();\n-            }\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n     }\n \n     #[cfg(target_os = \"linux\")]\n     pub(crate) fn confine_cli_thread() {\n         if let Some(node) = Node::current() {\n             node.bind().expect(\"keep the command-line thread on one memory node\");\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Node::bind_worker",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1404
+        },
+        "start": {
+          "column": 9,
+          "line": 1396
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1397:13: replace places::Node::bind_worker with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1403
+      },
+      "start": {
+        "column": 13,
+        "line": 1397
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::confine_cli_thread with ()\n@@ -1401,19 +1401,17 @@\n                 let _ = writeln!(std::io::stderr().lock(), \"BLAKE3: keep the worker on one memory node: {error}\");\n                 std::process::abort();\n             }\n         }\n     }\n \n     #[cfg(target_os = \"linux\")]\n     pub(crate) fn confine_cli_thread() {\n-        if let Some(node) = Node::current() {\n-            node.bind().expect(\"keep the command-line thread on one memory node\");\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The calling thread's place, or an out-of-range index when it has none.\n     fn here() -> usize {\n         #[cfg(target_os = \"linux\")]\n         if let Some(places) = PLACES.get() {\n             // Sound: no arguments, no memory.\n             let cpu = unsafe { sched_getcpu() };\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::confine_cli_thread",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1412
+        },
+        "start": {
+          "column": 5,
+          "line": 1407
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1409:9: replace places::confine_cli_thread with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1411
+      },
+      "start": {
+        "column": 9,
+        "line": 1409
+      }
+    }
+  }
+]
