@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/waker.rs\n+++ replace WakerSlot::register with ()\n@@ -46,33 +46,17 @@\n \n impl WakerSlot {\n     pub(crate) fn new() -> Self {\n         WakerSlot { state: Line(AtomicUsize::new(IDLE)), waker: UnsafeCell::new(None) }\n     }\n \n     /// Publish interest before the caller rechecks the completion predicate.\n     pub(crate) fn register(&self, cx: &Context<'_>) {\n-        let next = cx.waker().clone();\n-        loop {\n-            let s = self.state.0.load(Ordering::SeqCst);\n-            if (s == IDLE || s == REGISTERED) && self.state.0.compare_exchange(s, WRITING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {\n-                // Sound: this thread's compare-and-swap made the state\n-                // WRITING, and no other touches the cell until the store\n-                // below ends that.\n-                let old = unsafe { with_mut(&self.waker, |slot| slot.replace(next)) };\n-                self.state.0.store(REGISTERED, Ordering::SeqCst);\n-                // The completion re-check may load with Acquire (RCpc\n-                // on Arm). It must not move before publishing the waiter.\n-                fence(Ordering::SeqCst);\n-                drop(old);\n-                return;\n-            }\n-            spin();\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     pub(crate) fn clear(&self) {\n         loop {\n             let s = self.state.0.load(Ordering::SeqCst);\n             if s == IDLE {\n                 return;\n             }\n",
+    "file": "src/waker.rs",
+    "function": {
+      "function_name": "WakerSlot::register",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 71
+        },
+        "start": {
+          "column": 5,
+          "line": 52
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/waker.rs:54:9: replace WakerSlot::register with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 70
+      },
+      "start": {
+        "column": 9,
+        "line": 54
+      }
+    }
+  },
+  {
+    "diff": "--- src/waker.rs\n+++ replace WakerSlot::clear with ()\n@@ -66,31 +66,17 @@\n                 drop(old);\n                 return;\n             }\n             spin();\n         }\n     }\n \n     pub(crate) fn clear(&self) {\n-        loop {\n-            let s = self.state.0.load(Ordering::SeqCst);\n-            if s == IDLE {\n-                return;\n-            }\n-            if s == REGISTERED && self.state.0.compare_exchange(REGISTERED, WRITING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {\n-                // Sound: as in `register`: WRITING is this thread's, until\n-                // the store below.\n-                let old = unsafe { with_mut(&self.waker, Option::take) };\n-                self.state.0.store(IDLE, Ordering::SeqCst);\n-                drop(old);\n-                return;\n-            }\n-            spin();\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn notify_after_seqcst(&self) {\n         if self.state.0.load(Ordering::SeqCst) == REGISTERED {\n             self.wake_slow();\n         }\n     }\n",
+    "file": "src/waker.rs",
+    "function": {
+      "function_name": "WakerSlot::clear",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 89
+        },
+        "start": {
+          "column": 5,
+          "line": 73
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/waker.rs:74:9: replace WakerSlot::clear with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 88
+      },
+      "start": {
+        "column": 9,
+        "line": 74
+      }
+    }
+  },
+  {
+    "diff": "--- src/waker.rs\n+++ replace WakerSlot::wake_slow with ()\n@@ -93,30 +93,11 @@\n         if self.state.0.load(Ordering::SeqCst) == REGISTERED {\n             self.wake_slow();\n         }\n     }\n \n     #[cold]\n     #[inline(never)]\n     fn wake_slow(&self) {\n-        if self.state.0.compare_exchange(REGISTERED, WAKING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {\n-            // Sound: this thread's compare-and-swap made the state\n-            // WAKING, which keeps `register` and `clear` out of the cell\n-            // (they spin) until the store below.\n-            let waker = unsafe { with_mut(&self.waker, Option::take) };\n-            self.state.0.store(IDLE, Ordering::SeqCst);\n-            if let Some(w) = waker {\n-                // The waker is the program's code, and it runs here in the\n-                // middle of whatever gave the notice: a worker's task, or\n-                // a call of the Pipeline's owner that has just freed a\n-                // room and not yet recorded what it freed. A panic out of\n-                // it would leave that half done for the program to find (a\n-                // room's credit given back twice, a room handed out while\n-                // in use). It ends the process, on whichever thread, as a\n-                // panic on a worker does; the panic's own words come first.\n-                let ends = EndOnUnwind;\n-                w.wake();\n-                core::mem::forget(ends);\n-            }\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n",
+    "file": "src/waker.rs",
+    "function": {
+      "function_name": "WakerSlot::wake_slow",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 121
+        },
+        "start": {
+          "column": 5,
+          "line": 98
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/waker.rs:101:9: replace WakerSlot::wake_slow with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 120
+      },
+      "start": {
+        "column": 9,
+        "line": 101
+      }
+    }
+  }
+]
