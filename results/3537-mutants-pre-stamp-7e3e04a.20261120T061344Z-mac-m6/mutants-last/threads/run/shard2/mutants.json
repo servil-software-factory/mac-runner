@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in sources::find_from\n@@ -3163,17 +3163,17 @@\n     /// a walk of the slots from `start` up and then of those below it.\n     fn find_from(start: usize, mut f: impl FnMut(&'static Source) -> bool) -> Option<usize> {\n         let mut active = ACTIVE.load(Ordering::SeqCst).rotate_right(start as u32);\n         while active != 0 {\n             let slot = (active.trailing_zeros() as usize + start) % SLOTS;\n             active &= active - 1;\n             let ptr = REGISTERED[slot].load(Ordering::Acquire);\n             // Sound: sources are never freed (they are recycled).\n-            if !ptr.is_null() && f(unsafe { &*ptr }) {\n+            if !ptr.is_null() || /* ~ changed by cargo-mutants ~ */ f(unsafe { &*ptr }) {\n                 return Some(slot);\n             }\n         }\n         None\n     }\n \n     /// The items a worker takes lowest slot first before it takes one in\n     /// turn ([`run_one`]).\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3176
+        },
+        "start": {
+          "column": 5,
+          "line": 3162
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3171:31: replace && with || in sources::find_from",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 3171
+      },
+      "start": {
+        "column": 31,
+        "line": 3171
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sources::find_from\n@@ -3163,17 +3163,17 @@\n     /// a walk of the slots from `start` up and then of those below it.\n     fn find_from(start: usize, mut f: impl FnMut(&'static Source) -> bool) -> Option<usize> {\n         let mut active = ACTIVE.load(Ordering::SeqCst).rotate_right(start as u32);\n         while active != 0 {\n             let slot = (active.trailing_zeros() as usize + start) % SLOTS;\n             active &= active - 1;\n             let ptr = REGISTERED[slot].load(Ordering::Acquire);\n             // Sound: sources are never freed (they are recycled).\n-            if !ptr.is_null() && f(unsafe { &*ptr }) {\n+            if  /* ~ changed by cargo-mutants ~ */ptr.is_null() && f(unsafe { &*ptr }) {\n                 return Some(slot);\n             }\n         }\n         None\n     }\n \n     /// The items a worker takes lowest slot first before it takes one in\n     /// turn ([`run_one`]).\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3176
+        },
+        "start": {
+          "column": 5,
+          "line": 3162
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:3171:16: delete ! in sources::find_from",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 3171
+      },
+      "start": {
+        "column": 16,
+        "line": 3171
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::run_one -> bool with true\n@@ -3206,17 +3206,17 @@\n     /// 1 MiB message of a second Pipeline, waited for under an executor\n     /// that sleeps: from 9 ms to 8 s on a Ryzen 7 7700X, where alone it\n     /// took 50 us; an audit's measurement of November 19). So after every [`TURN`] items a worker\n     /// takes one in turn: that walk begins where its last such walk ended,\n     /// and goes round. One source alone is served as before, and several\n     /// each get a share of every worker that their slot does not decide\n     /// (the same message then took about 1 ms).\n     pub(crate) fn run_one(turn: &mut Turn) -> bool {\n-        run_one_from(turn, serve)\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// [`run_one`]'s walk, with `serve` what is done with the item taken\n     /// (the test's way in: a recording `serve`).\n     fn run_one_from(turn: &mut Turn, mut serve: impl FnMut(&'static Source, Item)) -> bool {\n         let in_turn = turn.taken >= TURN;\n         let start = if in_turn { turn.cursor as usize } else { 0 };\n         let taken_from = find_from(start, |source| {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::run_one",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3215
+        },
+        "start": {
+          "column": 5,
+          "line": 3190
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3214:9: replace sources::run_one -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 34,
+        "line": 3214
+      },
+      "start": {
+        "column": 9,
+        "line": 3214
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::run_one_from -> bool with true\n@@ -3212,32 +3212,17 @@\n     /// (the same message then took about 1 ms).\n     pub(crate) fn run_one(turn: &mut Turn) -> bool {\n         run_one_from(turn, serve)\n     }\n \n     /// [`run_one`]'s walk, with `serve` what is done with the item taken\n     /// (the test's way in: a recording `serve`).\n     fn run_one_from(turn: &mut Turn, mut serve: impl FnMut(&'static Source, Item)) -> bool {\n-        let in_turn = turn.taken >= TURN;\n-        let start = if in_turn { turn.cursor as usize } else { 0 };\n-        let taken_from = find_from(start, |source| {\n-            let Some(item) = source.take() else { return false };\n-            serve(source, item);\n-            true\n-        });\n-        let Some(slot) = taken_from else { return false };\n-        if in_turn {\n-            // The slot after this one (after the last, the first: the\n-            // walk takes its start round).\n-            *turn = Turn { taken: 0, cursor: (slot + 1) as u32 };\n-        } else {\n-            turn.taken += 1;\n-        }\n-        true\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Hash `item` of `source` on this thread, waking the next worker first\n     /// when two or more wait and one is parked.\n     fn serve(source: &'static Source, item: Item) {\n         if source.waiting() >= 2 {\n             noted(Noted::WakeTry);\n             if source.near.load(Ordering::Relaxed) {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::run_one_from",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3236
+        },
+        "start": {
+          "column": 5,
+          "line": 3217
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3220:9: replace sources::run_one_from -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 3235
+      },
+      "start": {
+        "column": 9,
+        "line": 3220
+      }
+    }
+  }
+]
