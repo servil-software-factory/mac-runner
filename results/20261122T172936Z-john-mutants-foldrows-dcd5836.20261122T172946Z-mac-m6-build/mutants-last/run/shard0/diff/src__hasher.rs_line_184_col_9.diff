@@ -1,0 +1,70 @@
+--- src/hasher.rs
++++ replace CvStack::condense with ()
+@@ -176,66 +176,17 @@
+     /// sends them 8, 4, 2 and 1 at a time: a digest taken between 16 KiB
+     /// updates cost 1.09 us that way on a Ryzen 9700X, where 0.9.1's cost
+     /// 0.48 (BLAKE3 #472).
+     #[inline(never)]
+     fn condense<P: Parent>(&self, p: &P, live: u64, values: &mut [Cv; ROWS]) {
+         // The run, and the entries whose rows are in it, in its order.
+         // Neither it nor its parents' place is zeroed: 8 KiB each, of
+         // which a stream's six rows fill three, and their parents half.
+-        let mut run = [const { core::mem::MaybeUninit::<Cv>::uninit() }; RUN];
+-        let mut order = [0usize; ROWS];
+-        let (mut rows, mut len) = (0, 0);
+-        for width in [ROW, ROW / 2, ROW / 4, ROW / 8] {
+-            let mut left = live;
+-            for _ in 0..live.count_ones() {
+-                let i = left.trailing_zeros() as usize;
+-                left &= left - 1;
+-                let row = self.row(i);
+-                if row.len() == width {
+-                    run[len..len + width].write_copy_of_slice(row);
+-                    order[rows] = i;
+-                    rows += 1;
+-                    len += width;
+-                }
+-            }
+-        }
+-        // Sound: the run's first `len` values were written, a row after another.
+-        let mut from = unsafe { core::slice::from_raw_parts_mut(run.as_mut_ptr() as *mut Cv, len) };
+-        // The parents' place: half the run's length is used of it. The
+-        // kernels write where values are, as into a row's place
+-        // (place_on_top): it is given the run's first half to hold until
+-        // the first layer writes over it, and each later layer writes
+-        // over an earlier one's values.
+-        let mut parents = [const { core::mem::MaybeUninit::<Cv>::uninit() }; RUN];
+-        let mut to = parents[..len / 2].write_copy_of_slice(&from[..len / 2]);
+-        // A layer for each halving of the widest row there can be, in
+-        // calls of as many children as the kernels take: loops of counts
+-        // fixed at their start, like merge's.
+-        for layer in 1..=ROW.trailing_zeros() {
+-            for start in (0..len).step_by(CALL) {
+-                let n = (len - start).min(CALL);
+-                let out = &mut to[start / 2..(start + n) / 2];
+-                let places = out.len();
+-                let made = p.parents(&from[start..start + n], out);
+-                assert_eq!((2 * made, places), (n, made), "a parent for every two children, each in its place");
+-            }
+-            len /= 2;
+-            // The rows that were two wide are one value each now: the
+-            // narrowest, so the run's last.
+-            for _ in 0..rows {
+-                if self.row(order[rows - 1]).len() == 1 << layer {
+-                    rows -= 1;
+-                    len -= 1;
+-                    values[order[rows] % ROWS] = to[len];
+-                }
+-            }
+-            core::mem::swap(&mut from, &mut to);
+-        }
+-        assert_eq!((rows, len), (0, 0), "every row condensed to its one value");
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Entry `i`'s one value, below the length: a single entry's own, a
+     /// row's from `rows` ([`CvStack::rows_values`]).
+     pub fn value(&self, rows: &[Cv; ROWS], i: usize) -> Cv {
+         assert!(i < self.len, "a value below the stack's length");
+         if self.is_row(i) {
+             return rows[i % ROWS];

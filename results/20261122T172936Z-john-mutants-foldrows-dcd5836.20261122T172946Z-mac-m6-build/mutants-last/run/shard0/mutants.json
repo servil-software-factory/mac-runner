@@ -1,0 +1,232 @@
+[
+  {
+    "diff": "--- src/hasher.rs\n+++ replace * with +\n@@ -19,17 +19,17 @@\n /// same on every target (the C header gives a hasher's size as one\n /// number); kernels that cut wider (the SME2 unit's) make no rows.\n pub const ROW: usize = 32;\n /// The rows a stack holds at once (the sizes from a group of 16 chunks up\n /// to 2 MiB); a row past them is condensed to its one value.\n const ROWS: usize = 8;\n /// The values of every row a stack holds at once, end to end: what an\n /// output condenses together (`CvStack::condense`).\n-const RUN: usize = ROWS * ROW;\n+const RUN: usize = ROWS + /* ~ changed by cargo-mutants ~ */ ROW;\n /// The most children the kernels take in one call of `Parent::parents`:\n /// two for each of the blocks they hash at once. 2 ROW on x86-64 Linux.\n /// Half that on AArch64 without the SME2 unit and on x86-64 elsewhere,\n /// where no row is wider than 16; with the SME2 unit, the whole run.\n const CALL: usize = 2 * MAX_SIMD_DEGREE;\n // The widths a row has: ROW, and three halvings down to 4.\n const _: () = assert!(ROW / 8 == 4);\n \n",
+    "file": "src/hasher.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:27:25: replace * with +",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 26,
+        "line": 27
+      },
+      "start": {
+        "column": 25,
+        "line": 27
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace * with +\n@@ -24,17 +24,17 @@\n const ROWS: usize = 8;\n /// The values of every row a stack holds at once, end to end: what an\n /// output condenses together (`CvStack::condense`).\n const RUN: usize = ROWS * ROW;\n /// The most children the kernels take in one call of `Parent::parents`:\n /// two for each of the blocks they hash at once. 2 ROW on x86-64 Linux.\n /// Half that on AArch64 without the SME2 unit and on x86-64 elsewhere,\n /// where no row is wider than 16; with the SME2 unit, the whole run.\n-const CALL: usize = 2 * MAX_SIMD_DEGREE;\n+const CALL: usize = 2 + /* ~ changed by cargo-mutants ~ */ MAX_SIMD_DEGREE;\n // The widths a row has: ROW, and three halvings down to 4.\n const _: () = assert!(ROW / 8 == 4);\n \n /// The values of the subtrees finished so far, bottom first, each one\n /// value or a row.\n ///\n /// A row is a subtree's cut `n` wide (n a power of two, 4 to ROW): the\n /// values of its n equal parts, in order. Two rows of equal subtrees\n",
+    "file": "src/hasher.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:32:23: replace * with +",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 32
+      },
+      "start": {
+        "column": 23,
+        "line": 32
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::rows_values -> [Cv; ROWS] with [Default::default(); ROWS]\n@@ -152,23 +152,17 @@\n \n     /// Every row's one value, entry i's at `i % ROWS` (a place without a\n     /// row holds zeros): what [`CvStack::get`] gives for each row,\n     /// computed for all of them together ([`CvStack::condense`]). A stack\n     /// without rows (a message hashed by one update, or by kernels that\n     /// cut none) pays this test and no more: the rows' work and its\n     /// 16 KiB of frame are the other function's.\n     pub fn rows_values<P: Parent>(&self, p: &P) -> [Cv; ROWS] {\n-        let mut values = [[0u8; 32]; ROWS];\n-        // (A bit at the length or above is left from an entry merged away.)\n-        let live = self.wide & ((1 << self.len) - 1);\n-        if live != 0 {\n-            self.condense(p, live, &mut values);\n-        }\n-        values\n+        [Default::default(); ROWS] /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The rows at `live`'s bits, each condensed to its one value, into\n     /// `values` at the row's place. The rows' values are laid end to end,\n     /// the widest row first, and condensed a layer of parents at a time\n     /// over the whole run: every two neighbours' parent is a parent in\n     /// its row, the run halves, and the rows that were two wide, the\n     /// run's last, are done. So the parents go to the kernels in full\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::rows_values",
+      "return_type": "-> [Cv; ROWS]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 167
+        },
+        "start": {
+          "column": 5,
+          "line": 153
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:160:9: replace CvStack::rows_values -> [Cv; ROWS] with [Default::default(); ROWS]",
+    "package": "blake3-servil-core",
+    "replacement": "[Default::default(); ROWS]",
+    "span": {
+      "end": {
+        "column": 15,
+        "line": 166
+      },
+      "start": {
+        "column": 9,
+        "line": 160
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace & with | in CvStack::rows_values\n@@ -154,17 +154,17 @@\n     /// row holds zeros): what [`CvStack::get`] gives for each row,\n     /// computed for all of them together ([`CvStack::condense`]). A stack\n     /// without rows (a message hashed by one update, or by kernels that\n     /// cut none) pays this test and no more: the rows' work and its\n     /// 16 KiB of frame are the other function's.\n     pub fn rows_values<P: Parent>(&self, p: &P) -> [Cv; ROWS] {\n         let mut values = [[0u8; 32]; ROWS];\n         // (A bit at the length or above is left from an entry merged away.)\n-        let live = self.wide & ((1 << self.len) - 1);\n+        let live = self.wide | /* ~ changed by cargo-mutants ~ */ ((1 << self.len) - 1);\n         if live != 0 {\n             self.condense(p, live, &mut values);\n         }\n         values\n     }\n \n     /// The rows at `live`'s bits, each condensed to its one value, into\n     /// `values` at the row's place. The rows' values are laid end to end,\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::rows_values",
+      "return_type": "-> [Cv; ROWS]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 167
+        },
+        "start": {
+          "column": 5,
+          "line": 153
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:162:30: replace & with | in CvStack::rows_values",
+    "package": "blake3-servil-core",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 162
+      },
+      "start": {
+        "column": 30,
+        "line": 162
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace - with + in CvStack::rows_values\n@@ -154,17 +154,17 @@\n     /// row holds zeros): what [`CvStack::get`] gives for each row,\n     /// computed for all of them together ([`CvStack::condense`]). A stack\n     /// without rows (a message hashed by one update, or by kernels that\n     /// cut none) pays this test and no more: the rows' work and its\n     /// 16 KiB of frame are the other function's.\n     pub fn rows_values<P: Parent>(&self, p: &P) -> [Cv; ROWS] {\n         let mut values = [[0u8; 32]; ROWS];\n         // (A bit at the length or above is left from an entry merged away.)\n-        let live = self.wide & ((1 << self.len) - 1);\n+        let live = self.wide & ((1 << self.len) + /* ~ changed by cargo-mutants ~ */ 1);\n         if live != 0 {\n             self.condense(p, live, &mut values);\n         }\n         values\n     }\n \n     /// The rows at `live`'s bits, each condensed to its one value, into\n     /// `values` at the row's place. The rows' values are laid end to end,\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::rows_values",
+      "return_type": "-> [Cv; ROWS]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 167
+        },
+        "start": {
+          "column": 5,
+          "line": 153
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:162:49: replace - with + in CvStack::rows_values",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 50,
+        "line": 162
+      },
+      "start": {
+        "column": 49,
+        "line": 162
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace << with >> in CvStack::rows_values\n@@ -154,17 +154,17 @@\n     /// row holds zeros): what [`CvStack::get`] gives for each row,\n     /// computed for all of them together ([`CvStack::condense`]). A stack\n     /// without rows (a message hashed by one update, or by kernels that\n     /// cut none) pays this test and no more: the rows' work and its\n     /// 16 KiB of frame are the other function's.\n     pub fn rows_values<P: Parent>(&self, p: &P) -> [Cv; ROWS] {\n         let mut values = [[0u8; 32]; ROWS];\n         // (A bit at the length or above is left from an entry merged away.)\n-        let live = self.wide & ((1 << self.len) - 1);\n+        let live = self.wide & ((1 >> /* ~ changed by cargo-mutants ~ */ self.len) - 1);\n         if live != 0 {\n             self.condense(p, live, &mut values);\n         }\n         values\n     }\n \n     /// The rows at `live`'s bits, each condensed to its one value, into\n     /// `values` at the row's place. The rows' values are laid end to end,\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::rows_values",
+      "return_type": "-> [Cv; ROWS]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 167
+        },
+        "start": {
+          "column": 5,
+          "line": 153
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:162:36: replace << with >> in CvStack::rows_values",
+    "package": "blake3-servil-core",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 38,
+        "line": 162
+      },
+      "start": {
+        "column": 36,
+        "line": 162
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace != with == in CvStack::rows_values\n@@ -155,17 +155,17 @@\n     /// computed for all of them together ([`CvStack::condense`]). A stack\n     /// without rows (a message hashed by one update, or by kernels that\n     /// cut none) pays this test and no more: the rows' work and its\n     /// 16 KiB of frame are the other function's.\n     pub fn rows_values<P: Parent>(&self, p: &P) -> [Cv; ROWS] {\n         let mut values = [[0u8; 32]; ROWS];\n         // (A bit at the length or above is left from an entry merged away.)\n         let live = self.wide & ((1 << self.len) - 1);\n-        if live != 0 {\n+        if live == /* ~ changed by cargo-mutants ~ */ 0 {\n             self.condense(p, live, &mut values);\n         }\n         values\n     }\n \n     /// The rows at `live`'s bits, each condensed to its one value, into\n     /// `values` at the row's place. The rows' values are laid end to end,\n     /// the widest row first, and condensed a layer of parents at a time\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::rows_values",
+      "return_type": "-> [Cv; ROWS]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 167
+        },
+        "start": {
+          "column": 5,
+          "line": 153
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:163:17: replace != with == in CvStack::rows_values",
+    "package": "blake3-servil-core",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 163
+      },
+      "start": {
+        "column": 17,
+        "line": 163
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::condense with ()\n@@ -176,66 +176,17 @@\n     /// sends them 8, 4, 2 and 1 at a time: a digest taken between 16 KiB\n     /// updates cost 1.09 us that way on a Ryzen 9700X, where 0.9.1's cost\n     /// 0.48 (BLAKE3 #472).\n     #[inline(never)]\n     fn condense<P: Parent>(&self, p: &P, live: u64, values: &mut [Cv; ROWS]) {\n         // The run, and the entries whose rows are in it, in its order.\n         // Neither it nor its parents' place is zeroed: 8 KiB each, of\n         // which a stream's six rows fill three, and their parents half.\n-        let mut run = [const { core::mem::MaybeUninit::<Cv>::uninit() }; RUN];\n-        let mut order = [0usize; ROWS];\n-        let (mut rows, mut len) = (0, 0);\n-        for width in [ROW, ROW / 2, ROW / 4, ROW / 8] {\n-            let mut left = live;\n-            for _ in 0..live.count_ones() {\n-                let i = left.trailing_zeros() as usize;\n-                left &= left - 1;\n-                let row = self.row(i);\n-                if row.len() == width {\n-                    run[len..len + width].write_copy_of_slice(row);\n-                    order[rows] = i;\n-                    rows += 1;\n-                    len += width;\n-                }\n-            }\n-        }\n-        // Sound: the run's first `len` values were written, a row after another.\n-        let mut from = unsafe { core::slice::from_raw_parts_mut(run.as_mut_ptr() as *mut Cv, len) };\n-        // The parents' place: half the run's length is used of it. The\n-        // kernels write where values are, as into a row's place\n-        // (place_on_top): it is given the run's first half to hold until\n-        // the first layer writes over it, and each later layer writes\n-        // over an earlier one's values.\n-        let mut parents = [const { core::mem::MaybeUninit::<Cv>::uninit() }; RUN];\n-        let mut to = parents[..len / 2].write_copy_of_slice(&from[..len / 2]);\n-        // A layer for each halving of the widest row there can be, in\n-        // calls of as many children as the kernels take: loops of counts\n-        // fixed at their start, like merge's.\n-        for layer in 1..=ROW.trailing_zeros() {\n-            for start in (0..len).step_by(CALL) {\n-                let n = (len - start).min(CALL);\n-                let out = &mut to[start / 2..(start + n) / 2];\n-                let places = out.len();\n-                let made = p.parents(&from[start..start + n], out);\n-                assert_eq!((2 * made, places), (n, made), \"a parent for every two children, each in its place\");\n-            }\n-            len /= 2;\n-            // The rows that were two wide are one value each now: the\n-            // narrowest, so the run's last.\n-            for _ in 0..rows {\n-                if self.row(order[rows - 1]).len() == 1 << layer {\n-                    rows -= 1;\n-                    len -= 1;\n-                    values[order[rows] % ROWS] = to[len];\n-                }\n-            }\n-            core::mem::swap(&mut from, &mut to);\n-        }\n-        assert_eq!((rows, len), (0, 0), \"every row condensed to its one value\");\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Entry `i`'s one value, below the length: a single entry's own, a\n     /// row's from `rows` ([`CvStack::rows_values`]).\n     pub fn value(&self, rows: &[Cv; ROWS], i: usize) -> Cv {\n         assert!(i < self.len, \"a value below the stack's length\");\n         if self.is_row(i) {\n             return rows[i % ROWS];\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::condense",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 234
+        },
+        "start": {
+          "column": 5,
+          "line": 169
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:184:9: replace CvStack::condense with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 81,
+        "line": 233
+      },
+      "start": {
+        "column": 9,
+        "line": 184
+      }
+    }
+  }
+]
