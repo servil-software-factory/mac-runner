@@ -1,0 +1,36 @@
+--- src/incremental.rs
++++ replace <impl hasher::Hooks for HasherHooks<'_>>::children -> [CVBytes; 2] with [Default::default(); 2]
+@@ -179,32 +179,17 @@
+             // Safe: the SME2 platform is selected only where the CPU has it.
+             return Some(unsafe { sme2::compress_subtree_flat_to_cv(input, ahead, self.key, counter, self.flags) });
+         }
+         None
+     }
+ 
+     #[inline(always)]
+     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> [CVBytes; 2] {
+-        if let Some(pool) = self.pooled.filter(|pool| input.len() >= pool.min_len) {
+-            let level = crate::throughput::level_of(input.len() as u64);
+-            let index = counter >> level;
+-            assert!(index << level == counter, "a subtree of {} bytes starts at its own boundary, not chunk {counter}", input.len());
+-            let halves = (pool.halves)(&TreeHasher::of_words(self.key, self.flags), level, index, input);
+-            return Cv::halves_bytes(halves, level, index);
+-        }
+-        let pair = if self.pooled.is_some() {
+-            // Pooled, the subtrees below take the lock one at a time, and
+-            // the pool's own never use SME2.
+-            let own = platform::Sme2Turn::take(self.chunk_platform, input.len() >= SME2_SIZED_LEN);
+-            compress_subtree_to_parent_node(input, ahead, self.key, counter, self.flags, own.platform())
+-        } else {
+-            compress_subtree_to_parent_node(input, ahead, self.key, counter, self.flags, self.platform)
+-        };
+-        [pair[..OUT_LEN].try_into().unwrap(), pair[OUT_LEN..].try_into().unwrap()]
++        [Default::default(); 2] /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// A whole group or more is cut, on the caller's own kernels: not
+     /// pooled, and by kernels 4 to ROW lanes wide (the SME2 unit's are
+     /// wider, and its subtrees are its own: `subtree_cv`).
+     #[inline(always)]
+     fn cuts(&self, len: usize) -> bool {
+         self.pooled.is_none() && len >= STAGE_LEN && (4..=hasher::ROW).contains(&self.platform.simd_degree())

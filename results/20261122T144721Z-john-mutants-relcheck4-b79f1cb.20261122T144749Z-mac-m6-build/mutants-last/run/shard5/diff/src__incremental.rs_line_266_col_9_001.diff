@@ -1,0 +1,26 @@
+--- src/incremental.rs
++++ replace Hasher::first_block -> &[u8; BLOCK_LEN] with Box::leak(Box::new([1; BLOCK_LEN]))
+@@ -258,22 +258,17 @@
+     /// (`finalize`). An empty stage's is a block of zeros apart (a new
+     /// Hasher's stage is unwritten, and a reset one's holds the last
+     /// message). Otherwise it is the stage's first block, whose bytes
+     /// after the message are zero: `update` stores a first block or less
+     /// padded (pad_block), later bytes only follow the ones before, and
+     /// `clone_from` copies the whole block.
+     #[cfg(blake3_sse41_ffi)]
+     pub(crate) fn first_block(&self) -> &[u8; BLOCK_LEN] {
+-        static EMPTY: [u8; BLOCK_LEN] = [0; BLOCK_LEN];
+-        if self.staged == 0 {
+-            return &EMPTY;
+-        }
+-        // Sound: with bytes staged, the stage's first BLOCK_LEN bytes were written (pad_block, or more than a block of input).
+-        unsafe { &*(self.stage.as_ptr() as *const [u8; BLOCK_LEN]) }
++        Box::leak(Box::new([1; BLOCK_LEN])) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// The bytes gathered in the stage.
+     pub(crate) fn staged_bytes(&self) -> &[u8] {
+         // Sound: the first `staged` bytes of the stage were written (gather).
+         unsafe { written(&self.stage, self.staged) }
+     }
+ 

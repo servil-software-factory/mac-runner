@@ -1,0 +1,21 @@
+--- src/hasher.rs
++++ replace % with + in CvStack::set_row
+@@ -102,17 +102,17 @@
+     fn row(&self, i: usize) -> &[Cv] {
+         debug_assert!(self.is_row(i));
+         let n = self.widths[i % ROWS] as usize;
+         // Sound: a row's first `width` values were written when it was pushed or merged.
+         unsafe { core::slice::from_raw_parts((self.rows.as_ptr() as *const Cv).add((i % ROWS) * ROW), n) }
+     }
+ 
+     fn set_row(&mut self, i: usize, row: &[Cv]) {
+-        let slot = i % ROWS;
++        let slot = i + /* ~ changed by cargo-mutants ~ */ ROWS;
+         // Sound: MaybeUninit has the same layout as Cv and permits every
+         // byte here to be unwritten. clone_from may write a fresh slot.
+         let rows = unsafe { &mut *self.rows.as_mut_ptr().cast::<[[core::mem::MaybeUninit<Cv>; ROW]; ROWS]>() };
+         rows[slot][..row.len()].write_copy_of_slice(row);
+         self.widths[slot] = row.len() as u8;
+         self.wide |= 1 << i;
+     }
+ 

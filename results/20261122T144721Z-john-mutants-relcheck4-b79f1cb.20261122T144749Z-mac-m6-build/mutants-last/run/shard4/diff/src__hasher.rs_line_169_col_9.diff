@@ -1,0 +1,34 @@
+--- src/hasher.rs
++++ replace CvStack::place_on_top -> &mut[Cv; ROW] with Box::leak(Box::new([Default::default(); ROW]))
+@@ -161,30 +161,17 @@
+     /// written into where they will stay ([`CvStack::pushed_row`] then
+     /// says how many): a cut written elsewhere and copied here touched
+     /// its 16 cache lines twice and a kilobyte of zeroed scratch besides.
+     /// The rows below that keep theirs in the same place (ROWS, 2 ROWS,
+     /// ... entries down) give it up, condensed to their one value. A
+     /// place is zeroed the first time it is given out, once a stack: the
+     /// kernels then write into memory that holds values.
+     pub fn place_on_top<P: Parent>(&mut self, p: &P) -> &mut [Cv; ROW] {
+-        for below in (self.len % ROWS..self.len).step_by(ROWS) {
+-            if self.is_row(below) {
+-                self.narrow(p, below);
+-            }
+-        }
+-        let slot = self.len % ROWS;
+-        let place = unsafe { (self.rows.as_mut_ptr() as *mut [Cv; ROW]).add(slot) };
+-        if self.ready >> slot & 1 == 0 {
+-            // Sound: the slot's own storage.
+-            unsafe { place.write_bytes(0, 1) };
+-            self.ready |= 1 << slot;
+-        }
+-        // Sound: the slot's storage, every byte of it written (now or before).
+-        unsafe { &mut *place }
++        Box::leak(Box::new([Default::default(); ROW])) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// The row written into [`CvStack::place_on_top`]'s place, `width`
+     /// values of it, is the top entry.
+     pub fn pushed_row(&mut self, width: usize) {
+         assert!((4..=ROW).contains(&width) && width.is_power_of_two(), "a row of 4 to ROW values, a power of two");
+         self.widths[self.len % ROWS] = width as u8;
+         self.wide |= 1 << self.len;

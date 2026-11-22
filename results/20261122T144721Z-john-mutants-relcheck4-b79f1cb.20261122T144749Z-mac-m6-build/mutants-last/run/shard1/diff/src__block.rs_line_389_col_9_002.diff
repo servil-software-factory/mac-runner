@@ -1,0 +1,27 @@
+--- src/block.rs
++++ replace Batch<'_>::message_mut -> &mut[u8] with Vec::leak(vec![1])
+@@ -381,23 +381,17 @@
+     }
+ }
+ 
+ #[cfg(feature = "std")]
+ impl Batch<'_> {
+     /// Message `i`'s bytes, for writing: `message_len` of them, no more (a
+     /// borrowed batch copies its blocks first).
+     pub fn message_mut(&mut self, i: usize) -> &mut [u8] {
+-        let per = blocks_per(self.message_len);
+-        // Checked in every build: an index whose blocks wrapped around the
+-        // address space would name another message's.
+-        let end = i.checked_add(1).and_then(|next| next.checked_mul(per));
+-        assert!(end.is_some_and(|end| end <= self.blocks.len()), "message {i} of a batch of {}", self.len());
+-        let len = self.message_len;
+-        &mut Block::bytes_mut(&mut self.blocks.to_mut()[i * per..][..per])[..len]
++        Vec::leak(vec![1]) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Message `i` becomes `message`, `message_len` bytes.
+     pub fn set(&mut self, i: usize, message: &[u8]) {
+         self.message_mut(i).copy_from_slice(message);
+     }
+ 
+     /// Every byte for writing, where no message has bytes past its end to

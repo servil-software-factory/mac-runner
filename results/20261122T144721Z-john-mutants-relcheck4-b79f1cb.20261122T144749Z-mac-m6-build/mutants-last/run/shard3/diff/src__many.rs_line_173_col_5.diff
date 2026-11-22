@@ -1,0 +1,41 @@
+--- src/many.rs
++++ replace one_block_groups -> usize with 0
+@@ -165,37 +165,17 @@
+ /// bytes of a 64-byte slot in `bytes`, zero past them: a batch's padding,
+ /// or the block `hash_packed` writes each packed message into) that run on
+ /// the independent-compression kernel side by side: how many messages they
+ /// took.
+ #[cfg(all(feature = "std", blake3_avx512_ffi, target_os = "linux"))]
+ fn one_block_groups(bytes: &[u8], digests: &mut [[u8; OUT_LEN]], len: usize, key: &CVWords, flags: u8, platform: Platform) -> usize {
+     // Check the descriptor length once, before narrowing it or filling
+     // any lanes. Both short batches and expanded Packed messages come here.
+-    assert!(len <= BLOCK_LEN, "an independent short message fits in one block");
+-    let len = len as u8;
+-    let lanes = crate::ffi_output::lanes(platform);
+-    if lanes == 0 {
+-        return 0;
+-    }
+-    let groups = digests.len() / lanes;
+-    for g in 0..groups {
+-        let (at, out) = (g * lanes, &mut digests[g * lanes..][..lanes]);
+-        let group = &bytes[at * BLOCK_LEN..];
+-        // Sound: lanes() names the platform's kernel width, which the CPU
+-        // runs (Platform::detect chose it).
+-        unsafe {
+-            if lanes == 16 {
+-                packed_group::<16>(group, out, len, key, flags);
+-            } else {
+-                packed_group::<8>(group, out, len, key, flags);
+-            }
+-        }
+-    }
+-    groups * lanes
++    0 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// `W` one-block messages, each `len` bytes zero-padded to a block at the
+ /// start of `blocks`, on the `W`-lane independent-compression kernel.
+ /// Requires the CPU to run that kernel (`ffi_output::lanes`).
+ #[cfg(all(feature = "std", blake3_avx512_ffi, target_os = "linux"))]
+ unsafe fn packed_group<const W: usize>(blocks: &[u8], out: &mut [[u8; OUT_LEN]], len: u8, key: &CVWords, flags: u8) {
+     let block = |i: usize| -> &[u8; BLOCK_LEN] { blocks[i * BLOCK_LEN..][..BLOCK_LEN].try_into().unwrap() };
