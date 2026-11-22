@@ -1,0 +1,83 @@
+--- src/many.rs
++++ replace hash_many_on with ()
+@@ -68,79 +68,17 @@
+ /// plain hashing), on `platform`: messages of up to a chunk go to
+ /// the kernels TABLE at a time, 2 to 15 chunks side by side on SME2, others
+ /// through the one-message path. Requires `input.len() == slot *
+ /// outputs.len()` and every slot's bytes past `len` zero (a Batch's, or
+ /// the crate's own).
+ pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+     // One-block messages first, on the path they took before slots (a
+     // shared entry cost 64 B x 3 7% in the regression check).
+-    if len == BLOCK_LEN && outputs.len() >= 2 {
+-        crate::ran(crate::Ran::BlockRun);
+-        assert_slots(input, len, slot, outputs.len());
+-        for (messages, digests) in input.chunks(BLOCK_LEN * TABLE).zip(outputs.chunks_mut(TABLE)) {
+-            hash_run::<{ BLOCK_LEN }>(messages, key, flags, digests, platform);
+-        }
+-        return;
+-    }
+-    assert_slots(input, len, slot, outputs.len());
+-    if packed(len, slot) {
+-        return hash_packed(input, len, key, flags, outputs, platform);
+-    }
+-    // Empty messages: the NEON plans take a last block of 1 to 64 bytes
+-    // (hash_many_in's contract), so without this arm a batch of them stops
+-    // there (#251: CI's Cortex-A72, and every NEON machine since the pair
+-    // kernels left).
+-    if len == 0 {
+-        outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());
+-        return;
+-    }
+-    #[cfg(blake3_sme2)]
+-    if chunked(len) && platform_is_sme2(platform) && (outputs.len() >= 16 || outputs.len() >= sme2_chunked_min(len)) {
+-        return hash_chunked(input, len, key, flags, outputs, platform);
+-    }
+-    #[cfg(blake3_neon)]
+-    if (CHUNK_LEN + 1..=2 * CHUNK_LEN).contains(&len) && outputs.len() >= 2 && neon_plans() {
+-        return hash_two_chunks(input, len, key, flags, outputs);
+-    }
+-    if outputs.len() < 2 || len > CHUNK_LEN {
+-        #[cfg(target_arch = "x86_64")]
+-        return hash_long_or_single(input, len, key, flags, outputs, platform);
+-        #[cfg(not(target_arch = "x86_64"))]
+-        {
+-            for (i, output) in outputs.iter_mut().enumerate() {
+-                *output = *crate::hash_serial_on(&input[i * slot..][..len], key, flags, platform).as_bytes();
+-            }
+-            return;
+-        }
+-    }
+-    crate::ran(crate::Ran::ShortRun);
+-    let plans = neon_plans();
+-    let last_len = len - (slot - BLOCK_LEN);
+-    for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {
+-        match slot / BLOCK_LEN {
+-            1 => hash_run_short::<{ BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            5 => hash_blocks::<{ 5 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            6 => hash_blocks::<{ 6 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            7 => hash_blocks::<{ 7 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            8 => hash_blocks::<{ 8 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            9 => hash_blocks::<{ 9 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            10 => hash_blocks::<{ 10 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            11 => hash_blocks::<{ 11 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            12 => hash_blocks::<{ 12 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            13 => hash_blocks::<{ 13 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            14 => hash_blocks::<{ 14 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            15 => hash_blocks::<{ 15 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            16 => hash_blocks::<{ 16 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            _ => unreachable!("messages of up to a chunk"),
+-        }
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Packed messages (`len` bytes each, at a stride of `len`): sixteen at a
+ /// time expanded into blocks on the stack, each message at the start of
+ /// its block and the block's rest zero, then the one-block path for
+ /// messages of 1 to 63 bytes. The expansion copies `len` bytes a message
+ /// within L1; a kernel that reads the packed form itself (its padding
+ /// words constants, never in memory) is the next step once the Merkle

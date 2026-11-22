@@ -1,0 +1,54 @@
+--- src/lib.rs
++++ replace hash_many_rounded with ()
+@@ -864,50 +864,17 @@
+     flags: u8,
+     flags_start: u8,
+     flags_end: u8,
+     out: &mut [u8],
+ ) {
+     // Past the widest kernel, where the rest would round: its whole groups
+     // first, one call each, then the rest below (a loop, each turn a whole
+     // group fewer).
+-    let widest = lane_widths(platform).last().copied().unwrap_or(usize::MAX);
+-    let mut inputs = inputs;
+-    let mut out = out;
+-    let mut counter = counter;
+-    if inputs.len() > widest && rounded_lanes(platform, inputs.len() % widest).is_some() {
+-        while inputs.len() > widest {
+-            let (head, rest) = inputs.split_at(widest);
+-            let (head_out, rest_out) = out.split_at_mut(widest * OUT_LEN);
+-            platform.hash_many(head, key, counter, increment_counter, flags, flags_start, flags_end, head_out);
+-            if increment_counter.yes() {
+-                counter += widest as u64;
+-            }
+-            inputs = rest;
+-            out = rest_out;
+-        }
+-    }
+-    if let Some(lanes) = rounded_lanes(platform, inputs.len()) {
+-        ran(Ran::RoundedUp);
+-        let last = *inputs.last().expect("a count that rounds up is 3 or more");
+-        let mut padded = ArrayVec::<&[u8; N], 32>::new();
+-        padded.try_extend_from_slice(inputs).unwrap();
+-        while padded.len() < lanes {
+-            padded.push(last);
+-        }
+-        // The width the kernel ran at, for the test that counts it (a
+-        // padding that stopped short would hash the same digests slower).
+-        #[cfg(all(test, feature = "std"))]
+-        ROUNDED_WIDTH.with(|w| w.set(w.get() | padded.len()));
+-        let mut scratch = [0u8; 32 * OUT_LEN];
+-        platform.hash_many(&padded, key, counter, increment_counter, flags, flags_start, flags_end, &mut scratch[..lanes * OUT_LEN]);
+-        out[..inputs.len() * OUT_LEN].copy_from_slice(&scratch[..inputs.len() * OUT_LEN]);
+-    } else {
+-        platform.hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ // Use SIMD parallelism to hash up to MAX_SIMD_DEGREE chunks at the same time
+ // on a single thread. Write out the chunk chaining values and return the
+ // number of chunks hashed. These chunks are never the root and never empty;
+ // those cases use a different codepath.
+ fn compress_chunks_parallel(input: &[u8], key: &CVWords, chunk_counter: u64, flags: u8, platform: Platform, out: &mut [u8]) -> usize {
+     debug_assert!(!input.is_empty(), "empty chunks below the root");

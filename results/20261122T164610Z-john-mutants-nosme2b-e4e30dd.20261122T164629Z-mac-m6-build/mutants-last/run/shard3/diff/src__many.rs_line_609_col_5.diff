@@ -1,0 +1,38 @@
+--- src/many.rs
++++ replace hash_run_short with ()
+@@ -601,34 +601,17 @@
+ /// records 64 for every block), else the NEON plans, or one call each
+ /// without them.
+ #[inline(never)]
+ fn hash_run_short<const N: usize>(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, plans: bool, last_len: usize) {
+     // One-block messages on x86-64 with the independent-compression kernels
+     // (AVX2's eight lanes, AVX-512's sixteen): whole groups side by side,
+     // a batch's and a `Packed`'s alike; the rest, and every other platform,
+     // as before.
+-    #[cfg(all(feature = "std", blake3_avx512_ffi, target_os = "linux"))]
+-    let done = if N == BLOCK_LEN { one_block_groups(messages, outputs, last_len, key, flags, platform) } else { 0 };
+-    #[cfg(not(all(feature = "std", blake3_avx512_ffi, target_os = "linux")))]
+-    let done = 0;
+-    let (messages, outputs) = (&messages[done * N..], &mut outputs[done..]);
+-    #[cfg(blake3_sme2)]
+-    if platform_is_sme2(platform) && outputs.len() >= ONE_BLOCK_PAD_MIN {
+-        return hash_run_padded::<N>(messages, key, flags, outputs, last_len);
+-    }
+-    if plans {
+-        let mut slots: Slots<N> = [core::mem::MaybeUninit::uninit(); TABLE + 16];
+-        let lanes = fill_table(&mut slots, messages, outputs.len(), outputs.len());
+-        neon_plans_last_len::<N>(lanes, key, flags, last_len, outputs);
+-    } else {
+-        for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(N)) {
+-            *output = *crate::hash_serial_on(&message[..last_len], key, flags, platform).as_bytes();
+-        }
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Fewest one-block messages that SME2 hashes as whole groups on the
+ /// message kernel, the last one padded: 11 in a batch of fewer than
+ /// sixteen (fewer run on the NEON parent plans), 5 left over past whole
+ /// groups (fewer left over run on the NEON plans). VM, ns per message,
+ /// before / padded: 10 18.3 / 20.9, 11 19.1 / 15.0, 15 18.2 / 10.8.
+ /// Past whole groups the padded group replaces the plans and the overlap

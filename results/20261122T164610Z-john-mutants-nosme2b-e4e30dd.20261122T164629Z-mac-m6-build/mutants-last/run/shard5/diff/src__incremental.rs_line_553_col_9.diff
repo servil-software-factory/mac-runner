@@ -1,0 +1,41 @@
+--- src/incremental.rs
++++ replace Hasher::finalize -> Hash with Default::default()
+@@ -545,37 +545,17 @@
+     /// as it was: more updates may follow, and a later `finalize` then
+     /// covers them too, as with official BLAKE3's `Hasher`.
+     ///
+     /// **Speed**: a message of under 16 KiB is still whole in the Hasher,
+     /// and is hashed here as [`hash`](convenience::hash) would hash it. A
+     /// longer one costs a copy of 2 KiB of state beside its hashing.
+     #[inline]
+     pub fn finalize(&self) -> Hash {
+-        assert_eq!(self.core.initial_chunk_counter, 0, "set_input_offset must be used with finalize_non_root");
+-        // A message whole in the stage, the empty one too: the core holds
+-        // none of it.
+-        if self.core.count() == 0 {
+-            // A block or less: one kernel call on the stage's first block.
+-            #[cfg(blake3_sse41_ffi)]
+-            if self.staged <= BLOCK_LEN {
+-                // Sound: the platform's instructions were detected.
+-                return Hash(unsafe {
+-                    crate::chunk_root::block_root(
+-                        self.core.chunk_state.platform,
+-                        self.first_block(),
+-                        self.staged,
+-                        self.fresh_key(),
+-                        self.core.chunk_state.flags,
+-                    )
+-                });
+-            }
+-            return crate::hash_serial_from(self.core.chunk_state.platform, self.staged_bytes(), self.fresh_key(), self.core.chunk_state.flags, false);
+-        }
+-        self.root_output().root_hash()
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// An [`OutputReader`] over everything updated so far, which supplies
+     /// any number of output bytes; the Hasher is left as it was, as with
+     /// [`finalize`](Hasher::finalize).
+     pub fn finalize_xof(&self) -> OutputReader {
+         OutputReader::new(self.root_output())
+     }

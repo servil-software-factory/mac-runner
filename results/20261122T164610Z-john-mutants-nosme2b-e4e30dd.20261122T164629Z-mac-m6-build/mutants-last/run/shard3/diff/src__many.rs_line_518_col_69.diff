@@ -1,0 +1,21 @@
+--- src/many.rs
++++ replace | with & in hash_run
+@@ -510,17 +510,17 @@
+     if platform_is_sme2(platform) {
+         // The messages are one block each (this function's only N) and
+         // lie one after another: a run of blocks. SME2's parent kernel
+         // reads a group of sixteen through one pointer, so they go to it
+         // as that run, not as a table of sixteen borrows.
+         const { assert!(N == BLOCK_LEN, "one-block messages") };
+         let run = messages.as_chunks::<BLOCK_LEN>().0[..outputs.len()].as_flattened();
+         // Sound: the caller found SME2 (platform_is_sme2).
+-        return unsafe { crate::sme2::hash_block_run(run, key, flags | CHUNK_START | CHUNK_END | ROOT, outputs.as_flattened_mut()) };
++        return unsafe { crate::sme2::hash_block_run(run, key, flags & /* ~ changed by cargo-mutants ~ */ CHUNK_START | CHUNK_END | ROOT, outputs.as_flattened_mut()) };
+     }
+     let mut table: [core::mem::MaybeUninit<&[u8; N]>; TABLE] = [core::mem::MaybeUninit::uninit(); TABLE];
+     for (slot, message) in table[..outputs.len()].iter_mut().zip(messages.chunks_exact(N)) {
+         slot.write(message.try_into().expect("messages of N bytes"));
+     }
+     // Sound: the first outputs.len() slots were written just above.
+     let filled: &[&[u8; N]] = unsafe { core::slice::from_raw_parts(table.as_ptr() as *const &[u8; N], outputs.len()) };
+     whole_messages(filled, key, flags, outputs, platform);

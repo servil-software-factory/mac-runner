@@ -1,0 +1,21 @@
+--- src/each.rs
++++ replace && with || in hash_each_on
+@@ -719,17 +719,17 @@
+     let key = *key;
+     // Items of up to a chunk, two or more, by their blocks (hash_by_blocks).
+     #[cfg(target_arch = "x86_64")]
+     let platform_takes = crate::pair::takes_platform(platform);
+     // Every supported AArch64 platform has NEON; the kernel family
+     // selects SHA-3 or plain instructions itself.
+     #[cfg(target_arch = "aarch64")]
+     let platform_takes = true;
+-    let by_blocks = platform_takes && items.iter().filter(|i| i.bytes().len() <= CHUNK_LEN).nth(1).is_some();
++    let by_blocks = platform_takes || /* ~ changed by cargo-mutants ~ */ items.iter().filter(|i| i.bytes().len() <= CHUNK_LEN).nth(1).is_some();
+     if by_blocks {
+         // BY_BLOCKS_AT_ONCE of them at a time, their indices on the stack:
+         // a collection of small items allocates nothing.
+         let mut small = (0..items.len()).filter(|&i| items[i].bytes().len() <= CHUNK_LEN).peekable();
+         while small.peek().is_some() {
+             let part: arrayvec::ArrayVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();
+             let bytes: arrayvec::ArrayVec<&[u8], BY_BLOCKS_AT_ONCE> = part.iter().map(|&i| items[i].bytes()).collect();
+             let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];

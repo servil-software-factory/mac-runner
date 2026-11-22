@@ -1,0 +1,25 @@
+--- src/incremental.rs
++++ replace Hasher::update_longer -> &mut Self with Box::leak(Box::new(Default::default()))
+@@ -511,21 +511,17 @@
+     #[inline(never)]
+     fn update_longer(&mut self, input: &[u8]) -> &mut Self {
+         // A fresh hasher's first update is a one-shot call's work (a
+         // Hasher per message, the digest traits): it prefetches its code,
+         // as convenience::hash does. A Hasher fed in pieces pays it once.
+         // Under 16 KiB it waits whole in the stage for `finalize`, which
+         // hashes it with the one-shot call's kernels; from 16 KiB it goes
+         // to the core now.
+-        #[cfg(all(blake3_neon, feature = "std"))]
+-        if self.count() == 0 && (CHUNK_LEN + 1..PREFETCH_BELOW).contains(&input.len()) {
+-            prefetch_cold(input.len(), self.core.chunk_state.platform, input.len() >= STAGE_LEN);
+-        }
+-        self.gather(input, None)
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Add the next piece, letting the caller hash large whole subtrees.
+     ///
+     /// The Hasher can pass subtrees of at least `min_len` bytes to
+     /// `halves`. For each call, return the same ordered values as
+     /// `tree.subtree_halves(level, index, input)` in the given mode. The
+     /// Hasher checks both places in every build; the callback is

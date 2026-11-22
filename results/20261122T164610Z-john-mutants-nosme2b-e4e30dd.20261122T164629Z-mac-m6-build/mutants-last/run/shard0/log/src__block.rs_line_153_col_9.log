@@ -1,0 +1,87 @@
+
+*** src/block.rs:153:9: replace Batch<'a>::in_place -> Self with Default::default()
+
+*** mutation diff:
+--- src/block.rs
++++ replace Batch<'a>::in_place -> Self with Default::default()
+@@ -145,24 +145,17 @@
+     }
+ 
+     /// For the crate's own tests: `blocks` as a batch of `message_len`-byte
+     /// messages in place, whatever their length, each at the start of its
+     /// blocks and every byte past it zero (checked): the tests' layouts,
+     /// batches beside guard pages among them.
+     #[doc(hidden)]
+     pub fn in_place(blocks: &'a [Block], message_len: usize) -> Self {
+-        let per = blocks_per(message_len);
+-        assert!(blocks.len() % per == 0, "{} blocks hold no whole number of {message_len}-byte messages", blocks.len());
+-        let slot = per * BLOCK_LEN;
+-        assert!(
+-            Block::bytes(blocks).chunks_exact(slot).all(|s| message_len == 0 || s[message_len..].iter().all(|&b| b == 0)),
+-            "a test's batch has a nonzero byte past a message"
+-        );
+-        Batch { blocks: blocks.into(), message_len }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// The messages' length.
+     #[inline]
+     pub fn message_len(&self) -> usize {
+         self.message_len
+     }
+ 
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.10.0+dev --features=serde
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43080]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43154]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `Batch<'_>: Default` is not satisfied
+   --> src/block.rs:153:9
+    |
+153 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `Batch<'_>`
+    |
+help: consider annotating `Batch<'_>` with `#[derive(Default)]`
+    |
+101 + #[derive(Default)]
+102 | pub struct Batch<'a> {
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `block::Batch<'_>: Default` is not satisfied
+   --> src/block.rs:153:9
+    |
+153 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `block::Batch<'_>`
+    |
+help: consider annotating `block::Batch<'_>` with `#[derive(Default)]`
+    |
+101 + #[derive(Default)]
+102 | pub struct Batch<'a> {
+    |
+
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.10.0+dev' '--features=serde' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

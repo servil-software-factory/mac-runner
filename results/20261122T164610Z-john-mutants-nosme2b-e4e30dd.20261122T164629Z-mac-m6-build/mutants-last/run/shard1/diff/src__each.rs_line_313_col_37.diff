@@ -1,0 +1,21 @@
+--- src/each.rs
++++ replace || with && in independent_lanes
+@@ -305,17 +305,17 @@
+ /// and say so. The mode, the count and the platform, all public, choose;
+ /// key values never determine grouping, allocation or dispatch. Every
+ /// other target compiles `hash_held` as it was.
+ #[cfg(all(feature = "std", blake3_avx512_ffi, target_os = "linux"))]
+ fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {
+     let Some(&first) = held.first() else { return false };
+     let platform = hashers[first].core.chunk_state.platform;
+     // Public plain mode fixes every key to the IV: those share one pass.
+-    if held.len() < INDEPENDENT_MIN || !matches!(platform, Platform::AVX2 | Platform::AVX512) || held.iter().all(|&i| hashers[i].core.chunk_state.flags == 0) {
++    if held.len() < INDEPENDENT_MIN && /* ~ changed by cargo-mutants ~ */ !matches!(platform, Platform::AVX2 | Platform::AVX512) || held.iter().all(|&i| hashers[i].core.chunk_state.flags == 0) {
+         return false;
+     }
+     crate::ffi_output::held_groups(hashers, held, platform);
+     #[cfg(test)]
+     HELD_GROUPS.with(|groups| groups.borrow_mut().push(held.to_vec()));
+     crate::counted(crate::Counted::HeldPass);
+     true
+ }

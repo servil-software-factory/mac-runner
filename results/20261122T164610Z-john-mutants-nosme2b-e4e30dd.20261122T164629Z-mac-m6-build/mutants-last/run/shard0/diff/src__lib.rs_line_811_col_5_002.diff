@@ -1,0 +1,38 @@
+--- src/lib.rs
++++ replace lane_widths -> &'static[usize] with Vec::leak(vec![1])
+@@ -803,34 +803,17 @@
+ }
+ 
+ /// The widths the platform's many-lane kernels run at, in one pass each,
+ /// rising: SSE4.1 four lanes; AVX2 eight (and four); AVX-512 sixteen (and
+ /// eight, four), and thirty-two where the 32-input kernel runs
+ /// (wide_avx512, Zen 5 on Linux). Below the smallest, one and two lanes
+ /// have passes of their own as cheap as one.
+ fn lane_widths(platform: Platform) -> &'static [usize] {
+-    match platform {
+-        #[cfg(blake3_sse41_ffi)]
+-        Platform::SSE41 => &[4],
+-        #[cfg(blake3_avx2_ffi)]
+-        Platform::AVX2 => &[4, 8],
+-        #[cfg(blake3_avx512_ffi)]
+-        Platform::AVX512 => {
+-            if cfg!(target_os = "linux") && crate::platform::wide_avx512() {
+-                &[4, 8, 16, 32]
+-            } else {
+-                &[4, 8, 16]
+-            }
+-        }
+-        // The platforms with no many-lane widths here (AArch64's); on
+-        // x86-64 with every kernel built, the arms above cover them all.
+-        #[allow(unreachable_patterns)]
+-        _ => &[],
+-    }
++    Vec::leak(vec![1]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The lanes `count` whole inputs run on when the kernels' cascade would
+ /// take two or more passes for them: on x86 a many-lane kernel hashes its
+ /// width at a time, then the next width down, and so on to one, each
+ /// pass about as long as a 1-lane pass of the same blocks (i7-12700K,
+ /// cycles a block-step from the thread's counts: 1 lane 226, 2 lanes 248,
+ /// 4 lanes 338, 8 lanes 516), so 3 inputs cost a 2-pass and a 1-pass

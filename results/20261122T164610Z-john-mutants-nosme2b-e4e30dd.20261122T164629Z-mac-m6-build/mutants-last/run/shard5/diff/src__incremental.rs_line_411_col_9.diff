@@ -1,0 +1,44 @@
+--- src/incremental.rs
++++ replace Hasher::root_output -> Output with Default::default()
+@@ -403,40 +403,17 @@
+     /// (as `update` leaves it), the staged bytes are a whole subtree after
+     /// them: a core of their own hashes them, on this frame, and its node
+     /// is folded into the stack's entries, which are only read
+     /// (`hasher::above`); the Hasher's core is not copied (10 KiB with the
+     /// stack's rows). After a turn of many hashers that left a first
+     /// chunk in the core (`gather_part`), a copy of the core takes the
+     /// staged bytes.
+     fn root_output(&self) -> Output {
+-        assert_eq!(self.core.initial_chunk_counter, 0, "set_input_offset must be used with finalize_non_root");
+-        if self.staged == 0 {
+-            return self.core.final_output();
+-        }
+-        let core = &self.core;
+-        let counter = core.chunk_state.chunk_counter;
+-        if core.chunk_state.count() > 0 || counter % (STAGE_LEN / CHUNK_LEN) as u64 != 0 {
+-            let mut core = self.core.clone();
+-            core.update(self.staged_bytes());
+-            return core.final_output();
+-        }
+-        crate::counted(crate::Counted::TailApart);
+-        let mut tail = HasherCore {
+-            key: core.key,
+-            chunk_state: ChunkState::new(&core.key, counter, core.chunk_state.flags, core.chunk_state.platform),
+-            initial_chunk_counter: counter,
+-            cv_stack: CvStack::new(),
+-        };
+-        tail.update(self.staged_bytes());
+-        let node = tail.final_output();
+-        if counter == 0 {
+-            return node;
+-        }
+-        hasher::above(&core.kernels(), &core.cv_stack, hasher::ones(counter), node)
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// The root hash, for a caller that then resets the Hasher
+     /// (`finalize_each`): a message whole in the stage as `finalize` hashes
+     /// it, any other finished in place, with no copy of the core.
+     #[cfg(feature = "std")]
+     pub(crate) fn take_root_hash(&mut self) -> Hash {
+         if self.core.count() == 0 {

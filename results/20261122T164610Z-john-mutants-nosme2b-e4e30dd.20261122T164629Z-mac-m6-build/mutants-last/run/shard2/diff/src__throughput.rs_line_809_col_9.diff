@@ -1,0 +1,43 @@
+--- src/throughput.rs
++++ replace TreeHasher::parent_cvs with ()
+@@ -801,39 +801,17 @@
+     /// gathered for the kernels and labelled after): 2% of `b3sum
+     /// --outboard` on a 1 GiB file in memory (Ryzen 9700X), which makes a
+     /// parent for every 16 KiB.
+     ///
+     /// Requires an even number of children, half as many outputs, and the
+     /// children consecutive whole subtrees of one size from an even index,
+     /// checked in every build.
+     pub fn parent_cvs(&self, children: &[Cv], out: &mut [Cv]) {
+-        assert_eq!(children.len() % 2, 0, "parents take their children in pairs");
+-        assert_eq!(out.len(), children.len() / 2, "one parent per pair of children");
+-        let Some(first) = children.first() else { return };
+-        let base = first.set();
+-        assert!(base & 1 == 0, "the first child is at an odd index: {first:?}");
+-        for (k, child) in children.iter().enumerate() {
+-            assert!(child.place == base + k as u64, "child {k} is not the next subtree of its size: {child:?}");
+-        }
+-        // The kernels read bare values side by side: gather, hash, label.
+-        // 32 children are the widest kernel's two rounds, and the two
+-        // arrays are 1.5 KiB of the stack.
+-        const PAIRS: usize = 16;
+-        let mut values = [BareCv([0; OUT_LEN]); 2 * PAIRS];
+-        let mut parents = [BareCv([0; OUT_LEN]); PAIRS];
+-        for (children, out) in children.chunks(2 * PAIRS).zip(out.chunks_mut(PAIRS)) {
+-            for (value, child) in values.iter_mut().zip(children) {
+-                *value = child.value;
+-            }
+-            self.bare_parent_cvs(&values[..children.len()], &mut parents[..out.len()]);
+-            for (i, parent) in out.iter_mut().enumerate() {
+-                *parent = Cv { value: parents[i], place: parent_place(children[2 * i].place) };
+-            }
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// The root's two children, checked: `left` begins the message,
+     /// `right` begins where it ends, and the two hold `len` bytes.
+     fn root_children(left: &Cv, right: &LastCv, len: u64) {
+         let (level, index) = (left.level(), left.index());
+         assert!(index == 0 && right.first_chunk == 1 << level, "not a root's children: {left:?} and {right:?}");
+         let held = (CHUNK << level) + right.len;
