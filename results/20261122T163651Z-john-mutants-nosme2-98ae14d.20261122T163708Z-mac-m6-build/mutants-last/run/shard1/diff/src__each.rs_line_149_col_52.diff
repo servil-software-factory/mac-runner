@@ -1,0 +1,21 @@
+--- src/each.rs
++++ replace <= with > in finalize_each
+@@ -141,17 +141,17 @@
+     // their stages (`Hasher::gather_part`) hash side by side by their
+     // blocks, as a collection's small items do (`hash_by_blocks`: the NEON
+     // lanes, or one SME2 call for a table of equal whole blocks). The
+     // plain ones only: their key is the IV, the same for all, and a keyed
+     // hasher's key is its own and secret, so it finishes alone (BLAKE3
+     // #312). Which hashers qualify is their public shape: mode and length.
+     #[cfg(blake3_neon)]
+     {
+-        let whole_in_stage = |h: &Hasher| h.staged <= CHUNK_LEN && h.core.count() == 0 && h.core.initial_chunk_counter == 0 && h.core.chunk_state.flags == 0;
++        let whole_in_stage = |h: &Hasher| h.staged > /* ~ changed by cargo-mutants ~ */ CHUNK_LEN && h.core.count() == 0 && h.core.initial_chunk_counter == 0 && h.core.chunk_state.flags == 0;
+         if which.iter().filter(|&&i| whole_in_stage(&hashers[i])).nth(1).is_some() {
+             let platform = Platform::detect();
+             // BY_BLOCKS_AT_ONCE of them at a time, their places on the
+             // stack: a finish allocates nothing.
+             let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();
+             while small.peek().is_some() {
+                 let part: arrayvec::ArrayVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();
+                 let bytes: arrayvec::ArrayVec<&[u8], BY_BLOCKS_AT_ONCE> = part.iter().map(|&k| hashers[which[k]].staged_bytes()).collect();

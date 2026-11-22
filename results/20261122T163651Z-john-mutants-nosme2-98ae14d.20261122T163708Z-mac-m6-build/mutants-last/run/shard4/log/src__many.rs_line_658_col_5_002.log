@@ -1,0 +1,80 @@
+
+*** src/many.rs:658:5: replace fill_table -> &'s[&'a[u8; N]] with Vec::leak(vec![Box::leak(Box::new([1; N]))])
+
+*** mutation diff:
+--- src/many.rs
++++ replace fill_table -> &'s[&'a[u8; N]] with Vec::leak(vec![Box::leak(Box::new([1; N]))])
+@@ -650,27 +650,17 @@
+ /// lanes, uninitialised on the caller's stack.
+ type Slots<'a, const N: usize> = [core::mem::MaybeUninit<&'a [u8; N]>; TABLE + 16];
+ 
+ /// Fill `slots` with pointers to the first `count` slots of N bytes in
+ /// `messages`, then spare lanes repeating the last up to `lanes`; the
+ /// table's filled part.
+ #[inline(always)]
+ fn fill_table<'a, 's, const N: usize>(slots: &'s mut Slots<'a, N>, messages: &'a [u8], count: usize, lanes: usize) -> &'s [&'a [u8; N]] {
+-    assert!(0 < count && count <= lanes && lanes <= TABLE + 16 && messages.len() >= count * N, "a table of 1 to TABLE + 16 lanes over the messages");
+-    let mut last: &[u8; N] = &[0; N];
+-    for (slot, message) in slots[..count].iter_mut().zip(messages.chunks_exact(N)) {
+-        last = message.try_into().expect("slots of N bytes");
+-        slot.write(last);
+-    }
+-    for slot in &mut slots[count..lanes] {
+-        slot.write(last);
+-    }
+-    // Sound: the first `lanes` slots were written just above.
+-    unsafe { core::slice::from_raw_parts(slots.as_ptr() as *const &[u8; N], lanes) }
++    Vec::leak(vec![Box::leak(Box::new([1; N]))]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The integer + NEON parent plans over `lanes`, each message's last block
+ /// `last_len` bytes.
+ #[inline(always)]
+ fn neon_plans_last_len<const N: usize>(lanes: &[&[u8; N]], key: &CVWords, flags: u8, last_len: usize, outputs: &mut [[u8; OUT_LEN]]) {
+     #[cfg(blake3_neon)]
+     // Sound: every AArch64 CPU has NEON.
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.10.0+dev --features=serde
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3096]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[3222]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4)
+error[E0308]: mismatched types
+   --> src/many.rs:658:5
+    |
+657 | fn fill_table<'a, 's, const N: usize>(slots: &'s mut Slots<'a, N>, messages: &'a [u8], count: usize, lanes: usize) -> &'s [&'a [u8; N]] {
+    |                                                                                                                       ----------------- expected `&'s [&'a [u8; N]]` because of return type
+658 |     Vec::leak(vec![Box::leak(Box::new([1; N]))]) /* ~ changed by cargo-mutants ~ */
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ types differ in mutability
+    |
+    = note:      expected reference `&'s [&'a [u8; N]]`
+            found mutable reference `&mut [&mut [{integer}; N]]`
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.10.0+dev' '--features=serde' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
