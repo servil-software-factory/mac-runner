@@ -1,0 +1,322 @@
+[
+  {
+    "diff": "--- src/tree.rs\n+++ replace <impl Kernels for PlatformKernels<'_>>::subtree -> Option<usize> with Some(1)\n@@ -158,23 +158,17 @@\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn subtree(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [Cv]) -> Option<usize> {\n         // Whole subtrees of 256 KiB to 1 MiB (> DEGREE chunks) on SME2:\n         // the flat walk keeps DEGREE chaining values (see\n         // sme2::compress_subtree_flat).\n-        #[cfg(blake3_sme2)]\n-        if matches!(self.platform, Platform::SME2) && crate::sme2::flat_subtree_takes(input.len()) {\n-            // Safe: the SME2 platform is selected only where the CPU has it,\n-            // and `out` holds simd_degree() values, which is sme2::DEGREE.\n-            return Some(unsafe { crate::sme2::compress_subtree_flat(input, ahead, self.key, counter, self.flags, out.as_flattened_mut()) });\n-        }\n-        None\n+        Some(1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> Option<[Cv; 2]> {\n         // Whole subtrees of 32 KiB to 1 MiB on SME2: the flat walk down to\n         // the two children, SME2 alone (see sme2::compress_subtree_flat_to_parent).\n         #[cfg(blake3_sme2)]\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "<impl Kernels for PlatformKernels<'_>>::subtree",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 173
+        },
+        "start": {
+          "column": 5,
+          "line": 160
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/tree.rs:166:9: replace <impl Kernels for PlatformKernels<'_>>::subtree -> Option<usize> with Some(1)",
+    "package": "blake3-servil-core",
+    "replacement": "Some(1)",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 172
+      },
+      "start": {
+        "column": 9,
+        "line": 166
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace && with || in <impl Kernels for PlatformKernels<'_>>::subtree\n@@ -159,17 +159,17 @@\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn subtree(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [Cv]) -> Option<usize> {\n         // Whole subtrees of 256 KiB to 1 MiB (> DEGREE chunks) on SME2:\n         // the flat walk keeps DEGREE chaining values (see\n         // sme2::compress_subtree_flat).\n         #[cfg(blake3_sme2)]\n-        if matches!(self.platform, Platform::SME2) && crate::sme2::flat_subtree_takes(input.len()) {\n+        if matches!(self.platform, Platform::SME2) || /* ~ changed by cargo-mutants ~ */ crate::sme2::flat_subtree_takes(input.len()) {\n             // Safe: the SME2 platform is selected only where the CPU has it,\n             // and `out` holds simd_degree() values, which is sme2::DEGREE.\n             return Some(unsafe { crate::sme2::compress_subtree_flat(input, ahead, self.key, counter, self.flags, out.as_flattened_mut()) });\n         }\n         None\n     }\n \n     #[inline(always)]\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "<impl Kernels for PlatformKernels<'_>>::subtree",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 173
+        },
+        "start": {
+          "column": 5,
+          "line": 160
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/tree.rs:167:52: replace && with || in <impl Kernels for PlatformKernels<'_>>::subtree",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 54,
+        "line": 167
+      },
+      "start": {
+        "column": 52,
+        "line": 167
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl hasher::Hooks for HasherHooks<'_>>::subtree_cv -> Option<CVBytes> with None\n@@ -269,23 +269,17 @@\n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn subtree_cv(&self, input: &[u8], ahead: usize, counter: u64) -> Option<CVBytes> {\n         // After the first input, no subtree is the root: on SME2 the flat\n         // walk runs it down to its own chaining value, so one value goes\n         // on the stack and about one merge runs on the core between SME2\n         // kernels (about 0.2 us of other work between them puts the SME\n         // unit in its slow state: `sme2`'s documentation).\n-        #[cfg(blake3_sme2)]\n-        if self.pooled.is_none() && matches!(self.platform, Platform::SME2) && sme2::flat_takes(input.len()) {\n-            crate::counted(crate::Counted::Flat);\n-            // Safe: the SME2 platform is selected only where the CPU has it.\n-            return Some(unsafe { sme2::compress_subtree_flat_to_cv(input, ahead, self.domain.key(), counter, self.domain.flags()) });\n-        }\n-        None\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> [CVBytes; 2] {\n         if let Some(pool) = self.pooled.filter(|pool| input.len() >= pool.min_len) {\n             let level = crate::throughput::level_of(input.len() as u64);\n             let index = counter >> level;\n             assert!(index << level == counter, \"a subtree of {} bytes starts at its own boundary, not chunk {counter}\", input.len());\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl hasher::Hooks for HasherHooks<'_>>::subtree_cv",
+      "return_type": "-> Option<CVBytes>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 284
+        },
+        "start": {
+          "column": 5,
+          "line": 269
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:277:9: replace <impl hasher::Hooks for HasherHooks<'_>>::subtree_cv -> Option<CVBytes> with None",
+    "package": "blake3-servil-core",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 283
+      },
+      "start": {
+        "column": 9,
+        "line": 277
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl hasher::Hooks for HasherHooks<'_>>::subtree_cv -> Option<CVBytes> with Some(Default::default())\n@@ -269,23 +269,17 @@\n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn subtree_cv(&self, input: &[u8], ahead: usize, counter: u64) -> Option<CVBytes> {\n         // After the first input, no subtree is the root: on SME2 the flat\n         // walk runs it down to its own chaining value, so one value goes\n         // on the stack and about one merge runs on the core between SME2\n         // kernels (about 0.2 us of other work between them puts the SME\n         // unit in its slow state: `sme2`'s documentation).\n-        #[cfg(blake3_sme2)]\n-        if self.pooled.is_none() && matches!(self.platform, Platform::SME2) && sme2::flat_takes(input.len()) {\n-            crate::counted(crate::Counted::Flat);\n-            // Safe: the SME2 platform is selected only where the CPU has it.\n-            return Some(unsafe { sme2::compress_subtree_flat_to_cv(input, ahead, self.domain.key(), counter, self.domain.flags()) });\n-        }\n-        None\n+        Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> [CVBytes; 2] {\n         if let Some(pool) = self.pooled.filter(|pool| input.len() >= pool.min_len) {\n             let level = crate::throughput::level_of(input.len() as u64);\n             let index = counter >> level;\n             assert!(index << level == counter, \"a subtree of {} bytes starts at its own boundary, not chunk {counter}\", input.len());\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl hasher::Hooks for HasherHooks<'_>>::subtree_cv",
+      "return_type": "-> Option<CVBytes>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 284
+        },
+        "start": {
+          "column": 5,
+          "line": 269
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:277:9: replace <impl hasher::Hooks for HasherHooks<'_>>::subtree_cv -> Option<CVBytes> with Some(Default::default())",
+    "package": "blake3-servil-core",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 283
+      },
+      "start": {
+        "column": 9,
+        "line": 277
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl hasher::Hooks for HasherHooks<'_>>::children -> [CVBytes; 2] with [Default::default(); 2]\n@@ -280,32 +280,17 @@\n             // Safe: the SME2 platform is selected only where the CPU has it.\n             return Some(unsafe { sme2::compress_subtree_flat_to_cv(input, ahead, self.domain.key(), counter, self.domain.flags()) });\n         }\n         None\n     }\n \n     #[inline(always)]\n     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> [CVBytes; 2] {\n-        if let Some(pool) = self.pooled.filter(|pool| input.len() >= pool.min_len) {\n-            let level = crate::throughput::level_of(input.len() as u64);\n-            let index = counter >> level;\n-            assert!(index << level == counter, \"a subtree of {} bytes starts at its own boundary, not chunk {counter}\", input.len());\n-            let halves = (pool.halves)(&TreeHasher::of_domain(*self.domain), level, index, input);\n-            return Cv::halves_bytes(halves, level, index);\n-        }\n-        let pair = if self.pooled.is_some() {\n-            // Pooled, the subtrees below take the lock one at a time, and\n-            // the pool's own never use SME2.\n-            let own = platform::Sme2Turn::take(self.chunk_platform, input.len() >= SME2_SIZED_LEN);\n-            compress_subtree_to_parent_node(input, ahead, self.domain.key(), counter, self.domain.flags(), own.platform())\n-        } else {\n-            compress_subtree_to_parent_node(input, ahead, self.domain.key(), counter, self.domain.flags(), self.platform)\n-        };\n-        [pair[..OUT_LEN].try_into().unwrap(), pair[OUT_LEN..].try_into().unwrap()]\n+        [Default::default(); 2] /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// A whole group or more is cut, on the caller's own kernels: not\n     /// pooled, and by kernels 4 to ROW lanes wide (the SME2 unit's are\n     /// wider, and its subtrees are its own: `subtree_cv`).\n     #[inline(always)]\n     fn cuts(&self, len: usize) -> bool {\n         self.pooled.is_none() && len >= STAGE_LEN && (4..=hasher::ROW).contains(&self.platform.simd_degree())\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl hasher::Hooks for HasherHooks<'_>>::children",
+      "return_type": "-> [CVBytes; 2]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 304
+        },
+        "start": {
+          "column": 5,
+          "line": 286
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:288:9: replace <impl hasher::Hooks for HasherHooks<'_>>::children -> [CVBytes; 2] with [Default::default(); 2]",
+    "package": "blake3-servil-core",
+    "replacement": "[Default::default(); 2]",
+    "span": {
+      "end": {
+        "column": 83,
+        "line": 303
+      },
+      "start": {
+        "column": 9,
+        "line": 288
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl hasher::Hooks for HasherHooks<'_>>::cut -> usize with 0\n@@ -308,19 +308,17 @@\n     /// wider, and its subtrees are its own: `subtree_cv`).\n     #[inline(always)]\n     fn cuts(&self, len: usize) -> bool {\n         self.pooled.is_none() && len >= STAGE_LEN && (4..=hasher::ROW).contains(&self.platform.simd_degree())\n     }\n \n     #[inline(always)]\n     fn cut(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [CVBytes; hasher::ROW]) -> usize {\n-        crate::counted(crate::Counted::Row);\n-        let kernels = crate::tree::PlatformKernels { key: self.domain.key(), flags: self.domain.flags(), platform: self.platform };\n-        crate::tree::wide(&kernels, input, ahead, counter, out)\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn parents(&self, children: &[CVBytes], out: &mut [CVBytes]) -> usize {\n         compress_parents_parallel(children.as_flattened(), self.domain.key(), self.domain.flags(), self.platform, out.as_flattened_mut())\n     }\n }\n \n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl hasher::Hooks for HasherHooks<'_>>::cut",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 319
+        },
+        "start": {
+          "column": 5,
+          "line": 314
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:316:9: replace <impl hasher::Hooks for HasherHooks<'_>>::cut -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 64,
+        "line": 318
+      },
+      "start": {
+        "column": 9,
+        "line": 316
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl hasher::Hooks for HasherHooks<'_>>::cut -> usize with 1\n@@ -308,19 +308,17 @@\n     /// wider, and its subtrees are its own: `subtree_cv`).\n     #[inline(always)]\n     fn cuts(&self, len: usize) -> bool {\n         self.pooled.is_none() && len >= STAGE_LEN && (4..=hasher::ROW).contains(&self.platform.simd_degree())\n     }\n \n     #[inline(always)]\n     fn cut(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [CVBytes; hasher::ROW]) -> usize {\n-        crate::counted(crate::Counted::Row);\n-        let kernels = crate::tree::PlatformKernels { key: self.domain.key(), flags: self.domain.flags(), platform: self.platform };\n-        crate::tree::wide(&kernels, input, ahead, counter, out)\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn parents(&self, children: &[CVBytes], out: &mut [CVBytes]) -> usize {\n         compress_parents_parallel(children.as_flattened(), self.domain.key(), self.domain.flags(), self.platform, out.as_flattened_mut())\n     }\n }\n \n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl hasher::Hooks for HasherHooks<'_>>::cut",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 319
+        },
+        "start": {
+          "column": 5,
+          "line": 314
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:316:9: replace <impl hasher::Hooks for HasherHooks<'_>>::cut -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 64,
+        "line": 318
+      },
+      "start": {
+        "column": 9,
+        "line": 316
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl hasher::Hooks for HasherHooks<'_>>::parents -> usize with 0\n@@ -315,17 +315,17 @@\n     fn cut(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [CVBytes; hasher::ROW]) -> usize {\n         crate::counted(crate::Counted::Row);\n         let kernels = crate::tree::PlatformKernels { key: self.domain.key(), flags: self.domain.flags(), platform: self.platform };\n         crate::tree::wide(&kernels, input, ahead, counter, out)\n     }\n \n     #[inline(always)]\n     fn parents(&self, children: &[CVBytes], out: &mut [CVBytes]) -> usize {\n-        compress_parents_parallel(children.as_flattened(), self.domain.key(), self.domain.flags(), self.platform, out.as_flattened_mut())\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// The Hasher's kernels: chunks, nodes, and parents on the chunk state's\n /// platform, the rest from `hooks`.\n type HasherKernels<'a> = hasher::Kernels<'a, Platform, HasherHooks<'a>>;\n \n /// A Hasher's kernels on its immutable domain and chunk state (see HasherHooks).\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl hasher::Hooks for HasherHooks<'_>>::parents",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 324
+        },
+        "start": {
+          "column": 5,
+          "line": 321
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:323:9: replace <impl hasher::Hooks for HasherHooks<'_>>::parents -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 138,
+        "line": 323
+      },
+      "start": {
+        "column": 9,
+        "line": 323
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace <impl hasher::Hooks for HasherHooks<'_>>::parents -> usize with 1\n@@ -315,17 +315,17 @@\n     fn cut(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [CVBytes; hasher::ROW]) -> usize {\n         crate::counted(crate::Counted::Row);\n         let kernels = crate::tree::PlatformKernels { key: self.domain.key(), flags: self.domain.flags(), platform: self.platform };\n         crate::tree::wide(&kernels, input, ahead, counter, out)\n     }\n \n     #[inline(always)]\n     fn parents(&self, children: &[CVBytes], out: &mut [CVBytes]) -> usize {\n-        compress_parents_parallel(children.as_flattened(), self.domain.key(), self.domain.flags(), self.platform, out.as_flattened_mut())\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// The Hasher's kernels: chunks, nodes, and parents on the chunk state's\n /// platform, the rest from `hooks`.\n type HasherKernels<'a> = hasher::Kernels<'a, Platform, HasherHooks<'a>>;\n \n /// A Hasher's kernels on its immutable domain and chunk state (see HasherHooks).\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "<impl hasher::Hooks for HasherHooks<'_>>::parents",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 324
+        },
+        "start": {
+          "column": 5,
+          "line": 321
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:323:9: replace <impl hasher::Hooks for HasherHooks<'_>>::parents -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 138,
+        "line": 323
+      },
+      "start": {
+        "column": 9,
+        "line": 323
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace kernels_on -> HasherKernels<'a> with Default::default()\n@@ -326,22 +326,17 @@\n \n /// The Hasher's kernels: chunks, nodes, and parents on the chunk state's\n /// platform, the rest from `hooks`.\n type HasherKernels<'a> = hasher::Kernels<'a, Platform, HasherHooks<'a>>;\n \n /// A Hasher's kernels on its immutable domain and chunk state (see HasherHooks).\n #[inline(always)]\n fn kernels_on<'a>(domain: &'a Domain, chunk_state: &ChunkState, platform: Platform, pooled: Option<&'a Pool<'a>>) -> HasherKernels<'a> {\n-    hasher::Kernels {\n-        key: domain.key(),\n-        flags: domain.flags(),\n-        platform: chunk_state.platform(),\n-        hooks: HasherHooks { domain, chunk_platform: chunk_state.platform(), platform, pooled },\n-    }\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n impl Hasher {\n     #[inline(always)]\n     pub(crate) fn from_core(core: HasherCore) -> Self {\n         // One literal, with nothing written after it: a Hasher made in a\n         // local and then written to (its first block zeroed) was copied\n         // to its caller, 16 KiB of it, once the core held the stack's rows\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "kernels_on",
+      "return_type": "-> HasherKernels<'a>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 340
+        },
+        "start": {
+          "column": 1,
+          "line": 331
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:334:5: replace kernels_on -> HasherKernels<'a> with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 339
+      },
+      "start": {
+        "column": 5,
+        "line": 334
+      }
+    }
+  }
+]

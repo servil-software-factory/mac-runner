@@ -1,0 +1,386 @@
+[
+  {
+    "diff": "--- src/platform.rs\n+++ replace prefetch_code with ()\n@@ -712,51 +712,17 @@\n /// Prefetch code from `start` to `end` into the L2 cache, a line (128\n /// bytes on Apple's cores) at a time. A call after other work otherwise\n /// fetches its kernel's lines from DRAM one miss after another: hash() of\n /// 8 KiB took 4.8 us so on an M4 Max, and 2.8 with this prefetch (job 971),\n /// where code already near costs it a few cycles a line.\n #[cfg(all(blake3_neon, feature = \"std\"))]\n #[inline]\n pub(crate) fn prefetch_code((start, end): (usize, usize)) {\n-    debug_assert!(start < end && end - start < 64 * 1024, \"a kernel's code\");\n-    // Four lines a step (past `end` by up to three: harmless).\n-    let mut line = start;\n-    #[cfg(test)]\n-    let mut steps = 0;\n-    while line < end {\n-        #[cfg(test)]\n-        {\n-            steps += 1;\n-            // A loop that never ends (a mutant's) fails here, at once, not by the clock.\n-            assert!(steps < 1 << 16, \"prefetch_code without end\");\n-        }\n-        // Sound: a prefetch never faults, whatever the address.\n-        unsafe {\n-            core::arch::asm!(\n-                \"prfm pldl2keep, [{0}]\",\n-                \"prfm pldl2keep, [{0}, #128]\",\n-                \"prfm pldl2keep, [{0}, #256]\",\n-                \"prfm pldl2keep, [{0}, #384]\",\n-                in(reg) line,\n-                options(nostack, readonly, preserves_flags),\n-            )\n-        };\n-        line += 512;\n-    }\n-    #[cfg(test)]\n-    let _ = PREFETCHED.try_with(|p| {\n-        // Recorded only while a counting test asks (test::prefetch_counts): the\n-        // other tests prefetch without end, as calls do.\n-        if let Some(p) = &mut *p.borrow_mut() {\n-            // A plan that never ends (a mutant's) fails here, not by taking every byte of memory.\n-            assert!(p.len() < 100_000, \"prefetch_code called without end\");\n-            p.push(((start, end), steps));\n-        }\n-    });\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, blake3_neon, feature = \"std\"))]\n std::thread_local! {\n     /// The tests' record of prefetch_code on this thread since they last\n     /// took it, while one asks (Some): each range, and the steps of four\n     /// lines it took. None, as in every other test, records nothing.\n     pub(crate) static PREFETCHED: core::cell::RefCell<Option<std::vec::Vec<((usize, usize), usize)>>> = const { core::cell::RefCell::new(None) };\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "prefetch_code",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 755
+        },
+        "start": {
+          "column": 1,
+          "line": 712
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:720:5: replace prefetch_code with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 8,
+        "line": 754
+      },
+      "start": {
+        "column": 5,
+        "line": 720
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_sme2.rs\n+++ replace flat_subtree_takes -> bool with true\n@@ -431,17 +431,17 @@\n }\n \n /// Whether [`compress_subtree_flat`] (which keeps `DEGREE` chaining values)\n /// takes an input of `len` bytes: a whole subtree of 256, 512, or 1024\n /// chunks, strictly larger than `DEGREE` so the flat walk performs at least\n /// one reduction layer.\n #[inline]\n pub fn flat_subtree_takes(len: usize) -> bool {\n-    flat_takes(len) && len > DEGREE * CHUNK_LEN\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /*\n  * A whole subtree of 256 to 1024 chunks, bottom up, on SME2 alone: what\n  * the walk (`tree::wide`) returns for it, its DEGREE chaining values\n  * (each covering n / DEGREE chunks). The chunks go to the kernel with an\n  * integer lane in groups of 18 (8 of them per 144 chunks), the rest to the\n  * plain kernel in groups of 16, with nothing left over (n is a multiple of\n",
+    "file": "src/ffi_sme2.rs",
+    "function": {
+      "function_name": "flat_subtree_takes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 440
+        },
+        "start": {
+          "column": 1,
+          "line": 433
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_sme2.rs:439:5: replace flat_subtree_takes -> bool with true",
+    "package": "blake3-servil-core",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 439
+      },
+      "start": {
+        "column": 5,
+        "line": 439
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_sme2.rs\n+++ replace flat_subtree_takes -> bool with false\n@@ -431,17 +431,17 @@\n }\n \n /// Whether [`compress_subtree_flat`] (which keeps `DEGREE` chaining values)\n /// takes an input of `len` bytes: a whole subtree of 256, 512, or 1024\n /// chunks, strictly larger than `DEGREE` so the flat walk performs at least\n /// one reduction layer.\n #[inline]\n pub fn flat_subtree_takes(len: usize) -> bool {\n-    flat_takes(len) && len > DEGREE * CHUNK_LEN\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /*\n  * A whole subtree of 256 to 1024 chunks, bottom up, on SME2 alone: what\n  * the walk (`tree::wide`) returns for it, its DEGREE chaining values\n  * (each covering n / DEGREE chunks). The chunks go to the kernel with an\n  * integer lane in groups of 18 (8 of them per 144 chunks), the rest to the\n  * plain kernel in groups of 16, with nothing left over (n is a multiple of\n",
+    "file": "src/ffi_sme2.rs",
+    "function": {
+      "function_name": "flat_subtree_takes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 440
+        },
+        "start": {
+          "column": 1,
+          "line": 433
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_sme2.rs:439:5: replace flat_subtree_takes -> bool with false",
+    "package": "blake3-servil-core",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 439
+      },
+      "start": {
+        "column": 5,
+        "line": 439
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_sme2.rs\n+++ replace && with || in flat_subtree_takes\n@@ -431,17 +431,17 @@\n }\n \n /// Whether [`compress_subtree_flat`] (which keeps `DEGREE` chaining values)\n /// takes an input of `len` bytes: a whole subtree of 256, 512, or 1024\n /// chunks, strictly larger than `DEGREE` so the flat walk performs at least\n /// one reduction layer.\n #[inline]\n pub fn flat_subtree_takes(len: usize) -> bool {\n-    flat_takes(len) && len > DEGREE * CHUNK_LEN\n+    flat_takes(len) || /* ~ changed by cargo-mutants ~ */ len > DEGREE * CHUNK_LEN\n }\n \n /*\n  * A whole subtree of 256 to 1024 chunks, bottom up, on SME2 alone: what\n  * the walk (`tree::wide`) returns for it, its DEGREE chaining values\n  * (each covering n / DEGREE chunks). The chunks go to the kernel with an\n  * integer lane in groups of 18 (8 of them per 144 chunks), the rest to the\n  * plain kernel in groups of 16, with nothing left over (n is a multiple of\n",
+    "file": "src/ffi_sme2.rs",
+    "function": {
+      "function_name": "flat_subtree_takes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 440
+        },
+        "start": {
+          "column": 1,
+          "line": 433
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_sme2.rs:439:21: replace && with || in flat_subtree_takes",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 439
+      },
+      "start": {
+        "column": 21,
+        "line": 439
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_sme2.rs\n+++ replace > with >= in flat_subtree_takes\n@@ -431,17 +431,17 @@\n }\n \n /// Whether [`compress_subtree_flat`] (which keeps `DEGREE` chaining values)\n /// takes an input of `len` bytes: a whole subtree of 256, 512, or 1024\n /// chunks, strictly larger than `DEGREE` so the flat walk performs at least\n /// one reduction layer.\n #[inline]\n pub fn flat_subtree_takes(len: usize) -> bool {\n-    flat_takes(len) && len > DEGREE * CHUNK_LEN\n+    flat_takes(len) && len >= /* ~ changed by cargo-mutants ~ */ DEGREE * CHUNK_LEN\n }\n \n /*\n  * A whole subtree of 256 to 1024 chunks, bottom up, on SME2 alone: what\n  * the walk (`tree::wide`) returns for it, its DEGREE chaining values\n  * (each covering n / DEGREE chunks). The chunks go to the kernel with an\n  * integer lane in groups of 18 (8 of them per 144 chunks), the rest to the\n  * plain kernel in groups of 16, with nothing left over (n is a multiple of\n",
+    "file": "src/ffi_sme2.rs",
+    "function": {
+      "function_name": "flat_subtree_takes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 440
+        },
+        "start": {
+          "column": 1,
+          "line": 433
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_sme2.rs:439:28: replace > with >= in flat_subtree_takes",
+    "package": "blake3-servil-core",
+    "replacement": ">=",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 439
+      },
+      "start": {
+        "column": 28,
+        "line": 439
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_sme2.rs\n+++ replace * with + in flat_subtree_takes\n@@ -431,17 +431,17 @@\n }\n \n /// Whether [`compress_subtree_flat`] (which keeps `DEGREE` chaining values)\n /// takes an input of `len` bytes: a whole subtree of 256, 512, or 1024\n /// chunks, strictly larger than `DEGREE` so the flat walk performs at least\n /// one reduction layer.\n #[inline]\n pub fn flat_subtree_takes(len: usize) -> bool {\n-    flat_takes(len) && len > DEGREE * CHUNK_LEN\n+    flat_takes(len) && len > DEGREE + /* ~ changed by cargo-mutants ~ */ CHUNK_LEN\n }\n \n /*\n  * A whole subtree of 256 to 1024 chunks, bottom up, on SME2 alone: what\n  * the walk (`tree::wide`) returns for it, its DEGREE chaining values\n  * (each covering n / DEGREE chunks). The chunks go to the kernel with an\n  * integer lane in groups of 18 (8 of them per 144 chunks), the rest to the\n  * plain kernel in groups of 16, with nothing left over (n is a multiple of\n",
+    "file": "src/ffi_sme2.rs",
+    "function": {
+      "function_name": "flat_subtree_takes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 440
+        },
+        "start": {
+          "column": 1,
+          "line": 433
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_sme2.rs:439:37: replace * with + in flat_subtree_takes",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 38,
+        "line": 439
+      },
+      "start": {
+        "column": 37,
+        "line": 439
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace wide -> usize with 0\n@@ -50,37 +50,17 @@\n     (1usize << (usize::BITS - 1 - chunks.leading_zeros())) * CHUNK_LEN\n }\n \n /// The chaining values of a cut through the subtree over `input` (at least\n /// one byte), its first chunk numbered `counter`, into `out[..n]`; returns\n /// n, between 1 and degree. `out` holds at least that many.\n /// `ahead` bytes of the caller's input follow `input`.\n pub fn wide<K: Kernels>(k: &K, input: &[u8], ahead: usize, counter: u64, out: &mut [Cv]) -> usize {\n-    let degree = k.degree();\n-    if input.len() <= degree * CHUNK_LEN {\n-        return k.chunks(input, counter, out);\n-    }\n-    if let Some(n) = k.subtree(input, ahead, counter, out) {\n-        assert!((1..=degree).contains(&n), \"a subtree cut returns 1 to degree values\");\n-        if input.len().is_power_of_two() {\n-            assert_eq!(n, degree, \"a whole subtree cut fills degree values\");\n-        }\n-        return n;\n-    }\n-    let l = left_len(input.len());\n-    let (a, b) = input.split_at(l);\n-    // More than degree chunks, so the whole power-of-two left half has at\n-    // least degree chunks and its canonical cut fills all `degree` slots.\n-    let mut cvs = [[0u8; OUT_LEN]; 2 * MAX];\n-    let (lo, hi) = cvs.split_at_mut(degree);\n-    let ln = wide(k, a, b.len() + ahead, counter, lo);\n-    assert_eq!(ln, degree, \"a whole left subtree cut fills degree values\");\n-    let rn = wide(k, b, ahead, counter + (l / CHUNK_LEN) as u64, hi);\n-    k.parents(&cvs[..ln + rn], out)\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The chaining values of the root's two children, for `input` of more\n /// than one chunk, its first chunk numbered `counter`: the walk's values,\n /// condensed a layer of parents at a time. `cvs` holds at least\n /// degree values and `next` half that. `ahead` bytes of the\n /// caller's input follow `input`.\n pub fn children<K: Kernels>(k: &K, input: &[u8], ahead: usize, counter: u64, cvs: &mut [Cv], next: &mut [Cv]) -> [Cv; 2] {\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "wide",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 79
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/tree.rs:58:5: replace wide -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 36,
+        "line": 78
+      },
+      "start": {
+        "column": 5,
+        "line": 58
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace wide -> usize with 1\n@@ -50,37 +50,17 @@\n     (1usize << (usize::BITS - 1 - chunks.leading_zeros())) * CHUNK_LEN\n }\n \n /// The chaining values of a cut through the subtree over `input` (at least\n /// one byte), its first chunk numbered `counter`, into `out[..n]`; returns\n /// n, between 1 and degree. `out` holds at least that many.\n /// `ahead` bytes of the caller's input follow `input`.\n pub fn wide<K: Kernels>(k: &K, input: &[u8], ahead: usize, counter: u64, out: &mut [Cv]) -> usize {\n-    let degree = k.degree();\n-    if input.len() <= degree * CHUNK_LEN {\n-        return k.chunks(input, counter, out);\n-    }\n-    if let Some(n) = k.subtree(input, ahead, counter, out) {\n-        assert!((1..=degree).contains(&n), \"a subtree cut returns 1 to degree values\");\n-        if input.len().is_power_of_two() {\n-            assert_eq!(n, degree, \"a whole subtree cut fills degree values\");\n-        }\n-        return n;\n-    }\n-    let l = left_len(input.len());\n-    let (a, b) = input.split_at(l);\n-    // More than degree chunks, so the whole power-of-two left half has at\n-    // least degree chunks and its canonical cut fills all `degree` slots.\n-    let mut cvs = [[0u8; OUT_LEN]; 2 * MAX];\n-    let (lo, hi) = cvs.split_at_mut(degree);\n-    let ln = wide(k, a, b.len() + ahead, counter, lo);\n-    assert_eq!(ln, degree, \"a whole left subtree cut fills degree values\");\n-    let rn = wide(k, b, ahead, counter + (l / CHUNK_LEN) as u64, hi);\n-    k.parents(&cvs[..ln + rn], out)\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The chaining values of the root's two children, for `input` of more\n /// than one chunk, its first chunk numbered `counter`: the walk's values,\n /// condensed a layer of parents at a time. `cvs` holds at least\n /// degree values and `next` half that. `ahead` bytes of the\n /// caller's input follow `input`.\n pub fn children<K: Kernels>(k: &K, input: &[u8], ahead: usize, counter: u64, cvs: &mut [Cv], next: &mut [Cv]) -> [Cv; 2] {\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "wide",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 79
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/tree.rs:58:5: replace wide -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 36,
+        "line": 78
+      },
+      "start": {
+        "column": 5,
+        "line": 58
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace <= with > in wide\n@@ -51,17 +51,17 @@\n }\n \n /// The chaining values of a cut through the subtree over `input` (at least\n /// one byte), its first chunk numbered `counter`, into `out[..n]`; returns\n /// n, between 1 and degree. `out` holds at least that many.\n /// `ahead` bytes of the caller's input follow `input`.\n pub fn wide<K: Kernels>(k: &K, input: &[u8], ahead: usize, counter: u64, out: &mut [Cv]) -> usize {\n     let degree = k.degree();\n-    if input.len() <= degree * CHUNK_LEN {\n+    if input.len() > /* ~ changed by cargo-mutants ~ */ degree * CHUNK_LEN {\n         return k.chunks(input, counter, out);\n     }\n     if let Some(n) = k.subtree(input, ahead, counter, out) {\n         assert!((1..=degree).contains(&n), \"a subtree cut returns 1 to degree values\");\n         if input.len().is_power_of_two() {\n             assert_eq!(n, degree, \"a whole subtree cut fills degree values\");\n         }\n         return n;\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "wide",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 79
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/tree.rs:59:20: replace <= with > in wide",
+    "package": "blake3-servil-core",
+    "replacement": ">",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 59
+      },
+      "start": {
+        "column": 20,
+        "line": 59
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace * with + in wide\n@@ -51,17 +51,17 @@\n }\n \n /// The chaining values of a cut through the subtree over `input` (at least\n /// one byte), its first chunk numbered `counter`, into `out[..n]`; returns\n /// n, between 1 and degree. `out` holds at least that many.\n /// `ahead` bytes of the caller's input follow `input`.\n pub fn wide<K: Kernels>(k: &K, input: &[u8], ahead: usize, counter: u64, out: &mut [Cv]) -> usize {\n     let degree = k.degree();\n-    if input.len() <= degree * CHUNK_LEN {\n+    if input.len() <= degree + /* ~ changed by cargo-mutants ~ */ CHUNK_LEN {\n         return k.chunks(input, counter, out);\n     }\n     if let Some(n) = k.subtree(input, ahead, counter, out) {\n         assert!((1..=degree).contains(&n), \"a subtree cut returns 1 to degree values\");\n         if input.len().is_power_of_two() {\n             assert_eq!(n, degree, \"a whole subtree cut fills degree values\");\n         }\n         return n;\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "wide",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 79
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/tree.rs:59:30: replace * with + in wide",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 59
+      },
+      "start": {
+        "column": 30,
+        "line": 59
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace * with + in wide\n@@ -65,17 +65,17 @@\n             assert_eq!(n, degree, \"a whole subtree cut fills degree values\");\n         }\n         return n;\n     }\n     let l = left_len(input.len());\n     let (a, b) = input.split_at(l);\n     // More than degree chunks, so the whole power-of-two left half has at\n     // least degree chunks and its canonical cut fills all `degree` slots.\n-    let mut cvs = [[0u8; OUT_LEN]; 2 * MAX];\n+    let mut cvs = [[0u8; OUT_LEN]; 2 + /* ~ changed by cargo-mutants ~ */ MAX];\n     let (lo, hi) = cvs.split_at_mut(degree);\n     let ln = wide(k, a, b.len() + ahead, counter, lo);\n     assert_eq!(ln, degree, \"a whole left subtree cut fills degree values\");\n     let rn = wide(k, b, ahead, counter + (l / CHUNK_LEN) as u64, hi);\n     k.parents(&cvs[..ln + rn], out)\n }\n \n /// The chaining values of the root's two children, for `input` of more\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "wide",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 79
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/tree.rs:73:38: replace * with + in wide",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 39,
+        "line": 73
+      },
+      "start": {
+        "column": 38,
+        "line": 73
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace <impl Kernels for PlatformKernels<'_>>::subtree -> Option<usize> with Some(0)\n@@ -158,23 +158,17 @@\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn subtree(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [Cv]) -> Option<usize> {\n         // Whole subtrees of 256 KiB to 1 MiB (> DEGREE chunks) on SME2:\n         // the flat walk keeps DEGREE chaining values (see\n         // sme2::compress_subtree_flat).\n-        #[cfg(blake3_sme2)]\n-        if matches!(self.platform, Platform::SME2) && crate::sme2::flat_subtree_takes(input.len()) {\n-            // Safe: the SME2 platform is selected only where the CPU has it,\n-            // and `out` holds simd_degree() values, which is sme2::DEGREE.\n-            return Some(unsafe { crate::sme2::compress_subtree_flat(input, ahead, self.key, counter, self.flags, out.as_flattened_mut()) });\n-        }\n-        None\n+        Some(0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> Option<[Cv; 2]> {\n         // Whole subtrees of 32 KiB to 1 MiB on SME2: the flat walk down to\n         // the two children, SME2 alone (see sme2::compress_subtree_flat_to_parent).\n         #[cfg(blake3_sme2)]\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "<impl Kernels for PlatformKernels<'_>>::subtree",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 173
+        },
+        "start": {
+          "column": 5,
+          "line": 160
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/tree.rs:166:9: replace <impl Kernels for PlatformKernels<'_>>::subtree -> Option<usize> with Some(0)",
+    "package": "blake3-servil-core",
+    "replacement": "Some(0)",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 172
+      },
+      "start": {
+        "column": 9,
+        "line": 166
+      }
+    }
+  }
+]

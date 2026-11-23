@@ -1,0 +1,85 @@
+--- src/each.rs
++++ replace hash_each_middle with ()
+@@ -772,81 +772,17 @@
+     key: &CVWords,
+     flags: u8,
+     items: &[I],
+     out: &mut [[u8; OUT_LEN]],
+     platform: Platform,
+     by_blocks: bool,
+     alone: &impl Fn(&[u8]) -> Hash,
+ ) {
+-    let Shared { messages, cvs } = shared;
+-    messages.clear();
+-    let mut slots = 0;
+-    let mut most_full = 0;
+-    for (i, item) in items.iter().map(Item::bytes).enumerate() {
+-        let chunks = item.len().div_ceil(CHUNK_LEN);
+-        if chunks <= 1 && by_blocks {
+-            continue;
+-        }
+-        if chunks <= 1 || chunks >= ALONE_CHUNKS {
+-            out[i] = *alone(item).as_bytes();
+-        } else {
+-            most_full = most_full.max(item.len() / CHUNK_LEN);
+-            messages.push((i, slots));
+-            slots += chunks;
+-        }
+-    }
+-    cvs.clear();
+-    cvs.resize(slots, [0u8; OUT_LEN]);
+-    // Acquire one best-effort SME2 turn across the shared full-chunk rounds
+-    // when at least one full SME2 group (16 messages) participates.
+-    let turn = crate::platform::Sme2Turn::take(platform, messages.len() >= 16);
+-    let round_platform = turn.platform();
+-    for k in 0..most_full {
+-        crate::counted(crate::Counted::EachRound);
+-        // A round's lanes go to the kernels LANES_AT_ONCE at a time,
+-        // their chunks and places on the stack.
+-        let mut refs = crate::stack_vec::StackVec::<&[u8; CHUNK_LEN], LANES_AT_ONCE>::new();
+-        let mut owners = crate::stack_vec::StackVec::<usize, LANES_AT_ONCE>::new();
+-        let mut flush = |refs: &mut crate::stack_vec::StackVec<&[u8; CHUNK_LEN], LANES_AT_ONCE>,
+-                         owners: &mut crate::stack_vec::StackVec<usize, LANES_AT_ONCE>| {
+-            let mut lane_out = [0u8; LANES_AT_ONCE * OUT_LEN];
+-            let lanes = &mut lane_out[..refs.len() * OUT_LEN];
+-            round_platform.hash_many(refs, key, k as u64, IncrementCounter::No, flags, CHUNK_START, CHUNK_END, lanes);
+-            for (j, &slot) in owners.iter().enumerate() {
+-                cvs[slot].copy_from_slice(&lanes[j * OUT_LEN..(j + 1) * OUT_LEN]);
+-            }
+-            refs.clear();
+-            owners.clear();
+-        };
+-        for &(i, at) in messages.iter() {
+-            if let Some(chunk) = items[i].bytes().get(k * CHUNK_LEN..(k + 1) * CHUNK_LEN) {
+-                refs.push(chunk.try_into().unwrap());
+-                owners.push(at + k);
+-                if refs.is_full() {
+-                    flush(&mut refs, &mut owners);
+-                }
+-            }
+-        }
+-        if !refs.is_empty() {
+-            flush(&mut refs, &mut owners);
+-        }
+-    }
+-    drop(turn);
+-    for &(i, at) in messages.iter() {
+-        let item = items[i].bytes();
+-        let chunks = item.len().div_ceil(CHUNK_LEN);
+-        let full = item.len() / CHUNK_LEN;
+-        if full < chunks {
+-            cvs[at + full] = ChunkState::new(key, full as u64, flags, platform).update(&item[full * CHUNK_LEN..]).output().chaining_value();
+-        }
+-        out[i] = *root(&cvs[at..at + chunks], key, flags, platform).as_bytes();
+-    }
+-    messages.clear();
+-    cvs.clear();
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The lanes of one call to the kernels within a round of [`hash_each_on`].
+ const LANES_AT_ONCE: usize = TABLE;
+ 
+ /// What [`hash_each_on`] keeps on a thread between calls, for a
+ /// collection's messages of 2 to ALONE_CHUNKS - 1 chunks: each one's index
+ /// and where its chunk values start (16 bytes a message), and the chunk
