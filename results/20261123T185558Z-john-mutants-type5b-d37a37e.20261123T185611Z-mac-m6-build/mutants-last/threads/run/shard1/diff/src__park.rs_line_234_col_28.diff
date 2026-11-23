@@ -1,0 +1,21 @@
+--- src/park.rs
++++ replace - with + in Park::pay_owed
+@@ -226,17 +226,17 @@
+     pub(crate) fn pay_owed(&self) -> usize {
+         let mut made = 0;
+         while made < self.fanout {
+             let cur = self.owed.load(Ordering::SeqCst);
+             let count = cur & OWED_COUNT_MASK;
+             if count == 0 {
+                 break;
+             }
+-            let next = cur - 1;
++            let next = cur + /* ~ changed by cargo-mutants ~ */ 1;
+             if self.owed.compare_exchange(cur, next, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+                 continue;
+             }
+             if !self.wake_one() {
+                 // Retire only obsolete debt from the exact generation we
+                 // decremented: any concurrent publisher bumps the upper 32-bit
+                 // generation, preventing ABA from wiping fresh fan-out debt.
+                 let cleared = next & !OWED_COUNT_MASK;

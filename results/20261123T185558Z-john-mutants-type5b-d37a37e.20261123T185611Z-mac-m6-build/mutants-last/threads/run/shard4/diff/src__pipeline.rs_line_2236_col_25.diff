@@ -1,0 +1,27 @@
+--- src/pipeline.rs
++++ delete match arm SlotKind::WaitBatch{..} in <impl Drop for Pipeline<T, B>>::drop::<impl Drop for DrainPending<'_, T, B>>::drop
+@@ -2228,23 +2228,17 @@
+                         SlotKind::WaitSingle { has_owner: true, .. } | SlotKind::WaitMulti { has_owner: true } => {
+                             let ptr = self.0.owners.slot(s);
+                             let _rest = DrainPending(&mut *self.0);
+                             // Sound: a slot waiting with `has_owner` holds an owner no
+                             // event took.
+                             unsafe { (*ptr).assume_init_drop() };
+                             core::mem::forget(_rest);
+                         }
+-                        SlotKind::WaitBatch { .. } => {
+-                            let ptr = self.0.batches.slot(s);
+-                            let _rest = DrainPending(&mut *self.0);
+-                            // Sound: a WaitBatch slot holds its batch and digests.
+-                            unsafe { (*ptr).assume_init_drop() };
+-                            core::mem::forget(_rest);
+-                        }
++                         /* ~ changed by cargo-mutants ~ */
+                         _ => {}
+                     }
+                 }
+             }
+         }
+         // Guards run in LIFO order (`_drain` then `_release`), so even if
+         // dropping the saved waker or one owner unwinds, every remaining owner
+         // and batch still drops and the storage returns to FREE_STORAGES.

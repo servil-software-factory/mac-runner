@@ -1,0 +1,23 @@
+--- src/pipeline.rs
++++ replace RawSlots<T>::slot -> *mut MaybeUninit<T> with Default::default()
+@@ -146,19 +146,17 @@
+     fn new(len: usize) -> Self {
+         let v: Vec<UnsafeCell<MaybeUninit<T>>> = (0..len).map(|_| UnsafeCell::new(MaybeUninit::uninit())).collect();
+         let ptr = Box::into_raw(v.into_boxed_slice()) as *mut UnsafeCell<MaybeUninit<T>>;
+         RawSlots { ptr, len }
+     }
+ 
+     #[inline(always)]
+     fn slot(&self, index: usize) -> *mut MaybeUninit<T> {
+-        debug_assert!(index < self.len);
+-        // Sound: `index < self.len`, within the owned allocation.
+-        unsafe { (*self.ptr.add(index)).get() }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<T> Drop for RawSlots<T> {
+     fn drop(&mut self) {
+         // Sound: `ptr` and `len` came from `Box::into_raw(boxed_slice)`; all
+         // initialized elements have already been dropped (or leaked if the
+         // Pipeline was forgotten), and `MaybeUninit<T>` has no drop glue.
