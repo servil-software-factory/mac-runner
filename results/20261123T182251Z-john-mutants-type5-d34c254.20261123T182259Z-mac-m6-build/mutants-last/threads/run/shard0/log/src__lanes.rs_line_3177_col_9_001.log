@@ -1,0 +1,90 @@
+
+*** src/lanes.rs:3177:9: replace sources::try_job_source -> Option<&'static Source> with Some(Box::leak(Box::new(Default::default())))
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace sources::try_job_source -> Option<&'static Source> with Some(Box::leak(Box::new(Default::default())))
+@@ -3169,25 +3169,17 @@
+     /// Whether this thread's job-source TLS key is still live (false only
+     /// during thread-local destruction after `MINE` has been destroyed).
+     pub(crate) fn job_source_available() -> bool {
+         MINE.try_with(|_| ()).is_ok()
+     }
+ 
+     /// This thread's source for its one-shot jobs, or `None` during TLS teardown.
+     pub(crate) fn try_job_source() -> Option<&'static Source> {
+-        MINE.try_with(|mine| {
+-            mine.get_or_init(|| {
+-                let source = FREE_JOBS.lock().unwrap().pop().unwrap_or_else(|| Box::leak(Box::new(Source::new())));
+-                source.finish.own();
+-                Held(source)
+-            })
+-            .0
+-        })
+-        .ok()
++        Some(Box::leak(Box::new(Default::default()))) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// This thread's source for its one-shot jobs.
+     pub(crate) fn job_source() -> &'static Source {
+         try_job_source().expect("job_source called after TLS destruction")
+     }
+ 
+     pub(crate) fn opened() {
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `sources::Source: Default` is not satisfied
+    --> src/lanes.rs:3177:33
+     |
+3177 |         Some(Box::leak(Box::new(Default::default()))) /* ~ changed by cargo-mutants ~ */
+     |                                 ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `Default` is not implemented for `sources::Source`
+    --> src/lanes.rs:2897:5
+     |
+2897 |     pub(crate) struct Source {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `lanes::sources::Source: Default` is not satisfied
+    --> src/lanes.rs:3177:33
+     |
+3177 |         Some(Box::leak(Box::new(Default::default()))) /* ~ changed by cargo-mutants ~ */
+     |                                 ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `Default` is not implemented for `lanes::sources::Source`
+    --> src/lanes.rs:2897:5
+     |
+2897 |     pub(crate) struct Source {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+warning: unused dependency `cc`
+  --> Cargo.toml:27:1
+   |
+27 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.10.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

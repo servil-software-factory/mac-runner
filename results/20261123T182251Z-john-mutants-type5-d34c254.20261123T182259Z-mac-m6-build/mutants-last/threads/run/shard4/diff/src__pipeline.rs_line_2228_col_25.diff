@@ -1,0 +1,28 @@
+--- src/pipeline.rs
++++ delete match arm SlotKind::WaitSingle{has_owner:true, ..} | SlotKind::WaitMulti{has_owner:true} in <impl Drop for Pipeline<T, B>>::drop::<impl Drop for DrainPending<'_, T, B>>::drop
+@@ -2220,24 +2220,17 @@
+             }
+         }
+         struct DrainPending<'a, T, B>(&'a mut Pipeline<T, B>);
+         impl<T, B> Drop for DrainPending<'_, T, B> {
+             fn drop(&mut self) {
+                 while let Some(s_idx) = self.0.end_queue.pop_front() {
+                     let s = s_idx as usize;
+                     match core::mem::replace(&mut self.0.slots[s].kind, SlotKind::Free) {
+-                        SlotKind::WaitSingle { has_owner: true, .. } | SlotKind::WaitMulti { has_owner: true } => {
+-                            let ptr = self.0.owners.slot(s);
+-                            let _rest = DrainPending(&mut *self.0);
+-                            // Sound: a slot waiting with `has_owner` holds an owner no
+-                            // event took.
+-                            unsafe { (*ptr).assume_init_drop() };
+-                            core::mem::forget(_rest);
+-                        }
++                         /* ~ changed by cargo-mutants ~ */
+                         SlotKind::WaitBatch { .. } => {
+                             let ptr = self.0.batches.slot(s);
+                             let _rest = DrainPending(&mut *self.0);
+                             // Sound: a WaitBatch slot holds its batch and digests.
+                             unsafe { (*ptr).assume_init_drop() };
+                             core::mem::forget(_rest);
+                         }
+                         _ => {}

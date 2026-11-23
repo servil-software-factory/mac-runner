@@ -1,0 +1,27 @@
+--- src/lanes.rs
++++ replace spare_pool -> Option<(&'static Pool, Caller<'static>)> with None
+@@ -298,23 +298,17 @@
+ fn tree_threads(len: usize, available: usize, degree: usize) -> usize {
+     if cfg!(all(target_arch = "x86_64", target_os = "linux")) && degree >= 16 { len.div_ceil(MAX_PIECE_LEN).max(2).min(available) } else { available }
+ }
+ 
+ fn spare_pool() -> Option<(&'static Pool, Caller<'static>)> {
+     // During thread-local teardown, if this thread's pool scratch or job source
+     // TLS key is already destroyed, decline the pool so callers fall back
+     // cleanly to their serial paths instead of panicking inside a destructor.
+-    if SCRATCH.try_with(|_| ()).is_err() || !sources::job_source_available() {
+-        return None;
+-    }
+-    let pool = pool();
+-    let callers = pool.callers.fetch_add(1, Ordering::SeqCst) + 1;
+-    let caller = Caller(&pool.callers);
+-    (callers < pool.threads).then_some((pool, caller))
++    None /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// A call's cut and the chaining values its pieces produce, on the
+ /// calling thread, kept between calls: a job's pieces are read, and its
+ /// chaining values written, by the workers while the call runs, and the
+ /// call returns only once every piece is done, so the storage outlives
+ /// every access. The first call on a thread, or the first longer than
+ /// the storage holds, grows it; calls after that allocate nothing (#325:

@@ -1,0 +1,31 @@
+--- src/pipeline.rs
++++ replace <impl Drop for Ring<X>>::drop with ()
+@@ -110,27 +110,17 @@
+         Some(item)
+     }
+ }
+ 
+ impl<X> Drop for Ring<X> {
+     fn drop(&mut self) {
+         // Recursive drop guard ensures remaining initialized elements still
+         // drop if dropping an earlier element unwinds.
+-        struct Rest<'a, X>(&'a mut Ring<X>);
+-        impl<X> Drop for Rest<'_, X> {
+-            fn drop(&mut self) {
+-                while let Some(item) = self.0.pop_front() {
+-                    let _rest = Rest(&mut *self.0);
+-                    drop(item);
+-                    core::mem::forget(_rest);
+-                }
+-            }
+-        }
+-        let _ = Rest(self);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Move-insensitive heap array of uninitialized interior-mutable slots
+ /// (matching `Rooms::backing`): held by raw pointer rather than `Box<[...]>`,
+ /// so moving `Pipeline` by value never retags pointers derived from inline
+ /// values stored inside the array. The caller drops every initialized element
+ /// before dropping `RawSlots`; `Drop` frees the backing allocation itself.

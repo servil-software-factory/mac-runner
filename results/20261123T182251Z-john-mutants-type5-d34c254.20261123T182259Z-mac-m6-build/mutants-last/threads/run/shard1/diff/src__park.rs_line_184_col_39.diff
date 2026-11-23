@@ -1,0 +1,21 @@
+--- src/park.rs
++++ replace & with | in Park::wake_for
+@@ -176,17 +176,17 @@
+         let parked = self.parked_count();
+         // Nobody parked, or enough awake: nothing to wake.
+         let (now, later) = split(wanted.saturating_sub(workers - parked).min(parked), self.fanout);
+         if later > 0 {
+             let add = later.min(u32::MAX as usize) as u64;
+             loop {
+                 let cur = self.owed.load(Ordering::SeqCst);
+                 let next_gen = (cur >> 32).wrapping_add(1);
+-                let next_count = (cur & OWED_COUNT_MASK).saturating_add(add).min(OWED_COUNT_MASK);
++                let next_count = (cur | /* ~ changed by cargo-mutants ~ */ OWED_COUNT_MASK).saturating_add(add).min(OWED_COUNT_MASK);
+                 if self.owed.compare_exchange(cur, (next_gen << 32) | next_count, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                     break;
+                 }
+             }
+         }
+         (0..now).take_while(|_| self.wake_one()).count()
+     }
+ 
