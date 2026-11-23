@@ -1,0 +1,514 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for Ring<X>>::drop with ()\n@@ -110,27 +110,17 @@\n         Some(item)\n     }\n }\n \n impl<X> Drop for Ring<X> {\n     fn drop(&mut self) {\n         // Recursive drop guard ensures remaining initialized elements still\n         // drop if dropping an earlier element unwinds.\n-        struct Rest<'a, X>(&'a mut Ring<X>);\n-        impl<X> Drop for Rest<'_, X> {\n-            fn drop(&mut self) {\n-                while let Some(item) = self.0.pop_front() {\n-                    let _rest = Rest(&mut *self.0);\n-                    drop(item);\n-                    core::mem::forget(_rest);\n-                }\n-            }\n-        }\n-        let _ = Rest(self);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Move-insensitive heap array of uninitialized interior-mutable slots\n /// (matching `Rooms::backing`): held by raw pointer rather than `Box<[...]>`,\n /// so moving `Pipeline` by value never retags pointers derived from inline\n /// values stored inside the array. The caller drops every initialized element\n /// before dropping `RawSlots`; `Drop` frees the backing allocation itself.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Ring<X>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 129
+        },
+        "start": {
+          "column": 5,
+          "line": 115
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:118:9: replace <impl Drop for Ring<X>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 128
+      },
+      "start": {
+        "column": 9,
+        "line": 118
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for Ring<X>>::drop::<impl Drop for Rest<'_, X>>::drop with ()\n@@ -113,21 +113,17 @@\n \n impl<X> Drop for Ring<X> {\n     fn drop(&mut self) {\n         // Recursive drop guard ensures remaining initialized elements still\n         // drop if dropping an earlier element unwinds.\n         struct Rest<'a, X>(&'a mut Ring<X>);\n         impl<X> Drop for Rest<'_, X> {\n             fn drop(&mut self) {\n-                while let Some(item) = self.0.pop_front() {\n-                    let _rest = Rest(&mut *self.0);\n-                    drop(item);\n-                    core::mem::forget(_rest);\n-                }\n+                () /* ~ changed by cargo-mutants ~ */\n             }\n         }\n         let _ = Rest(self);\n     }\n }\n \n /// Move-insensitive heap array of uninitialized interior-mutable slots\n /// (matching `Rooms::backing`): held by raw pointer rather than `Box<[...]>`,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Ring<X>>::drop::<impl Drop for Rest<'_, X>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 14,
+          "line": 126
+        },
+        "start": {
+          "column": 13,
+          "line": 120
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:121:17: replace <impl Drop for Ring<X>>::drop::<impl Drop for Rest<'_, X>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 18,
+        "line": 125
+      },
+      "start": {
+        "column": 17,
+        "line": 121
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace RawSlots<T>::slot -> *mut MaybeUninit<T> with Default::default()\n@@ -146,19 +146,17 @@\n     fn new(len: usize) -> Self {\n         let v: Vec<UnsafeCell<MaybeUninit<T>>> = (0..len).map(|_| UnsafeCell::new(MaybeUninit::uninit())).collect();\n         let ptr = Box::into_raw(v.into_boxed_slice()) as *mut UnsafeCell<MaybeUninit<T>>;\n         RawSlots { ptr, len }\n     }\n \n     #[inline(always)]\n     fn slot(&self, index: usize) -> *mut MaybeUninit<T> {\n-        debug_assert!(index < self.len);\n-        // Sound: `index < self.len`, within the owned allocation.\n-        unsafe { (*self.ptr.add(index)).get() }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T> Drop for RawSlots<T> {\n     fn drop(&mut self) {\n         // Sound: `ptr` and `len` came from `Box::into_raw(boxed_slice)`; all\n         // initialized elements have already been dropped (or leaked if the\n         // Pipeline was forgotten), and `MaybeUninit<T>` has no drop glue.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "RawSlots<T>::slot",
+      "return_type": "-> *mut MaybeUninit<T>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 157
+        },
+        "start": {
+          "column": 5,
+          "line": 152
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:154:9: replace RawSlots<T>::slot -> *mut MaybeUninit<T> with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 156
+      },
+      "start": {
+        "column": 9,
+        "line": 154
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for RawSlots<T>>::drop with ()\n@@ -157,19 +157,17 @@\n     }\n }\n \n impl<T> Drop for RawSlots<T> {\n     fn drop(&mut self) {\n         // Sound: `ptr` and `len` came from `Box::into_raw(boxed_slice)`; all\n         // initialized elements have already been dropped (or leaked if the\n         // Pipeline was forgotten), and `MaybeUninit<T>` has no drop glue.\n-        unsafe {\n-            drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(self.ptr, self.len)));\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n #[inline(always)]\n fn pack_arg(kind: u64, a: u32, b: u32, sme2: bool) -> u64 {\n     debug_assert!(kind < 4 && a < (1 << 29));\n     let raw = (kind << 61) | ((a as u64) << 32) | (b as u64);\n     if sme2 { raw | ACTION_SME2 } else { raw }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for RawSlots<T>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 168
+        },
+        "start": {
+          "column": 5,
+          "line": 161
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:165:9: replace <impl Drop for RawSlots<T>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 167
+      },
+      "start": {
+        "column": 9,
+        "line": 165
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))\n@@ -449,56 +449,17 @@\n     /// either may be the last.\n     fn release(st: &'static PipeStorage) {\n         if st.holders.fetch_sub(1, Ordering::AcqRel) == 1 {\n             FREE_STORAGES.lock().unwrap().push(st);\n         }\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize) -> &'static PipeStorage {\n-        let chosen = {\n-            let mut free = FREE_STORAGES.lock().unwrap();\n-            let fits = |st: &&'static PipeStorage| {\n-                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups\n-            };\n-            free.iter().position(fits).map(|at| free.swap_remove(at))\n-        };\n-        if let Some(st) = chosen {\n-            st.holders.store(1, Ordering::Release);\n-            return st;\n-        }\n-        let actions = actions.max(1024);\n-        let messages = messages.max(64);\n-        let groups = groups.max(64);\n-        let dummy = GroupMemberMeta { room: NONE };\n-        #[cfg(any(test, shuttle))]\n-        STORAGES_MADE.fetch_add(1, Ordering::Relaxed);\n-        let raw = Box::into_raw(Box::new(PipeStorage {\n-            source: Source::with_actions(actions),\n-            waker: WakerSlot::new(),\n-            rooms: Rooms::new(rooms),\n-            groups: (0..groups)\n-                .map(|_| MemberGroup {\n-                    task: UnsafeCell::new(Task::members(None)),\n-                    metas: UnsafeCell::new([dummy; MEMBERS]),\n-                    epoch: UnsafeCell::new(0),\n-                    completed_epoch: OwnLine(AtomicU64::new(0)),\n-                })\n-                .collect(),\n-            loan_completed: (0..messages).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            saved_loan_epoch: UnsafeCell::new(1),\n-            saved_group_epoch: UnsafeCell::new(1),\n-            shared: UnsafeCell::new(core::ptr::null_mut()),\n-            holders: OwnLine(AtomicUsize::new(1)),\n-        }));\n-        #[cfg(shuttle)]\n-        MODEL_OWNED_STORAGES.lock().unwrap().push(OwnedStoragePtr(raw));\n-        // Sound: `raw` is a valid leaked allocation (freed only after all\n-        // Shuttle workers join in `model_storages::free_storages_for_model`).\n-        unsafe { &*raw }\n+        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.\n ///\n /// # Trait implementations\n ///\n /// - `Drop` returns the unused credits; workers retain access to committed\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 497
+        },
+        "start": {
+          "column": 5,
+          "line": 456
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:457:9: replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 496
+      },
+      "start": {
+        "column": 9,
+        "line": 457
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_group with ()\n@@ -683,51 +683,17 @@\n             KIND_GROUP => shared.run_group(a, platform),\n             KIND_ROOM_PIECE => shared.run_room_piece(a, platform),\n             KIND_MULTI => shared.run_multi_piece(a, b, platform),\n             _ => unreachable!(),\n         }\n     }\n \n     fn run_group(&self, group_idx: usize, platform: Platform) {\n-        let storage = self.storage;\n-        let group = &storage.groups[group_idx];\n-        // Sound: the owner wrote this group's task, epoch and metas before it\n-        // dispatched the group (publish_open), keeping every member's input\n-        // and output valid until `completed_epoch` reaches this epoch.\n-        let task = unsafe { &*group.task.get() };\n-        let count = task.members;\n-        let epoch = unsafe { *group.epoch.get() };\n-        unsafe { task.run_members(self.tree(), platform) };\n-        let metas = unsafe { &*group.metas.get() };\n-\n-        // Coalesce consecutive members sharing a Room into a single atomic subtraction.\n-        let mut cur_room = NONE;\n-        let mut cur_n = 0usize;\n-        for meta in &metas[..count] {\n-            if meta.room != NONE {\n-                if meta.room == cur_room {\n-                    cur_n += 1;\n-                } else {\n-                    if cur_room != NONE {\n-                        self.storage.rooms.release_n(cur_room, cur_n);\n-                    }\n-                    cur_room = meta.room;\n-                    cur_n = 1;\n-                }\n-            }\n-        }\n-        if cur_room != NONE {\n-            self.storage.rooms.release_n(cur_room, cur_n);\n-        }\n-\n-        // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n-        finished(storage, || {\n-            group.completed_epoch.swap(epoch, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) {\n         let pnode = &self.pieces[pnode_idx];\n         // Sound: the owner wrote the piece's fields before dispatching it\n         // (commit_multi), and touches the node again only once `done` is set,\n         // which is this function's last store.\n         let room_idx = unsafe { *pnode.room.get() };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_group",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 690
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:691:9: replace Shared::run_group with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 691
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::owned with ()\n@@ -1133,51 +1133,17 @@\n     /// [`Event::Hashed`].\n     ///\n     /// # Panics\n     ///\n     /// If `message` is another Pipeline's, or has had a commit from a\n     /// Room already, even one of no bytes: a message's bytes come one way.\n     #[inline]\n     pub fn owned(&mut self, message: Message, owner: B) {\n-        let (pid, s) = message.take();\n-        assert_eq!(pid, self.id, \"Message belongs to a different Pipeline\");\n-        self.assert_uncommitted(s);\n-        self.open_messages -= 1;\n-\n-        // Sound: the slot is open and has no owner yet (assert_uncommitted);\n-        // the owner stays in the move-insensitive raw slot, where its bytes\n-        // cannot move or be retagged by moving `Pipeline`, until the slot's\n-        // event reads it out or the Pipeline's drop drops it.\n-        let slot: *mut B = unsafe { (*self.owners.slot(s)).write(owner) };\n-        // `as_ref` is the program's code. Until the slice is submitted\n-        // nothing records that the slot holds an owner, so if `as_ref`\n-        // unwinds, the owner is dropped here, where it lies (the\n-        // Pipeline's drop would never have found it). The guard holds\n-        // the slot by a raw pointer: an owner may hold its bytes inside\n-        // itself (`[u8; 8]`), and a `&mut` to it moved into `forget`\n-        // after the bytes' pointer was taken would end that pointer's\n-        // right to them (a reviewer's Miri run, November 20).\n-        struct Unrecorded<B>(*mut B);\n-        impl<B> Drop for Unrecorded<B> {\n-            fn drop(&mut self) {\n-                // Sound: the owner was written just above and nothing else\n-                // holds or records it; this runs only while `as_ref`\n-                // unwinds (the guard is forgotten once it has returned).\n-                unsafe { core::ptr::drop_in_place(self.0) };\n-            }\n-        }\n-        let unrecorded = Unrecorded(slot);\n-        // Sound: the owner just written, in its slot, read through a\n-        // shared borrow; nothing else names it.\n-        let bytes: &[u8] = unsafe { &*slot }.as_ref();\n-        let (ptr, len) = (bytes.as_ptr(), bytes.len());\n-        core::mem::forget(unrecorded);\n-        self.submit_slice(s, ptr, len, true);\n-        self.end_queue.push_back(s as u32);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B> Pipeline<T, B> {\n     #[inline(always)]\n     fn shared(&self) -> &Shared {\n         // Sound: `shared` is this Pipeline's Shared (create), never freed.\n         unsafe { &*self.shared }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::owned",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1176
+        },
+        "start": {
+          "column": 5,
+          "line": 1132
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1141:9: replace Pipeline<T, B>::owned with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 1175
+      },
+      "start": {
+        "column": 9,
+        "line": 1141
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::create -> Self with Default::default()\n@@ -1179,153 +1179,17 @@\n impl<T, B> Pipeline<T, B> {\n     #[inline(always)]\n     fn shared(&self) -> &Shared {\n         // Sound: `shared` is this Pipeline's Shared (create), never freed.\n         unsafe { &*self.shared }\n     }\n \n     fn create(mode: Mode, limits: Limits) -> Self {\n-        crate::lanes::require();\n-        prepare_thread();\n-        assert!(limits.messages > 0, \"Pipeline Limits.messages must be at least 1\");\n-        let tree = TreeHasher::new(mode);\n-        let m = limits.messages;\n-        // Each limit alone first: their sum, next, could wrap round to a\n-        // small one (`rooms: usize::MAX` passed the check below so).\n-        assert!(m < 1 << 29 && limits.rooms < 1 << 29, \"Pipeline Limits beyond what an action can name\");\n-        let p_cap = limits.rooms + m + 1;\n-        let g_cap = m.clamp(4, 256);\n-        let actions_cap = m * MAX_SLOT_PIECES + p_cap + g_cap;\n-        // An action names a slot, a piece or a group in 29 bits (pack_arg).\n-        assert!(m < 1 << 29 && p_cap < 1 << 29, \"Pipeline Limits beyond what an action can name\");\n-        // Reserve a non-wrapping identity before acquiring storage or a source\n-        // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot\n-        // wrap back to previously issued IDs.\n-        let id = loop {\n-            let cur = NEXT_PIPELINE_ID.load(Ordering::Relaxed);\n-            assert!(cur < u64::MAX, \"Pipeline ID counter exhausted\");\n-            if NEXT_PIPELINE_ID.compare_exchange(cur, cur + 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {\n-                break cur;\n-            }\n-        };\n-\n-        let storage = PipeStorage::acquire(actions_cap, m, limits.rooms, g_cap);\n-        // Sound: this Pipeline now holds the storage alone\n-        // (PipeStorage::acquire), and these cells are its holder's.\n-        let next_loan_epoch = unsafe { *storage.saved_loan_epoch.get() };\n-        let next_group_epoch = unsafe { *storage.saved_group_epoch.get() };\n-        // A pool of one thread has no worker to take a published action,\n-        // and only this crate's block_on would run it: an outside executor\n-        // waited for ever. Unregistered, every action runs where it is\n-        // dispatched, as when no slot is free.\n-        let source_slot = if crate::lanes::pool_has_workers() { storage.source.register() } else { None };\n-        crate::lanes::sources::opened();\n-\n-        let mut local_free_rooms = Ring::new(limits.rooms.max(1));\n-        for i in 0..limits.rooms {\n-            local_free_rooms.push_back(i as u32);\n-        }\n-        // The storage's `Shared`, where it has one of this size: every task\n-        // of the Pipeline before is done (its drop saw to that), and only\n-        // the mode is this Pipeline's own.\n-        // Sound: as the saved epochs above. A Shared the storage keeps was the\n-        // Pipeline before's, whose every task is published done (its drop saw\n-        // to that), so reading its lengths races with no worker.\n-        let held = unsafe { *storage.shared.get() };\n-        let shared: *mut Shared = if !held.is_null() && unsafe { (&(*held).hashes).len() >= m } {\n-            // A storage has one count of rooms, so pieces enough too.\n-            assert!(unsafe { (&(*held).pieces).len() } >= p_cap, \"a Shared of as many messages has as many pieces\");\n-            // Sound: nor does writing its mode. A worker may still be\n-            // returning from that last task with its `&Shared`: the mode is\n-            // in a cell, and the worker's borrow of it ended before it\n-            // published the task (Shared::tree).\n-            unsafe {\n-                *(*held).tree.get() = tree;\n-            }\n-            held\n-        } else {\n-            // One it replaces stays allocated: a worker of an earlier\n-            // Pipeline may still be reading it.\n-            let new = Box::into_raw(Box::new(Shared {\n-                tree: UnsafeCell::new(tree),\n-                storage,\n-                hashes: (0..m).map(|_| UnsafeCell::new([0u8; OUT_LEN])).collect(),\n-                cvs: (0..m).map(|_| UnsafeCell::new(PieceValues { whole: [Cv::unset(); MAX_SLOT_PIECES], last: None })).collect(),\n-                slot_done: (0..m).map(|_| OwnLine(AtomicBool::new(true))).collect(),\n-                tasks_left: (0..m).map(|_| OwnLine(AtomicUsize::new(0))).collect(),\n-                multi: (0..m)\n-                    .map(|_| {\n-                        UnsafeCell::new(MultiDesc {\n-                            input: core::ptr::null(),\n-                            total_len: 0,\n-                            piece_level: level_of(TASK_LEN as u64),\n-                            pieces: 0,\n-                            batch: None,\n-                            digests: core::ptr::null_mut(),\n-                            loan_epoch: 0,\n-                        })\n-                    })\n-                    .collect(),\n-                pieces: (0..p_cap)\n-                    .map(|_| PieceNode {\n-                        room: UnsafeCell::new(0),\n-                        offset: UnsafeCell::new(0),\n-                        len: UnsafeCell::new(0),\n-                        index: UnsafeCell::new(0),\n-                        out: OwnLine(UnsafeCell::new(RoomValue::Whole(Cv::unset()))),\n-                        done: OwnLine(AtomicBool::new(true)),\n-                        next: UnsafeCell::new(NONE),\n-                    })\n-                    .collect(),\n-            }));\n-            // Sound: as above; the Shared is kept for the next Pipeline.\n-            unsafe { *storage.shared.get() = new };\n-            new\n-        };\n-\n-        let mut free_slots = Ring::new(m);\n-        for i in 0..m {\n-            free_slots.push_back(i as u32);\n-        }\n-        let mut free_pieces = Ring::new(p_cap);\n-        for i in 0..p_cap {\n-            free_pieces.push_back(i as u32);\n-        }\n-\n-        Pipeline {\n-            id,\n-            limits,\n-            group_count: g_cap,\n-            source_slot,\n-            shared,\n-            slots: (0..m).map(|_| SlotMeta { tag: None, kind: SlotKind::Free }).collect(),\n-            room_streams: vec![RoomStream::EMPTY; m].into_boxed_slice(),\n-            owners: RawSlots::new(m),\n-            batches: RawSlots::new(m),\n-            free_slots,\n-            open_messages: 0,\n-            end_queue: Ring::new(m),\n-            events: Ring::new(m),\n-            local_free_rooms,\n-            room_cursor: 0,\n-            free_pieces,\n-            group_cursor: 0,\n-            open_group: None,\n-            local_count: 0,\n-            local_bytes: 0,\n-            local_batch: None,\n-            local_members: Box::new([Member { input: core::ptr::null(), len: 0, out: core::ptr::null_mut() }; MEMBERS]),\n-            local_rooms: Box::new([NONE; MEMBERS]),\n-            next_loan_epoch,\n-            next_group_epoch,\n-            assigned_group_epoch: vec![0u64; g_cap].into_boxed_slice(),\n-            seen_group_epoch: vec![0u64; g_cap].into_boxed_slice(),\n-            action_buf: [0; MAX_SLOT_PIECES],\n-        }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Wait for a free message slot and open a [`Message`].\n     ///\n     /// # Panics\n     ///\n     /// If no slot is free and waiting cannot free one: as many messages\n     /// as `Limits.messages` are open, or as many events wait to be taken\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1324
+        },
+        "start": {
+          "column": 5,
+          "line": 1186
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1187:9: replace Pipeline<T, B>::create -> Self with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1323
+      },
+      "start": {
+        "column": 9,
+        "line": 1187
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace + with - in Pipeline<T, B>::create\n@@ -1198,17 +1198,17 @@\n         // An action names a slot, a piece or a group in 29 bits (pack_arg).\n         assert!(m < 1 << 29 && p_cap < 1 << 29, \"Pipeline Limits beyond what an action can name\");\n         // Reserve a non-wrapping identity before acquiring storage or a source\n         // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot\n         // wrap back to previously issued IDs.\n         let id = loop {\n             let cur = NEXT_PIPELINE_ID.load(Ordering::Relaxed);\n             assert!(cur < u64::MAX, \"Pipeline ID counter exhausted\");\n-            if NEXT_PIPELINE_ID.compare_exchange(cur, cur + 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {\n+            if NEXT_PIPELINE_ID.compare_exchange(cur, cur - /* ~ changed by cargo-mutants ~ */ 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {\n                 break cur;\n             }\n         };\n \n         let storage = PipeStorage::acquire(actions_cap, m, limits.rooms, g_cap);\n         // Sound: this Pipeline now holds the storage alone\n         // (PipeStorage::acquire), and these cells are its holder's.\n         let next_loan_epoch = unsafe { *storage.saved_loan_epoch.get() };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1324
+        },
+        "start": {
+          "column": 5,
+          "line": 1186
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1206:59: replace + with - in Pipeline<T, B>::create",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 60,
+        "line": 1206
+      },
+      "start": {
+        "column": 59,
+        "line": 1206
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::new()\n@@ -1333,46 +1333,17 @@\n     /// one or take one, and it is here.\n     #[inline(always)]\n     pub fn message(&mut self, tag: T, length_hint: Option<u64>) -> impl Future<Output = Message> + '_ {\n         let _ = length_hint;\n         MessageFut { pipe: self, tag: Some(tag), registered: false }\n     }\n \n     fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<u32> {\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if let Some(slot) = self.free_slots.pop_front() {\n-                    return Poll::Ready(slot);\n-                }\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::new() /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn assert_message_can_progress(&self) {\n         assert!(\n             self.events.len() < self.limits.messages,\n             \"Pipeline::message cannot make progress: {} finished events wait to be pulled (call next_event)\",\n             self.limits.messages\n         );\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_message",
+      "return_type": "-> Poll<u32>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1371
+        },
+        "start": {
+          "column": 5,
+          "line": 1340
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1341:9: replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::new()",
+    "package": "blake3-servil",
+    "replacement": "Poll::new()",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1370
+      },
+      "start": {
+        "column": 9,
+        "line": 1341
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::from_iter([0])\n@@ -1333,46 +1333,17 @@\n     /// one or take one, and it is here.\n     #[inline(always)]\n     pub fn message(&mut self, tag: T, length_hint: Option<u64>) -> impl Future<Output = Message> + '_ {\n         let _ = length_hint;\n         MessageFut { pipe: self, tag: Some(tag), registered: false }\n     }\n \n     fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<u32> {\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if let Some(slot) = self.free_slots.pop_front() {\n-                    return Poll::Ready(slot);\n-                }\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::from_iter([0]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn assert_message_can_progress(&self) {\n         assert!(\n             self.events.len() < self.limits.messages,\n             \"Pipeline::message cannot make progress: {} finished events wait to be pulled (call next_event)\",\n             self.limits.messages\n         );\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_message",
+      "return_type": "-> Poll<u32>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1371
+        },
+        "start": {
+          "column": 5,
+          "line": 1340
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1341:9: replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::from_iter([0])",
+    "package": "blake3-servil",
+    "replacement": "Poll::from_iter([0])",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1370
+      },
+      "start": {
+        "column": 9,
+        "line": 1341
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::new(0)\n@@ -1333,46 +1333,17 @@\n     /// one or take one, and it is here.\n     #[inline(always)]\n     pub fn message(&mut self, tag: T, length_hint: Option<u64>) -> impl Future<Output = Message> + '_ {\n         let _ = length_hint;\n         MessageFut { pipe: self, tag: Some(tag), registered: false }\n     }\n \n     fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<u32> {\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if let Some(slot) = self.free_slots.pop_front() {\n-                    return Poll::Ready(slot);\n-                }\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::new(0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn assert_message_can_progress(&self) {\n         assert!(\n             self.events.len() < self.limits.messages,\n             \"Pipeline::message cannot make progress: {} finished events wait to be pulled (call next_event)\",\n             self.limits.messages\n         );\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_message",
+      "return_type": "-> Poll<u32>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1371
+        },
+        "start": {
+          "column": 5,
+          "line": 1340
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1341:9: replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::new(0)",
+    "package": "blake3-servil",
+    "replacement": "Poll::new(0)",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1370
+      },
+      "start": {
+        "column": 9,
+        "line": 1341
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::from(0)\n@@ -1333,46 +1333,17 @@\n     /// one or take one, and it is here.\n     #[inline(always)]\n     pub fn message(&mut self, tag: T, length_hint: Option<u64>) -> impl Future<Output = Message> + '_ {\n         let _ = length_hint;\n         MessageFut { pipe: self, tag: Some(tag), registered: false }\n     }\n \n     fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<u32> {\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if let Some(slot) = self.free_slots.pop_front() {\n-                    return Poll::Ready(slot);\n-                }\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::from(0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn assert_message_can_progress(&self) {\n         assert!(\n             self.events.len() < self.limits.messages,\n             \"Pipeline::message cannot make progress: {} finished events wait to be pulled (call next_event)\",\n             self.limits.messages\n         );\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_message",
+      "return_type": "-> Poll<u32>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1371
+        },
+        "start": {
+          "column": 5,
+          "line": 1340
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1341:9: replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::from(0)",
+    "package": "blake3-servil",
+    "replacement": "Poll::from(0)",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1370
+      },
+      "start": {
+        "column": 9,
+        "line": 1341
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::from_iter([1])\n@@ -1333,46 +1333,17 @@\n     /// one or take one, and it is here.\n     #[inline(always)]\n     pub fn message(&mut self, tag: T, length_hint: Option<u64>) -> impl Future<Output = Message> + '_ {\n         let _ = length_hint;\n         MessageFut { pipe: self, tag: Some(tag), registered: false }\n     }\n \n     fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<u32> {\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if let Some(slot) = self.free_slots.pop_front() {\n-                    return Poll::Ready(slot);\n-                }\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::from_iter([1]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn assert_message_can_progress(&self) {\n         assert!(\n             self.events.len() < self.limits.messages,\n             \"Pipeline::message cannot make progress: {} finished events wait to be pulled (call next_event)\",\n             self.limits.messages\n         );\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_message",
+      "return_type": "-> Poll<u32>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1371
+        },
+        "start": {
+          "column": 5,
+          "line": 1340
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1341:9: replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::from_iter([1])",
+    "package": "blake3-servil",
+    "replacement": "Poll::from_iter([1])",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1370
+      },
+      "start": {
+        "column": 9,
+        "line": 1341
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::new(1)\n@@ -1333,46 +1333,17 @@\n     /// one or take one, and it is here.\n     #[inline(always)]\n     pub fn message(&mut self, tag: T, length_hint: Option<u64>) -> impl Future<Output = Message> + '_ {\n         let _ = length_hint;\n         MessageFut { pipe: self, tag: Some(tag), registered: false }\n     }\n \n     fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<u32> {\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if let Some(slot) = self.free_slots.pop_front() {\n-                    return Poll::Ready(slot);\n-                }\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::new(1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn assert_message_can_progress(&self) {\n         assert!(\n             self.events.len() < self.limits.messages,\n             \"Pipeline::message cannot make progress: {} finished events wait to be pulled (call next_event)\",\n             self.limits.messages\n         );\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_message",
+      "return_type": "-> Poll<u32>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1371
+        },
+        "start": {
+          "column": 5,
+          "line": 1340
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1341:9: replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::new(1)",
+    "package": "blake3-servil",
+    "replacement": "Poll::new(1)",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1370
+      },
+      "start": {
+        "column": 9,
+        "line": 1341
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::from(1)\n@@ -1333,46 +1333,17 @@\n     /// one or take one, and it is here.\n     #[inline(always)]\n     pub fn message(&mut self, tag: T, length_hint: Option<u64>) -> impl Future<Output = Message> + '_ {\n         let _ = length_hint;\n         MessageFut { pipe: self, tag: Some(tag), registered: false }\n     }\n \n     fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<u32> {\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.front_uses_open_group() {\n-            self.publish_open();\n-        }\n-        if in_block_on() {\n-            while self.shared().storage.source.run_waiting_action() {\n-                self.reap();\n-                if let Some(slot) = self.free_slots.pop_front() {\n-                    return Poll::Ready(slot);\n-                }\n-            }\n-        }\n-        self.shared().storage.waker.register(cx);\n-        self.reap();\n-        if let Some(slot) = self.free_slots.pop_front() {\n-            self.shared().storage.waker.clear();\n-            return Poll::Ready(slot);\n-        }\n-        self.assert_message_can_progress();\n-        if self.source_slot.is_some() {\n-            self.shared().storage.source.wake_for_waiting();\n-        }\n-        Poll::Pending\n+        Poll::from(1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn assert_message_can_progress(&self) {\n         assert!(\n             self.events.len() < self.limits.messages,\n             \"Pipeline::message cannot make progress: {} finished events wait to be pulled (call next_event)\",\n             self.limits.messages\n         );\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B>::poll_message",
+      "return_type": "-> Poll<u32>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1371
+        },
+        "start": {
+          "column": 5,
+          "line": 1340
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1341:9: replace Pipeline<T, B>::poll_message -> Poll<u32> with Poll::from(1)",
+    "package": "blake3-servil",
+    "replacement": "Poll::from(1)",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1370
+      },
+      "start": {
+        "column": 9,
+        "line": 1341
+      }
+    }
+  }
+]

@@ -1,0 +1,29 @@
+--- src/lanes.rs
++++ replace sources::try_job_source -> Option<&'static Source> with Some(Box::leak(Box::new(Default::default())))
+@@ -3169,25 +3169,17 @@
+     /// Whether this thread's job-source TLS key is still live (false only
+     /// during thread-local destruction after `MINE` has been destroyed).
+     pub(crate) fn job_source_available() -> bool {
+         MINE.try_with(|_| ()).is_ok()
+     }
+ 
+     /// This thread's source for its one-shot jobs, or `None` during TLS teardown.
+     pub(crate) fn try_job_source() -> Option<&'static Source> {
+-        MINE.try_with(|mine| {
+-            mine.get_or_init(|| {
+-                let source = FREE_JOBS.lock().unwrap().pop().unwrap_or_else(|| Box::leak(Box::new(Source::new())));
+-                source.finish.own();
+-                Held(source)
+-            })
+-            .0
+-        })
+-        .ok()
++        Some(Box::leak(Box::new(Default::default()))) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// This thread's source for its one-shot jobs.
+     pub(crate) fn job_source() -> &'static Source {
+         try_job_source().expect("job_source called after TLS destruction")
+     }
+ 
+     pub(crate) fn opened() {
