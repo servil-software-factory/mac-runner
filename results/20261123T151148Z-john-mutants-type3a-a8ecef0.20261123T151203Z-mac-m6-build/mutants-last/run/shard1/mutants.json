@@ -1,0 +1,162 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace += with -= in finalize_each\n@@ -106,17 +106,17 @@\n /// select neither the finalization path nor its amount of work.\n /// See the [key-independence contract](crate#key-dependent-timing).\n pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n     assert_eq!(which.len(), out.len(), \"one digest per message named\");\n     let mut marked = Marked { hashers, which, count: 0, active: true };\n     for &i in which {\n         assert!(i < marked.hashers.len(), \"finalize_each names hasher {i} of {}\", marked.hashers.len());\n         assert!(!marked.hashers[i].mark_finishing(), \"each finalized index is distinct\");\n-        marked.count += 1;\n+        marked.count -= /* ~ changed by cargo-mutants ~ */ 1;\n     }\n     let hashers = &mut *marked.hashers;\n     #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n     if which.len() >= 16 && matches!(Platform::detect(), Platform::AVX512) {\n         #[cfg(all(test, feature = \"std\"))]\n         crate::counted(crate::Counted::OutputGroupTurn);\n         for (which, out) in which.chunks(16).zip(out.chunks_mut(16)) {\n             if which.len() == 16 {\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 183
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:114:22: replace += with -= in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "-=",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 114
+      },
+      "start": {
+        "column": 22,
+        "line": 114
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace update_turn with ()\n@@ -200,45 +200,17 @@\n /// waiting list, or the turn's end hashes what is held and gathers what\n /// waited, pass after pass, until nothing waits. Outside a drain every\n /// waiting piece's hasher is held (it entered waiting because the hasher\n /// was held, or as the rest of the piece that filled the stage; only a\n /// drain un-holds, and a drain leaves nothing waiting), so a hasher that\n /// is not held has no earlier bytes waiting, and takes its piece now. Both\n /// lists live on the stack: a turn allocates nothing.\n fn update_turn(hashers: &mut [Hasher], pieces: &[(usize, &[u8])]) {\n-    /// The stages a turn holds, hashed however the turn ends. A turn that\n-    /// panics part-way (an index that names no hasher) unwinds through\n-    /// here: a full stage that no list named\n-    /// any more would have no room for its hasher's next update, and its\n-    /// next turn would wait for ever for a pass to hash it. `flush_held`\n-    /// detaches the list before hashing so an unwind out of `hash_held`\n-    /// itself cannot make `Drop` retry the failing call.\n-    struct Held<'h> {\n-        hashers: &'h mut [Hasher],\n-        held: crate::stack_vec::StackVec<usize, TABLE>,\n-    }\n-    impl Drop for Held<'_> {\n-        fn drop(&mut self) {\n-            flush_held(self.hashers, &mut self.held);\n-        }\n-    }\n-    let mut turn = Held { hashers, held: crate::stack_vec::StackVec::new() };\n-    let mut waiting = crate::stack_vec::StackVec::<(usize, &[u8]), TABLE>::new();\n-    for &(i, bytes) in pieces {\n-        if waiting.is_full() || turn.held.is_full() {\n-            drain(turn.hashers, &mut turn.held, &mut waiting);\n-        }\n-        if turn.hashers[i].held_group().is_some() {\n-            waiting.push((i, bytes));\n-            continue;\n-        }\n-        gather(turn.hashers, i, bytes, &mut turn.held, &mut waiting);\n-    }\n-    drain(turn.hashers, &mut turn.held, &mut waiting);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// `bytes` into hasher `i`, which is not held: as much as fills its stage;\n /// a filled stage is held and the rest of the piece waits.\n fn gather<'a>(\n     hashers: &mut [Hasher],\n     i: usize,\n     bytes: &'a [u8],\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "update_turn",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 237
+        },
+        "start": {
+          "column": 1,
+          "line": 194
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:208:5: replace update_turn with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 55,
+        "line": 236
+      },
+      "start": {
+        "column": 5,
+        "line": 208
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace update_turn::<impl Drop for Held<'_>>::drop with ()\n@@ -213,17 +213,17 @@\n     /// detaches the list before hashing so an unwind out of `hash_held`\n     /// itself cannot make `Drop` retry the failing call.\n     struct Held<'h> {\n         hashers: &'h mut [Hasher],\n         held: crate::stack_vec::StackVec<usize, TABLE>,\n     }\n     impl Drop for Held<'_> {\n         fn drop(&mut self) {\n-            flush_held(self.hashers, &mut self.held);\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n     }\n     let mut turn = Held { hashers, held: crate::stack_vec::StackVec::new() };\n     let mut waiting = crate::stack_vec::StackVec::<(usize, &[u8]), TABLE>::new();\n     for &(i, bytes) in pieces {\n         if waiting.is_full() || turn.held.is_full() {\n             drain(turn.hashers, &mut turn.held, &mut waiting);\n         }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "update_turn::<impl Drop for Held<'_>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 222
+        },
+        "start": {
+          "column": 9,
+          "line": 220
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:221:13: replace update_turn::<impl Drop for Held<'_>>::drop with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 54,
+        "line": 221
+      },
+      "start": {
+        "column": 13,
+        "line": 221
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace flush_held with ()\n@@ -287,21 +287,17 @@\n /// gain 2-3% there and 7-11% on an EPYC 9255. The count is public; no\n /// key decides the route.\n #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n const INDEPENDENT_MIN: usize = 3;\n \n /// Hash every queued stage after detaching the table so an unwind inside\n /// `hash_held` cannot make `Held::drop` retry the same failing call.\n fn flush_held(hashers: &mut [Hasher], held: &mut crate::stack_vec::StackVec<usize, TABLE>) {\n-    if held.is_empty() {\n-        return;\n-    }\n-    let list = core::mem::take(held);\n-    hash_held(hashers, &list);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, feature = \"std\"))]\n std::thread_local! {\n     // Actual cohorts passed to the shared-key or independent-parent body.\n     static HELD_GROUPS: core::cell::RefCell<Vec<Vec<usize>>> = const { core::cell::RefCell::new(Vec::new()) };\n }\n \n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "flush_held",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 300
+        },
+        "start": {
+          "column": 1,
+          "line": 292
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:295:5: replace flush_held with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 299
+      },
+      "start": {
+        "column": 5,
+        "line": 295
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ delete match arm 0 in hash_held\n@@ -337,17 +337,17 @@\n         return;\n     }\n     // Plain's key is the IV, the same for every plain hasher. Choose the\n     // smallest workspace tier that holds the cohort so small turns (such as\n     // a single plain stage) do not reserve the full 128-stage stack frame.\n     let mut plain = crate::stack_vec::StackVec::<usize, TABLE>::new();\n     plain.extend(held.iter().copied().filter(|&i| hashers[i].is_plain()));\n     match plain.len() {\n-        0 => {}\n+         /* ~ changed by cargo-mutants ~ */\n         1 => hash_cohort::<1>(hashers, &plain),\n         2..=16 => hash_cohort::<16>(hashers, &plain),\n         _ => hash_cohort::<TABLE>(hashers, &plain),\n     }\n     for &i in held {\n         if !hashers[i].is_plain() {\n             hash_cohort::<1>(hashers, &[i]);\n         }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "hash_held",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 355
+        },
+        "start": {
+          "column": 1,
+          "line": 328
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/each.rs:345:9: delete match arm 0 in hash_held",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 16,
+        "line": 345
+      },
+      "start": {
+        "column": 9,
+        "line": 345
+      }
+    }
+  }
+]

@@ -1,0 +1,21 @@
+--- src/lib.rs
++++ replace < with <= in throughput::hash_each_multithreaded
+@@ -649,17 +649,17 @@
+     pub fn hash_each_multithreaded(mode: Mode, items: &[(&[Block], usize)], out: &mut [[u8; OUT_LEN]]) {
+         crate::lanes::require();
+         assert_eq!(items.len(), out.len(), "one digest per item");
+         let tree = TreeHasher::new(mode);
+         let alone = |len: usize| len >= crate::lanes::MIN_SPLIT_LEN;
+         // The items that hash alone are set aside in the collection's
+         // call and hashed after, each over the whole pool.
+         let small_bytes = items.iter().map(|i| i.1).filter(|&len| !alone(len)).fold(0usize, usize::saturating_add);
+-        if small_bytes < crate::lanes::MIN_SPLIT_LEN {
++        if small_bytes <= /* ~ changed by cargo-mutants ~ */ crate::lanes::MIN_SPLIT_LEN {
+             crate::lanes::hash_each_small(&tree, items, out);
+         } else {
+             crate::lanes::hash_each(&tree, items, out);
+         }
+         for (item, out) in items.iter().zip(out.iter_mut()) {
+             if alone(item.1) {
+                 *out = *crate::lanes::hash_over_pool(&tree, &Block::bytes(item.0)[..item.1]).as_bytes();
+             }

@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace prepare_thread with ()\n@@ -334,25 +334,17 @@\n }\n \n /// This thread's storage for its pool calls, made now: its scratch for\n /// [`PREPARED_PIECES`] pieces, its job source (`sources::job_source`,\n /// 640 bytes), and its storage for a collection's range\n /// (`each::prepare_thread`). After this, its calls on inputs the scratch\n /// holds allocate nothing.\n pub(crate) fn prepare_thread() {\n-    SCRATCH.with(|s| {\n-        let mut s = s.borrow_mut();\n-        s.pieces.clear();\n-        s.cvs.clear();\n-        s.pieces.reserve(PREPARED_PIECES);\n-        s.cvs.reserve(PREPARED_PIECES);\n-    });\n-    sources::job_source();\n-    crate::prepare_collection_thread();\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// `cut` fills this thread's scratch with a job's pieces; `job` runs with\n /// what `cut` returned, the pieces, and as many chaining values, unset.\n fn with_scratch<C, T>(cut: impl FnOnce(&mut Vec<Piece>) -> C, job: impl FnOnce(C, &[Piece], &mut [ChainingValue]) -> T) -> T {\n     SCRATCH.with(|s| {\n         let mut s = s.try_borrow_mut().expect(\"one pool call at a time on a thread\");\n         let Scratch { pieces, cvs } = &mut *s;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "prepare_thread",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 351
+        },
+        "start": {
+          "column": 1,
+          "line": 336
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:342:5: replace prepare_thread with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 350
+      },
+      "start": {
+        "column": 5,
+        "line": 342
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace hash_each with ()\n@@ -427,33 +427,17 @@\n }\n \n /// [`crate::throughput::hash_each_multithreaded`]'s pool job: the items under\n /// MIN_SPLIT_LEN, cut into ranges of about [`next_piece_len`] of the\n /// bytes that remain, each range hashed by one thread. An item of\n /// MIN_SPLIT_LEN or more is set aside here (its digest zero, a stand-in)\n /// and hashed by the caller over the whole pool after.\n pub(crate) fn hash_each(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n-    let Some((pool, _caller)) = spare_pool() else {\n-        return hash_each_small(tree, items, out);\n-    };\n-    let plan = pool.plan(places::Kind::Each, items.iter().fold(0usize, |acc, i| acc.saturating_add(i.1)));\n-    with_scratch(\n-        |pieces| {\n-            cut_items(pieces, items, plan.threads, |item| {\n-                let n = crate::throughput::Block::bytes(item.0)[..item.1].len();\n-                if n >= MIN_SPLIT_LEN { 0 } else { n }\n-            })\n-        },\n-        |(), pieces, _| {\n-            let work = Work::Each { items, tree: tree.clone().on_this_core(), pieces, outputs: out.as_mut_ptr() };\n-            pool.run_job(work, pieces.len(), 0, plan.threads, plan.near());\n-            plan.done();\n-        },\n-    )\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// The hashes of a collection's items under MIN_SPLIT_LEN, on this\n /// thread, in `tree`'s mode: each run of them between the longer items\n /// is a collection of its own. An item of MIN_SPLIT_LEN or more is left\n /// as it was: the caller hashes it over the pool after.\n pub(crate) fn hash_each_small(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n     let mut start = 0;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 452
+        },
+        "start": {
+          "column": 1,
+          "line": 429
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:435:5: replace hash_each with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 451
+      },
+      "start": {
+        "column": 5,
+        "line": 435
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace >= with < in hash_each\n@@ -435,17 +435,17 @@\n     let Some((pool, _caller)) = spare_pool() else {\n         return hash_each_small(tree, items, out);\n     };\n     let plan = pool.plan(places::Kind::Each, items.iter().fold(0usize, |acc, i| acc.saturating_add(i.1)));\n     with_scratch(\n         |pieces| {\n             cut_items(pieces, items, plan.threads, |item| {\n                 let n = crate::throughput::Block::bytes(item.0)[..item.1].len();\n-                if n >= MIN_SPLIT_LEN { 0 } else { n }\n+                if n < /* ~ changed by cargo-mutants ~ */ MIN_SPLIT_LEN { 0 } else { n }\n             })\n         },\n         |(), pieces, _| {\n             let work = Work::Each { items, tree: tree.clone().on_this_core(), pieces, outputs: out.as_mut_ptr() };\n             pool.run_job(work, pieces.len(), 0, plan.threads, plan.near());\n             plan.done();\n         },\n     )\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 452
+        },
+        "start": {
+          "column": 1,
+          "line": 429
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:443:22: replace >= with < in hash_each",
+    "package": "blake3-servil",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 443
+      },
+      "start": {
+        "column": 22,
+        "line": 443
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace cut_items with ()\n@@ -465,29 +465,17 @@\n }\n \n /// Cut `items` into consecutive ranges for `threads` threads, in order:\n /// each range takes items until it holds [`next_piece_len`] of the bytes\n /// that remain (one item at least, however long), so ranges shrink toward\n /// the end as subtree pieces do. Callers pass 0 weight for items of\n /// MIN_SPLIT_LEN or more, which are hashed after over the pool.\n fn cut_items<I>(pieces: &mut Vec<Piece>, items: &[I], threads: usize, weight: impl Fn(&I) -> usize) {\n-    let mut remaining: u128 = items.iter().map(|item| weight(item) as u128).sum();\n-    let mut start = 0;\n-    while start < items.len() {\n-        let want = next_piece_len(remaining.min(usize::MAX as u128) as usize, threads) as u128;\n-        let (mut end, mut bytes) = (start, 0u128);\n-        while end < items.len() && (bytes < want || end == start) {\n-            bytes += weight(&items[end]) as u128;\n-            end += 1;\n-        }\n-        remaining -= bytes;\n-        pieces.push(Piece { offset: start, len: end - start });\n-        start = end;\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Cut `count` messages in slots of `message_len` bytes into ranges for `threads`\n /// threads, in order: each range holds about [`next_piece_len`] of the\n /// bytes that remain, at least one message, so ranges shrink toward the\n /// end as subtree pieces do.\n fn cut_messages(pieces: &mut Vec<Piece>, count: usize, message_len: usize, threads: usize) {\n     let mut start = 0;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "cut_items",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 486
+        },
+        "start": {
+          "column": 1,
+          "line": 467
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:473:5: replace cut_items with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 485
+      },
+      "start": {
+        "column": 5,
+        "line": 473
+      }
+    }
+  }
+]
