@@ -1,0 +1,66 @@
+[
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_two_chunks with ()\n@@ -282,72 +282,17 @@\n /// lane (q1) or a pair alone (k2); side by side the plans fill their\n /// lanes with the batch. VM, ns per message, one hash() each / side by\n /// side: 2000 B x 2 1018 / 927, x 3 1036 / 653, x 4 1050 / 697, x 8 690\n /// (SME2 from 7); 1100 B x 3 442 / 379. Commonware's four NEON lanes: 2000\n /// B x 4 824 (Mac P-core 914 against servil's 1050 before, job 283).\n #[cfg(blake3_neon)]\n #[inline(never)]\n fn hash_two_chunks(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]]) {\n-    use crate::PARENT;\n-    let slot = slot_len(len);\n-    let second = len - CHUNK_LEN;\n-    let second_blocks = second.div_ceil(BLOCK_LEN);\n-    let last_len = second - (second_blocks - 1) * BLOCK_LEN;\n-    // Sixteen at a time, as the plans take them: small arrays to zero.\n-    const GROUP: usize = 16;\n-    for (messages, digests) in input.chunks(slot * GROUP).zip(outputs.chunks_mut(GROUP)) {\n-        let count = digests.len();\n-        let mut firsts = crate::stack_vec::StackVec::<&[u8; CHUNK_LEN], GROUP>::new();\n-        let mut seconds = crate::stack_vec::StackVec::<*const u8, GROUP>::new();\n-        firsts.extend(messages.chunks_exact(slot).map(|m| m[..CHUNK_LEN].try_into().expect(\"a whole first chunk\")));\n-        seconds.extend(messages.chunks_exact(slot).map(|m| m[CHUNK_LEN..].as_ptr()));\n-        assert_eq!(firsts.len(), count, \"one two-chunk slot per output\");\n-        assert_eq!(seconds.len(), count, \"one second chunk per output\");\n-        let mut cvs = [[0u8; OUT_LEN]; 2 * GROUP];\n-        let mut pairs = [[0u8; BLOCK_LEN]; GROUP];\n-        // Sound: `firsts` and `seconds` hold exactly `count` initialized\n-        // entries; each second-chunk pointer reaches `second_blocks` whole\n-        // blocks inside its slot, zero past the message; NEON is every\n-        // AArch64 CPU's (neon_plans).\n-        unsafe {\n-            crate::neon_hybrid::hash_many_last_len(\n-                &firsts,\n-                key,\n-                0,\n-                IncrementCounter::No,\n-                flags,\n-                CHUNK_START,\n-                CHUNK_END,\n-                BLOCK_LEN,\n-                cvs[..count].as_flattened_mut(),\n-            );\n-            crate::neon_hybrid::hash_messages_raw(\n-                seconds.as_ptr(),\n-                seconds.len(),\n-                second_blocks,\n-                key,\n-                1,\n-                flags,\n-                CHUNK_START,\n-                CHUNK_END,\n-                last_len,\n-                cvs[count..2 * count].as_flattened_mut(),\n-            );\n-        }\n-        for (i, pair) in pairs[..count].iter_mut().enumerate() {\n-            pair[..OUT_LEN].copy_from_slice(&cvs[i]);\n-            pair[OUT_LEN..].copy_from_slice(&cvs[count + i]);\n-        }\n-        let parents: crate::stack_vec::StackVec<&[u8; BLOCK_LEN], GROUP> = pairs[..count].iter().collect();\n-        // Sound: as above.\n-        unsafe {\n-            crate::neon_hybrid::hash_many_last_len(&parents, key, 0, IncrementCounter::No, flags | PARENT, 0, ROOT, BLOCK_LEN, digests.as_flattened_mut())\n-        };\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Keep long-message tree work outside the short-message dispatcher's frame.\n #[cfg(target_arch = \"x86_64\")]\n #[inline(never)]\n fn hash_long_or_single(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n     if across_from(len, platform).is_some_and(|least| outputs.len() >= least) {\n         crate::ran(crate::Ran::Across);\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_two_chunks",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 346
+        },
+        "start": {
+          "column": 1,
+          "line": 278
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:290:5: replace hash_two_chunks with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 345
+      },
+      "start": {
+        "column": 5,
+        "line": 290
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_run with ()\n@@ -514,35 +514,17 @@\n /// they are (its parent kernel, `sme2::hash_block_run`), and elsewhere\n /// the platform's `hash_many` (the parent kernels and the NEON plans).\n /// Kept out of line:\n /// with all sixteen lengths inlined into hash_many_on, batches of two\n /// 64-byte messages took 30% longer (VM, bench-hashes); out of line they\n /// cost what they did before.\n #[inline(never)]\n fn hash_run<const N: usize>(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n-    #[cfg(blake3_sme2)]\n-    if platform_is_sme2(platform) && outputs.len() % 16 >= if outputs.len() > 16 { ONE_BLOCK_PAD_AFTER_GROUPS } else { ONE_BLOCK_PAD_MIN } {\n-        return hash_run_padded::<N>(messages, key, flags, outputs, BLOCK_LEN);\n-    }\n-    #[cfg(blake3_sme2)]\n-    if platform_is_sme2(platform) {\n-        // The messages are one block each (this function's only N) and\n-        // lie one after another: a run of blocks. SME2's parent kernel\n-        // reads a group of sixteen through one pointer, so they go to it\n-        // as that run, not as a table of sixteen borrows.\n-        const { assert!(N == BLOCK_LEN, \"one-block messages\") };\n-        let run = messages.as_chunks::<BLOCK_LEN>().0[..outputs.len()].as_flattened();\n-        // Sound: the caller found SME2 (platform_is_sme2).\n-        return unsafe { crate::sme2::hash_block_run(run, key, flags | CHUNK_START | CHUNK_END | ROOT, outputs.as_flattened_mut()) };\n-    }\n-    let mut table = crate::stack_vec::StackVec::<&[u8; N], TABLE>::new();\n-    table.extend(messages.chunks_exact(N).map(|message| message.try_into().expect(\"messages of N bytes\")));\n-    assert_eq!(table.len(), outputs.len(), \"one message per output\");\n-    whole_messages(&table, key, flags, outputs, platform);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// The kernel call for one message of whole blocks in each lane. Both a\n /// contiguous batch and a table of separately borrowed messages use it\n /// (on SME2 a batch of one-block messages goes another way, padded or\n /// as a run: [`hash_run`]).\n #[inline(always)]\n fn whole_messages<const N: usize>(lanes: &[&[u8; N]], key: &CVWords, flags: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_run",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 541
+        },
+        "start": {
+          "column": 1,
+          "line": 511
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:522:5: replace hash_run with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 59,
+        "line": 540
+      },
+      "start": {
+        "column": 5,
+        "line": 522
+      }
+    }
+  }
+]

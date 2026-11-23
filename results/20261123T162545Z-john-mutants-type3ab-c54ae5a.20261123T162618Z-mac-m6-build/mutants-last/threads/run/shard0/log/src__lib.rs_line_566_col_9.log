@@ -1,0 +1,255 @@
+
+*** src/lib.rs:566:9: replace throughput::hash_many_multithreaded with ()
+
+*** mutation diff:
+--- src/lib.rs
++++ replace throughput::hash_many_multithreaded with ()
+@@ -558,29 +558,17 @@
+     /// two messages, it runs on the calling thread at [`hash_many`]'s speed.
+     /// Larger batches are eligible to use available worker threads (on an
+     /// Apple M4 Max, 64-byte messages from about 10 down to 3 ns each). It
+     /// shares the cores with other callers as [`hash_multithreaded`] does.
+     // Inlined, so a constant mode folds to its constants (as
+     // convenience::hash is: no mode stored for the call to read).
+     #[inline(always)]
+     pub fn hash_many_multithreaded<P: Prepared>(mode: Mode, batch: &P, out: &mut [[u8; OUT_LEN]]) {
+-        crate::lanes::require();
+-        // The short path first and inline, so a small batch costs what
+-        // hash_many costs (which checks its length against the digests);
+-        // everything the pool needs is behind the call after.
+-        if out.len() < 2 || batch.bytes().len() < crate::lanes::MIN_SPLIT_LEN {
+-            return hash_many(mode, batch, out);
+-        }
+-        // Check the output count against the whole batch before taking
+-        // `batch.part(0..out.len())`, which would otherwise silently hash a
+-        // prefix when `out` is too short.
+-        assert_eq!(Some(batch.bytes().len()), batch.slot().checked_mul(out.len()), "input holds one slot per output");
+-        let (kind, key, context) = crate::lanes::parts(mode);
+-        crate::lanes::hash_many_in(kind, key, context, batch.part(0..out.len()), out);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// [`hash`], using other CPU cores where that is faster: the same
+     /// [`Hash`](struct@Hash), never slower. For a message whose bytes are not
+     /// in blocks (a mapped file, say), [`update_multithreaded`] into a
+     /// [`Hasher`] takes any slice, at the same
+     /// speed on the i7-12700K from 512 KiB to 1 GiB (about 1% slower at 1 MiB).
+     ///
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+warning: unused variable: `mode`
+   --> src/lib.rs:565:49
+    |
+565 |     pub fn hash_many_multithreaded<P: Prepared>(mode: Mode, batch: &P, out: &mut [[u8; OUT_LEN]]) {
+    |                                                 ^^^^ help: if this is intentional, prefix it with an underscore: `_mode`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `batch`
+   --> src/lib.rs:565:61
+    |
+565 |     pub fn hash_many_multithreaded<P: Prepared>(mode: Mode, batch: &P, out: &mut [[u8; OUT_LEN]]) {
+    |                                                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_batch`
+
+warning: unused variable: `out`
+   --> src/lib.rs:565:72
+    |
+565 |     pub fn hash_many_multithreaded<P: Prepared>(mode: Mode, batch: &P, out: &mut [[u8; OUT_LEN]]) {
+    |                                                                        ^^^ help: if this is intentional, prefix it with an underscore: `_out`
+
+warning: function `hash_many_in` is never used
+   --> src/lanes.rs:269:15
+    |
+269 | pub(crate) fn hash_many_in(
+    |               ^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `hash_many_over_pool` is never used
+   --> src/lanes.rs:411:15
+    |
+411 | pub(crate) fn hash_many_over_pool(tree: &TreeHasher, batch: crate::throughput::Part, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |               ^^^^^^^^^^^^^^^^^^^
+
+warning: function `cut_messages` is never used
+   --> src/lanes.rs:492:4
+    |
+492 | fn cut_messages(pieces: &mut Vec<Piece>, count: usize, message_len: usize, threads: usize) {
+    |    ^^^^^^^^^^^^
+
+warning: variant `Messages` is never constructed
+   --> src/lanes.rs:658:5
+    |
+636 | enum Work<'a> {
+    |      ---- variant in this enum
+...
+658 |     Messages { batch: crate::throughput::Part<'a>, tree: TreeHasher, pieces: &'a [Piece], outputs: *mut [u8; crate::OUT_LEN] },
+    |     ^^^^^^^^
+
+warning: variant `Messages` is never constructed
+    --> src/lanes.rs:1058:9
+     |
+1056 |     pub(crate) enum Kind {
+     |                     ---- variant in this enum
+1057 |         Tree = 0,
+1058 |         Messages = 1,
+     |         ^^^^^^^^
+     |
+     = note: `Kind` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1682:27
+     |
+1682 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 8 warnings (run `cargo fix --lib -p blake3-servil` to apply 3 suggestions)
+warning: `blake3-servil` (lib test) generated 8 warnings (7 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:27:1
+   |
+27 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 4.14s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev --lib --tests
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: unused variable: `mode`
+   --> src/lib.rs:565:49
+    |
+565 |     pub fn hash_many_multithreaded<P: Prepared>(mode: Mode, batch: &P, out: &mut [[u8; OUT_LEN]]) {
+    |                                                 ^^^^ help: if this is intentional, prefix it with an underscore: `_mode`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `batch`
+   --> src/lib.rs:565:61
+    |
+565 |     pub fn hash_many_multithreaded<P: Prepared>(mode: Mode, batch: &P, out: &mut [[u8; OUT_LEN]]) {
+    |                                                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_batch`
+
+warning: unused variable: `out`
+   --> src/lib.rs:565:72
+    |
+565 |     pub fn hash_many_multithreaded<P: Prepared>(mode: Mode, batch: &P, out: &mut [[u8; OUT_LEN]]) {
+    |                                                                        ^^^ help: if this is intentional, prefix it with an underscore: `_out`
+
+warning: function `hash_many_in` is never used
+   --> src/lanes.rs:269:15
+    |
+269 | pub(crate) fn hash_many_in(
+    |               ^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `hash_many_over_pool` is never used
+   --> src/lanes.rs:411:15
+    |
+411 | pub(crate) fn hash_many_over_pool(tree: &TreeHasher, batch: crate::throughput::Part, outputs: &mut [[u8; crate::OUT_LEN]]) {
+    |               ^^^^^^^^^^^^^^^^^^^
+
+warning: function `cut_messages` is never used
+   --> src/lanes.rs:492:4
+    |
+492 | fn cut_messages(pieces: &mut Vec<Piece>, count: usize, message_len: usize, threads: usize) {
+    |    ^^^^^^^^^^^^
+
+warning: variant `Messages` is never constructed
+   --> src/lanes.rs:658:5
+    |
+636 | enum Work<'a> {
+    |      ---- variant in this enum
+...
+658 |     Messages { batch: crate::throughput::Part<'a>, tree: TreeHasher, pieces: &'a [Piece], outputs: *mut [u8; crate::OUT_LEN] },
+    |     ^^^^^^^^
+
+warning: variant `Messages` is never constructed
+    --> src/lanes.rs:1058:9
+     |
+1056 |     pub(crate) enum Kind {
+     |                     ---- variant in this enum
+1057 |         Tree = 0,
+1058 |         Messages = 1,
+     |         ^^^^^^^^
+     |
+     = note: `Kind` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: `blake3-servil` (lib) generated 8 warnings (run `cargo fix --lib -p blake3-servil` to apply 3 suggestions)
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1682:27
+     |
+1682 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+
+warning: `blake3-servil` (lib test) generated 8 warnings (7 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:27:1
+   |
+27 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.10s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID 09d6f524-3a8c-4d57-aa26-3ccb7e6b5361 with nextest profile: mutants
+    Starting 142 tests across 14 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/142) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/6d49de8fc2a8e1a9/out/blake3_servil-6d49de8fc2a8e1a9 --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+       START [         ] (  1/142) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/6d49de8fc2a8e1a9/out/blake3_servil-6d49de8fc2a8e1a9 --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+       START [         ] (  1/142) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/6d49de8fc2a8e1a9/out/blake3_servil-6d49de8fc2a8e1a9 --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+        PASS [   0.020s] (  1/142) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  2/142) blake3-servil forms_test::a_short_output_slice_is_refused_above_the_split
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/6d49de8fc2a8e1a9/out/blake3_servil-6d49de8fc2a8e1a9 --exact forms_test::a_short_output_slice_is_refused_above_the_split --nocapture
+        PASS [   0.028s] (  2/142) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  3/142) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-0/mutants/build/blake3-servil/6d49de8fc2a8e1a9/out/blake3_servil-6d49de8fc2a8e1a9 --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        FAIL [   0.022s] (  3/142) blake3-servil forms_test::a_short_output_slice_is_refused_above_the_split
+  stdout ───
+
+    running 1 test
+    test forms_test::a_short_output_slice_is_refused_above_the_split - should panic ... FAILED
+
+    failures:
+
+    ---- forms_test::a_short_output_slice_is_refused_above_the_split stdout ----
+    note: test did not panic as expected at src/forms_test.rs:359:4
+
+    failures:
+        forms_test::a_short_output_slice_is_refused_above_the_split
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 112 filtered out; finished in 0.00s
+
+
+  Cancelling due to test failure: immediately terminating 2 tests still running
+        PASS [   0.073s] (  4/142) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+     SIGTERM [   0.047s] (  5/142) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+────────────
+     Summary [   0.076s] 5/142 tests run: 3 passed, 2 failed, 0 skipped
+warning: 137/142 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)

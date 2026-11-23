@@ -1,0 +1,54 @@
+--- src/lanes.rs
++++ replace Task::run_members with ()
+@@ -3566,50 +3566,17 @@
+ }
+ 
+ impl Task {
+     /// The members' digests: messages of one length side by side on the
+     /// multi-lane kernels (`hash_many`'s, from a table of pointers) where
+     /// that length is one block, or on x86 two to sixteen blocks of a power
+     /// of two (128 B to 1 KiB); any others one at a time.
+     pub(crate) fn run_members(&self, tree: &TreeHasher, platform: Platform) {
+-        let members = &self.member[..self.members];
+-        if let Some(message_len) = self.batch {
+-            for m in members {
+-                // Sound: the Pipeline keeps each batch's bytes and digest
+-                // space in place until the group publishes `completed_epoch`.
+-                let bytes = unsafe { core::slice::from_raw_parts(m.input, m.len) };
+-                let slot = crate::slot_len(message_len);
+-                let count = m.len / slot;
+-                let digests = unsafe { core::slice::from_raw_parts_mut(m.out as *mut [u8; crate::OUT_LEN], count) };
+-                // Sound: the Pipeline keeps a validated `Batch`'s slots alive
+-                // until the group publishes `completed_epoch`.
+-                let part = unsafe { crate::throughput::Part::from_checked_slots(bytes, message_len, slot) };
+-                tree.hash_many_on(platform, &part, digests);
+-            }
+-            return;
+-        }
+-        let input = |i: usize| {
+-            let m = members[i];
+-            // Sound: the submission keeps each member's bytes readable
+-            // until the task publishes completion.
+-            unsafe { core::slice::from_raw_parts(m.input, m.len) }
+-        };
+-        let output = |i: usize, digest| {
+-            // Sound: each member has its own output, kept until completion.
+-            unsafe { members[i].out.cast::<[u8; crate::OUT_LEN]>().write(digest) };
+-        };
+-        if tree.try_hash_group_on(platform, members.len(), input, output) {
+-            crate::ran(crate::Ran::EqualMembers);
+-            return;
+-        }
+-        crate::ran(crate::Ran::MemberAlone);
+-        for i in 0..members.len() {
+-            output(i, *tree.hash_on(platform, input(i)).as_bytes());
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// The SME2 thread, on CPUs with SME2: it hashes tasks only, on SME2 (the
+ /// SME unit hashes a 64 KiB piece in 14 us where a NEON worker takes 22,
+ /// Mac, probe/queue-timeline), under the process's turn so that a caller of
+ /// hash() elsewhere keeps the unit; without the turn, on NEON. It takes
+ /// streams' tasks while any wait, and parks as soon as none does; every
