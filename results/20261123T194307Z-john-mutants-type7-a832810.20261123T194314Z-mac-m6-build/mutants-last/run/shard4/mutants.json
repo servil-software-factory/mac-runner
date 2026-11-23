@@ -1,0 +1,354 @@
+[
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::push_row_with with ()\n@@ -293,36 +293,17 @@\n     /// the entry only once `fill` returns a valid power-of-two width in\n     /// `4..=ROW`. Any lower live rows colliding on the same slot (`i % ROWS`)\n     /// are condensed first; each slot is zeroed once on first use so kernels\n     /// always see initialized memory. If `fill` panics or returns an invalid\n     /// width, the stack length and logical chaining values stay unchanged\n     /// (any colliding lower row may already have been condensed to its\n     /// equivalent single chaining value).\n     pub fn push_row_with<P: Parent>(&mut self, p: &P, fill: impl FnOnce(&mut [Cv; ROW]) -> usize) {\n-        assert!(self.len < DEPTH, \"the stack holds DEPTH entries\");\n-        for below in (self.len % ROWS..self.len).step_by(ROWS) {\n-            if self.is_row(below) {\n-                self.narrow(p, below);\n-            }\n-        }\n-        let slot = self.len % ROWS;\n-        // Sound: `slot < ROWS`, so `place` stays within `self.rows`'s `ROWS` elements.\n-        let place = unsafe { (self.rows.as_mut_ptr() as *mut [Cv; ROW]).add(slot) };\n-        if self.ready >> slot & 1 == 0 {\n-            // Sound: the slot's own storage.\n-            unsafe { place.write_bytes(0, 1) };\n-            self.ready |= 1 << slot;\n-        }\n-        // Sound: the slot's storage, every byte of it written (now or before).\n-        let width = fill(unsafe { &mut *place });\n-        assert!((4..=ROW).contains(&width) && width.is_power_of_two(), \"a row of 4 to ROW values, a power of two\");\n-        self.widths[slot] = u8::try_from(width).expect(\"width <= ROW\");\n-        self.wide |= 1 << self.len;\n-        self.len += 1;\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Entry `i`, a row, becomes the row half as wide: its values' parents.\n     fn halve<P: Parent>(&mut self, p: &P, i: usize) {\n         assert!(self.row(i).len() >= 8, \"a row stays 4 wide or more\");\n         let mut parents = [[0u8; 32]; ROW];\n         let made = p.parents(self.row(i), &mut parents);\n         assert_eq!(2 * made, self.row(i).len(), \"a parent for every two children\");\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::push_row_with",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 321
+        },
+        "start": {
+          "column": 5,
+          "line": 291
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:301:9: replace CvStack::push_row_with with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 320
+      },
+      "start": {
+        "column": 9,
+        "line": 301
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace subtree_len -> usize with 0\n@@ -453,25 +453,17 @@\n /// A whole subtree's length to hash next, from chunk `counter` with\n /// `remaining` (more than CHUNK_LEN) bytes to go: the largest power of two\n /// at most `remaining` that divides the bytes so far, CHUNK_LEN times a\n /// power of two dividing `counter`.\n /// A power of two divides `so_far` exactly when it is at most its lowest\n /// 1-bit, so the length is the smaller of the two, with no loop (one that\n /// halved until it divided could, changed, run forever).\n pub fn subtree_len(counter: u64, remaining: usize) -> usize {\n-    let len = 1usize << (usize::BITS - 1 - remaining.leading_zeros());\n-    let so_far = counter * CHUNK_LEN as u64;\n-    if so_far == 0 {\n-        len\n-    } else {\n-        // The lowest 1-bit as a mask, compared in u64: no shift to bound,\n-        // and the result is at most `len`, so it fits a usize.\n-        usize::try_from((len as u64).min(so_far & so_far.wrapping_neg())).expect(\"bounded by len: usize\")\n-    }\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// `cv`, the subtree from chunk `counter`, onto the stack: the stack's\n /// values merged to the subtrees before it first (lazily: the top value\n /// may still merge with the next).\n pub fn push<C: Chunk, K: Feed<C>>(k: &K, stack: &mut CvStack, initial: u64, cv: Cv, counter: u64) {\n     stack.merge(k, ones(counter - initial));\n     stack.push(cv);\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "subtree_len",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 470
+        },
+        "start": {
+          "column": 1,
+          "line": 453
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:461:5: replace subtree_len -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 469
+      },
+      "start": {
+        "column": 5,
+        "line": 461
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace subtree_len -> usize with 1\n@@ -453,25 +453,17 @@\n /// A whole subtree's length to hash next, from chunk `counter` with\n /// `remaining` (more than CHUNK_LEN) bytes to go: the largest power of two\n /// at most `remaining` that divides the bytes so far, CHUNK_LEN times a\n /// power of two dividing `counter`.\n /// A power of two divides `so_far` exactly when it is at most its lowest\n /// 1-bit, so the length is the smaller of the two, with no loop (one that\n /// halved until it divided could, changed, run forever).\n pub fn subtree_len(counter: u64, remaining: usize) -> usize {\n-    let len = 1usize << (usize::BITS - 1 - remaining.leading_zeros());\n-    let so_far = counter * CHUNK_LEN as u64;\n-    if so_far == 0 {\n-        len\n-    } else {\n-        // The lowest 1-bit as a mask, compared in u64: no shift to bound,\n-        // and the result is at most `len`, so it fits a usize.\n-        usize::try_from((len as u64).min(so_far & so_far.wrapping_neg())).expect(\"bounded by len: usize\")\n-    }\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// `cv`, the subtree from chunk `counter`, onto the stack: the stack's\n /// values merged to the subtrees before it first (lazily: the top value\n /// may still merge with the next).\n pub fn push<C: Chunk, K: Feed<C>>(k: &K, stack: &mut CvStack, initial: u64, cv: Cv, counter: u64) {\n     stack.merge(k, ones(counter - initial));\n     stack.push(cv);\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "subtree_len",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 470
+        },
+        "start": {
+          "column": 1,
+          "line": 453
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:461:5: replace subtree_len -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 469
+      },
+      "start": {
+        "column": 5,
+        "line": 461
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace & with | in subtree_len\n@@ -460,17 +460,17 @@\n pub fn subtree_len(counter: u64, remaining: usize) -> usize {\n     let len = 1usize << (usize::BITS - 1 - remaining.leading_zeros());\n     let so_far = counter * CHUNK_LEN as u64;\n     if so_far == 0 {\n         len\n     } else {\n         // The lowest 1-bit as a mask, compared in u64: no shift to bound,\n         // and the result is at most `len`, so it fits a usize.\n-        usize::try_from((len as u64).min(so_far & so_far.wrapping_neg())).expect(\"bounded by len: usize\")\n+        usize::try_from((len as u64).min(so_far | /* ~ changed by cargo-mutants ~ */ so_far.wrapping_neg())).expect(\"bounded by len: usize\")\n     }\n }\n \n /// `cv`, the subtree from chunk `counter`, onto the stack: the stack's\n /// values merged to the subtrees before it first (lazily: the top value\n /// may still merge with the next).\n pub fn push<C: Chunk, K: Feed<C>>(k: &K, stack: &mut CvStack, initial: u64, cv: Cv, counter: u64) {\n     stack.merge(k, ones(counter - initial));\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "subtree_len",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 470
+        },
+        "start": {
+          "column": 1,
+          "line": 453
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:468:49: replace & with | in subtree_len",
+    "package": "blake3-servil-core",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 50,
+        "line": 468
+      },
+      "start": {
+        "column": 49,
+        "line": 468
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::fill_buf -> usize with 0\n@@ -768,22 +768,17 @@\n \n     /// The bytes so far.\n     pub fn count(&self) -> usize {\n         BLOCK_LEN * self.blocks_compressed as usize + self.buf_len as usize\n     }\n \n     /// As much of `input` as `buf` has room for, into it; returns how much.\n     fn fill_buf(&mut self, input: &[u8]) -> usize {\n-        let want = BLOCK_LEN - self.buf_len as usize;\n-        let take = if want < input.len() { want } else { input.len() };\n-        let start = self.buf_len as usize;\n-        self.buf[start..start + take].copy_from_slice(&input[..take]);\n-        self.buf_len += u8::try_from(take).expect(\"take <= BLOCK_LEN\");\n-        take\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n \n     pub fn start_flag(&self) -> u8 {\n         if self.blocks_compressed == 0 { CHUNK_START } else { 0 }\n     }\n \n     /// The next bytes, `count() + input.len()` at most CHUNK_LEN. Whole\n     /// blocks compress straight from `input`; the last block always waits.\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::fill_buf",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 782
+        },
+        "start": {
+          "column": 5,
+          "line": 774
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:776:9: replace ChunkState<P>::fill_buf -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 781
+      },
+      "start": {
+        "column": 9,
+        "line": 776
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::fill_buf -> usize with 1\n@@ -768,22 +768,17 @@\n \n     /// The bytes so far.\n     pub fn count(&self) -> usize {\n         BLOCK_LEN * self.blocks_compressed as usize + self.buf_len as usize\n     }\n \n     /// As much of `input` as `buf` has room for, into it; returns how much.\n     fn fill_buf(&mut self, input: &[u8]) -> usize {\n-        let want = BLOCK_LEN - self.buf_len as usize;\n-        let take = if want < input.len() { want } else { input.len() };\n-        let start = self.buf_len as usize;\n-        self.buf[start..start + take].copy_from_slice(&input[..take]);\n-        self.buf_len += u8::try_from(take).expect(\"take <= BLOCK_LEN\");\n-        take\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n \n     pub fn start_flag(&self) -> u8 {\n         if self.blocks_compressed == 0 { CHUNK_START } else { 0 }\n     }\n \n     /// The next bytes, `count() + input.len()` at most CHUNK_LEN. Whole\n     /// blocks compress straight from `input`; the last block always waits.\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::fill_buf",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 782
+        },
+        "start": {
+          "column": 5,
+          "line": 774
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:776:9: replace ChunkState<P>::fill_buf -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 781
+      },
+      "start": {
+        "column": 9,
+        "line": 776
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace + with - in ChunkState<P>::fill_buf\n@@ -771,17 +771,17 @@\n         BLOCK_LEN * self.blocks_compressed as usize + self.buf_len as usize\n     }\n \n     /// As much of `input` as `buf` has room for, into it; returns how much.\n     fn fill_buf(&mut self, input: &[u8]) -> usize {\n         let want = BLOCK_LEN - self.buf_len as usize;\n         let take = if want < input.len() { want } else { input.len() };\n         let start = self.buf_len as usize;\n-        self.buf[start..start + take].copy_from_slice(&input[..take]);\n+        self.buf[start..start - /* ~ changed by cargo-mutants ~ */ take].copy_from_slice(&input[..take]);\n         self.buf_len += u8::try_from(take).expect(\"take <= BLOCK_LEN\");\n         take\n     }\n \n     pub fn start_flag(&self) -> u8 {\n         if self.blocks_compressed == 0 { CHUNK_START } else { 0 }\n     }\n \n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::fill_buf",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 782
+        },
+        "start": {
+          "column": 5,
+          "line": 774
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:779:31: replace + with - in ChunkState<P>::fill_buf",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 779
+      },
+      "start": {
+        "column": 31,
+        "line": 779
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace += with -= in ChunkState<P>::fill_buf\n@@ -772,17 +772,17 @@\n     }\n \n     /// As much of `input` as `buf` has room for, into it; returns how much.\n     fn fill_buf(&mut self, input: &[u8]) -> usize {\n         let want = BLOCK_LEN - self.buf_len as usize;\n         let take = if want < input.len() { want } else { input.len() };\n         let start = self.buf_len as usize;\n         self.buf[start..start + take].copy_from_slice(&input[..take]);\n-        self.buf_len += u8::try_from(take).expect(\"take <= BLOCK_LEN\");\n+        self.buf_len -= /* ~ changed by cargo-mutants ~ */ u8::try_from(take).expect(\"take <= BLOCK_LEN\");\n         take\n     }\n \n     pub fn start_flag(&self) -> u8 {\n         if self.blocks_compressed == 0 { CHUNK_START } else { 0 }\n     }\n \n     /// The next bytes, `count() + input.len()` at most CHUNK_LEN. Whole\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::fill_buf",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 782
+        },
+        "start": {
+          "column": 5,
+          "line": 774
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:780:22: replace += with -= in ChunkState<P>::fill_buf",
+    "package": "blake3-servil-core",
+    "replacement": "-=",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 780
+      },
+      "start": {
+        "column": 22,
+        "line": 780
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::absorb with ()\n@@ -783,36 +783,17 @@\n \n     pub fn start_flag(&self) -> u8 {\n         if self.blocks_compressed == 0 { CHUNK_START } else { 0 }\n     }\n \n     /// The next bytes, `count() + input.len()` at most CHUNK_LEN. Whole\n     /// blocks compress straight from `input`; the last block always waits.\n     pub fn absorb(&mut self, input: &[u8]) {\n-        let mut input = input;\n-        if self.buf_len > 0 {\n-            let take = self.fill_buf(input);\n-            input = &input[take..];\n-            if !input.is_empty() {\n-                let block_flags = self.flags | self.start_flag();\n-                self.platform.compress_in_place(&mut self.cv, &self.buf, u8::try_from(BLOCK_LEN).unwrap(), self.chunk_counter, block_flags);\n-                self.buf_len = 0;\n-                self.buf = [0; BLOCK_LEN];\n-                self.blocks_compressed += 1;\n-            }\n-        }\n-        if input.len() > BLOCK_LEN {\n-            let count = (input.len() - 1) / BLOCK_LEN;\n-            let start_flag = self.start_flag();\n-            self.platform.compress_blocks(&mut self.cv, input, count, self.chunk_counter, self.flags, start_flag);\n-            self.blocks_compressed += u8::try_from(count).expect(\"count <= 16\");\n-            input = &input[count * BLOCK_LEN..];\n-        }\n-        self.fill_buf(input);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// A node: the inputs of its last compression. `block` comes first and the\n /// node is 64-byte aligned: glibc's AVX-512 memcpy writes a 64-byte copy\n /// with a pair of overlapping unaligned 64-byte vector stores, and the\n /// immediate reload of the destination then fails store-to-load forwarding\n /// whenever the stack frame leaves it misaligned (address & 31 != 0). Stack\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::absorb",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 811
+        },
+        "start": {
+          "column": 5,
+          "line": 788
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:791:9: replace ChunkState<P>::absorb with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 810
+      },
+      "start": {
+        "column": 9,
+        "line": 791
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace | with & in ChunkState<P>::absorb\n@@ -788,17 +788,17 @@\n     /// The next bytes, `count() + input.len()` at most CHUNK_LEN. Whole\n     /// blocks compress straight from `input`; the last block always waits.\n     pub fn absorb(&mut self, input: &[u8]) {\n         let mut input = input;\n         if self.buf_len > 0 {\n             let take = self.fill_buf(input);\n             input = &input[take..];\n             if !input.is_empty() {\n-                let block_flags = self.flags | self.start_flag();\n+                let block_flags = self.flags & /* ~ changed by cargo-mutants ~ */ self.start_flag();\n                 self.platform.compress_in_place(&mut self.cv, &self.buf, u8::try_from(BLOCK_LEN).unwrap(), self.chunk_counter, block_flags);\n                 self.buf_len = 0;\n                 self.buf = [0; BLOCK_LEN];\n                 self.blocks_compressed += 1;\n             }\n         }\n         if input.len() > BLOCK_LEN {\n             let count = (input.len() - 1) / BLOCK_LEN;\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::absorb",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 811
+        },
+        "start": {
+          "column": 5,
+          "line": 788
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:796:46: replace | with & in ChunkState<P>::absorb",
+    "package": "blake3-servil-core",
+    "replacement": "&",
+    "span": {
+      "end": {
+        "column": 47,
+        "line": 796
+      },
+      "start": {
+        "column": 46,
+        "line": 796
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace += with -= in ChunkState<P>::absorb\n@@ -799,17 +799,17 @@\n                 self.buf = [0; BLOCK_LEN];\n                 self.blocks_compressed += 1;\n             }\n         }\n         if input.len() > BLOCK_LEN {\n             let count = (input.len() - 1) / BLOCK_LEN;\n             let start_flag = self.start_flag();\n             self.platform.compress_blocks(&mut self.cv, input, count, self.chunk_counter, self.flags, start_flag);\n-            self.blocks_compressed += u8::try_from(count).expect(\"count <= 16\");\n+            self.blocks_compressed -= /* ~ changed by cargo-mutants ~ */ u8::try_from(count).expect(\"count <= 16\");\n             input = &input[count * BLOCK_LEN..];\n         }\n         self.fill_buf(input);\n     }\n }\n \n /// A node: the inputs of its last compression. `block` comes first and the\n /// node is 64-byte aligned: glibc's AVX-512 memcpy writes a 64-byte copy\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::absorb",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 811
+        },
+        "start": {
+          "column": 5,
+          "line": 788
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:807:36: replace += with -= in ChunkState<P>::absorb",
+    "package": "blake3-servil-core",
+    "replacement": "-=",
+    "span": {
+      "end": {
+        "column": 38,
+        "line": 807
+      },
+      "start": {
+        "column": 36,
+        "line": 807
+      }
+    }
+  }
+]

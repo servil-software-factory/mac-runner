@@ -1,0 +1,21 @@
+--- src/lanes.rs
++++ replace + with - in places::assign
+@@ -1371,17 +1371,17 @@
+         });
+         let place = |cache: usize| caches.iter().position(|&c| c == cache).expect("every CPU's cache is listed");
+         let mut order: Vec<(usize, Cpu)> = cpus.iter().map(|&c| (place(c.cache), c)).collect();
+         order.sort_by_key(|&(place, c)| (place, c.cpu));
+         let words = workers.div_ceil(64).max(1);
+         let mut places = Places {
+             of_cpu: std::vec![u16::MAX; CPUS].into(),
+             cpus: std::vec![[0u64; CPUS / 64]; caches.len()].into(),
+-            of_worker: (0..workers).map(|k| u8::try_from(order[(k + 1) % order.len()].0).expect("place fits u8")).collect(),
++            of_worker: (0..workers).map(|k| u8::try_from(order[(k - /* ~ changed by cargo-mutants ~ */ 1) % order.len()].0).expect("place fits u8")).collect(),
+             near: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),
+             beside: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),
+             count: std::vec![0usize; caches.len()].into(),
+         };
+         let mut socket_of = std::vec![0usize; caches.len()];
+         for &(place, c) in &order {
+             places.of_cpu[c.cpu] = u16::try_from(place).expect("place fits u16");
+             places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);

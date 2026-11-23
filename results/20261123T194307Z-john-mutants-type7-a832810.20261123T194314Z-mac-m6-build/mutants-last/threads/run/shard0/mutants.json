@@ -1,0 +1,290 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::assign -> Option<Places> with None\n@@ -1352,59 +1352,17 @@\n     /// The places for `cpus` (in any order) and `workers` workers, started\n     /// by a thread on CPU `starter`: None with fewer than two caches, or\n     /// more than 256. The places are numbered from the starter's, its\n     /// socket's first; worker k is of the place of CPU k + 1 in that\n     /// order (one CPU of the starter's place is left for the starter),\n     /// around again where there are more workers than CPUs.\n     #[cfg(any(target_os = \"linux\", test))]\n     pub(crate) fn assign(cpus: &[Cpu], starter: usize, workers: usize) -> Option<Places> {\n-        let mut caches: Vec<usize> = cpus.iter().map(|c| c.cache).collect();\n-        caches.sort_unstable();\n-        caches.dedup();\n-        if caches.len() < 2 || caches.len() > 256 || cpus.iter().any(|c| c.cpu >= CPUS) {\n-            return None;\n-        }\n-        let first = cpus.iter().find(|c| c.cpu == starter).unwrap_or(&cpus[0]);\n-        // The caches in order: the starter's, its socket's others, the rest.\n-        caches.sort_by_key(|&cache| {\n-            let socket = cpus.iter().find(|c| c.cache == cache).expect(\"a cache of some CPU\").socket;\n-            (cache != first.cache, socket != first.socket, socket, cache)\n-        });\n-        let place = |cache: usize| caches.iter().position(|&c| c == cache).expect(\"every CPU's cache is listed\");\n-        let mut order: Vec<(usize, Cpu)> = cpus.iter().map(|&c| (place(c.cache), c)).collect();\n-        order.sort_by_key(|&(place, c)| (place, c.cpu));\n-        let words = workers.div_ceil(64).max(1);\n-        let mut places = Places {\n-            of_cpu: std::vec![u16::MAX; CPUS].into(),\n-            cpus: std::vec![[0u64; CPUS / 64]; caches.len()].into(),\n-            of_worker: (0..workers).map(|k| u8::try_from(order[(k + 1) % order.len()].0).expect(\"place fits u8\")).collect(),\n-            near: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n-            beside: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n-            count: std::vec![0usize; caches.len()].into(),\n-        };\n-        let mut socket_of = std::vec![0usize; caches.len()];\n-        for &(place, c) in &order {\n-            places.of_cpu[c.cpu] = u16::try_from(place).expect(\"place fits u16\");\n-            places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);\n-            socket_of[place] = c.socket;\n-        }\n-        for k in 0..workers {\n-            let place = places.of_worker[k] as usize;\n-            places.count[place] += 1;\n-            for q in 0..caches.len() {\n-                if q == place {\n-                    places.near[q][k / 64] |= 1 << (k % 64);\n-                }\n-                if socket_of[q] == socket_of[place] {\n-                    places.beside[q][k / 64] |= 1 << (k % 64);\n-                }\n-            }\n-        }\n-        Some(places)\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[cfg(target_os = \"linux\")]\n     unsafe extern \"C\" {\n         fn sched_getcpu() -> i32;\n         fn sched_getaffinity(pid: i32, len: usize, set: *mut Set) -> i32;\n         fn sched_setaffinity(pid: i32, len: usize, set: *const Set) -> i32;\n     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::assign",
+      "return_type": "-> Option<Places>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1403
+        },
+        "start": {
+          "column": 5,
+          "line": 1352
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1360:9: replace places::assign -> Option<Places> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 1402
+      },
+      "start": {
+        "column": 9,
+        "line": 1360
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace places::assign -> Option<Places> with Some(Default::default())\n@@ -1352,59 +1352,17 @@\n     /// The places for `cpus` (in any order) and `workers` workers, started\n     /// by a thread on CPU `starter`: None with fewer than two caches, or\n     /// more than 256. The places are numbered from the starter's, its\n     /// socket's first; worker k is of the place of CPU k + 1 in that\n     /// order (one CPU of the starter's place is left for the starter),\n     /// around again where there are more workers than CPUs.\n     #[cfg(any(target_os = \"linux\", test))]\n     pub(crate) fn assign(cpus: &[Cpu], starter: usize, workers: usize) -> Option<Places> {\n-        let mut caches: Vec<usize> = cpus.iter().map(|c| c.cache).collect();\n-        caches.sort_unstable();\n-        caches.dedup();\n-        if caches.len() < 2 || caches.len() > 256 || cpus.iter().any(|c| c.cpu >= CPUS) {\n-            return None;\n-        }\n-        let first = cpus.iter().find(|c| c.cpu == starter).unwrap_or(&cpus[0]);\n-        // The caches in order: the starter's, its socket's others, the rest.\n-        caches.sort_by_key(|&cache| {\n-            let socket = cpus.iter().find(|c| c.cache == cache).expect(\"a cache of some CPU\").socket;\n-            (cache != first.cache, socket != first.socket, socket, cache)\n-        });\n-        let place = |cache: usize| caches.iter().position(|&c| c == cache).expect(\"every CPU's cache is listed\");\n-        let mut order: Vec<(usize, Cpu)> = cpus.iter().map(|&c| (place(c.cache), c)).collect();\n-        order.sort_by_key(|&(place, c)| (place, c.cpu));\n-        let words = workers.div_ceil(64).max(1);\n-        let mut places = Places {\n-            of_cpu: std::vec![u16::MAX; CPUS].into(),\n-            cpus: std::vec![[0u64; CPUS / 64]; caches.len()].into(),\n-            of_worker: (0..workers).map(|k| u8::try_from(order[(k + 1) % order.len()].0).expect(\"place fits u8\")).collect(),\n-            near: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n-            beside: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n-            count: std::vec![0usize; caches.len()].into(),\n-        };\n-        let mut socket_of = std::vec![0usize; caches.len()];\n-        for &(place, c) in &order {\n-            places.of_cpu[c.cpu] = u16::try_from(place).expect(\"place fits u16\");\n-            places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);\n-            socket_of[place] = c.socket;\n-        }\n-        for k in 0..workers {\n-            let place = places.of_worker[k] as usize;\n-            places.count[place] += 1;\n-            for q in 0..caches.len() {\n-                if q == place {\n-                    places.near[q][k / 64] |= 1 << (k % 64);\n-                }\n-                if socket_of[q] == socket_of[place] {\n-                    places.beside[q][k / 64] |= 1 << (k % 64);\n-                }\n-            }\n-        }\n-        Some(places)\n+        Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[cfg(target_os = \"linux\")]\n     unsafe extern \"C\" {\n         fn sched_getcpu() -> i32;\n         fn sched_getaffinity(pid: i32, len: usize, set: *mut Set) -> i32;\n         fn sched_setaffinity(pid: i32, len: usize, set: *const Set) -> i32;\n     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::assign",
+      "return_type": "-> Option<Places>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1403
+        },
+        "start": {
+          "column": 5,
+          "line": 1352
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:1360:9: replace places::assign -> Option<Places> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 1402
+      },
+      "start": {
+        "column": 9,
+        "line": 1360
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace + with - in places::assign\n@@ -1371,17 +1371,17 @@\n         });\n         let place = |cache: usize| caches.iter().position(|&c| c == cache).expect(\"every CPU's cache is listed\");\n         let mut order: Vec<(usize, Cpu)> = cpus.iter().map(|&c| (place(c.cache), c)).collect();\n         order.sort_by_key(|&(place, c)| (place, c.cpu));\n         let words = workers.div_ceil(64).max(1);\n         let mut places = Places {\n             of_cpu: std::vec![u16::MAX; CPUS].into(),\n             cpus: std::vec![[0u64; CPUS / 64]; caches.len()].into(),\n-            of_worker: (0..workers).map(|k| u8::try_from(order[(k + 1) % order.len()].0).expect(\"place fits u8\")).collect(),\n+            of_worker: (0..workers).map(|k| u8::try_from(order[(k - /* ~ changed by cargo-mutants ~ */ 1) % order.len()].0).expect(\"place fits u8\")).collect(),\n             near: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n             beside: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),\n             count: std::vec![0usize; caches.len()].into(),\n         };\n         let mut socket_of = std::vec![0usize; caches.len()];\n         for &(place, c) in &order {\n             places.of_cpu[c.cpu] = u16::try_from(place).expect(\"place fits u16\");\n             places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::assign",
+      "return_type": "-> Option<Places>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1403
+        },
+        "start": {
+          "column": 5,
+          "line": 1352
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1379:67: replace + with - in places::assign",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 68,
+        "line": 1379
+      },
+      "start": {
+        "column": 67,
+        "line": 1379
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::run_waiting_action -> bool with true\n@@ -2999,26 +2999,17 @@\n                 noted(Noted::WakeTry);\n                 pool.park.wake_one();\n             }\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n-            match self.take() {\n-                Some(Item::Action { run, context, arg }) => {\n-                    // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform)` function pointer and live `context` valid until completion.\n-                    let f: unsafe fn(*const (), u64, Platform) = unsafe { core::mem::transmute(run) };\n-                    unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) };\n-                    true\n-                }\n-                Some(_) => unreachable!(\"an action source carries actions\"),\n-                None => false,\n-            }\n+            true /* ~ changed by cargo-mutants ~ */\n         }\n \n         #[cfg(test)]\n         pub(super) fn own_for_test(&self) {\n             self.finish.own();\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3017
+        },
+        "start": {
+          "column": 9,
+          "line": 3004
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3007:13: replace sources::Source::run_waiting_action -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3016
+      },
+      "start": {
+        "column": 13,
+        "line": 3007
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::run_waiting_action -> bool with false\n@@ -2999,26 +2999,17 @@\n                 noted(Noted::WakeTry);\n                 pool.park.wake_one();\n             }\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n-            match self.take() {\n-                Some(Item::Action { run, context, arg }) => {\n-                    // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform)` function pointer and live `context` valid until completion.\n-                    let f: unsafe fn(*const (), u64, Platform) = unsafe { core::mem::transmute(run) };\n-                    unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) };\n-                    true\n-                }\n-                Some(_) => unreachable!(\"an action source carries actions\"),\n-                None => false,\n-            }\n+            false /* ~ changed by cargo-mutants ~ */\n         }\n \n         #[cfg(test)]\n         pub(super) fn own_for_test(&self) {\n             self.finish.own();\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3017
+        },
+        "start": {
+          "column": 9,
+          "line": 3004
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3007:13: replace sources::Source::run_waiting_action -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3016
+      },
+      "start": {
+        "column": 13,
+        "line": 3007
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find_from -> Option<usize> with None\n@@ -3202,27 +3202,17 @@\n     /// The first registered source for which `f` says yes.\n     fn find(f: impl FnMut(&'static Source) -> bool) -> bool {\n         find_from(0, f).is_some()\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     fn find_from(start: usize, mut f: impl FnMut(&'static Source) -> bool) -> Option<usize> {\n-        let mut active = ACTIVE.load(Ordering::SeqCst).rotate_right(u32::try_from(start).expect(\"slot fits u32\"));\n-        while active != 0 {\n-            let slot = (active.trailing_zeros() as usize + start) % SLOTS;\n-            active &= active - 1;\n-            let ptr = REGISTERED[slot].load(Ordering::Acquire);\n-            // Sound: sources are never freed (they are recycled).\n-            if !ptr.is_null() && f(unsafe { &*ptr }) {\n-                return Some(slot);\n-            }\n-        }\n-        None\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The items a worker takes lowest slot first before it takes one in\n     /// turn ([`run_one`]).\n     pub(crate) const TURN: u32 = 16;\n \n     /// A worker's count toward its next turn, and where that turn's walk\n     /// begins.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3221
+        },
+        "start": {
+          "column": 5,
+          "line": 3207
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3210:9: replace sources::find_from -> Option<usize> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 3220
+      },
+      "start": {
+        "column": 9,
+        "line": 3210
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find_from -> Option<usize> with Some(0)\n@@ -3202,27 +3202,17 @@\n     /// The first registered source for which `f` says yes.\n     fn find(f: impl FnMut(&'static Source) -> bool) -> bool {\n         find_from(0, f).is_some()\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     fn find_from(start: usize, mut f: impl FnMut(&'static Source) -> bool) -> Option<usize> {\n-        let mut active = ACTIVE.load(Ordering::SeqCst).rotate_right(u32::try_from(start).expect(\"slot fits u32\"));\n-        while active != 0 {\n-            let slot = (active.trailing_zeros() as usize + start) % SLOTS;\n-            active &= active - 1;\n-            let ptr = REGISTERED[slot].load(Ordering::Acquire);\n-            // Sound: sources are never freed (they are recycled).\n-            if !ptr.is_null() && f(unsafe { &*ptr }) {\n-                return Some(slot);\n-            }\n-        }\n-        None\n+        Some(0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The items a worker takes lowest slot first before it takes one in\n     /// turn ([`run_one`]).\n     pub(crate) const TURN: u32 = 16;\n \n     /// A worker's count toward its next turn, and where that turn's walk\n     /// begins.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3221
+        },
+        "start": {
+          "column": 5,
+          "line": 3207
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3210:9: replace sources::find_from -> Option<usize> with Some(0)",
+    "package": "blake3-servil",
+    "replacement": "Some(0)",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 3220
+      },
+      "start": {
+        "column": 9,
+        "line": 3210
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find_from -> Option<usize> with Some(1)\n@@ -3202,27 +3202,17 @@\n     /// The first registered source for which `f` says yes.\n     fn find(f: impl FnMut(&'static Source) -> bool) -> bool {\n         find_from(0, f).is_some()\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     fn find_from(start: usize, mut f: impl FnMut(&'static Source) -> bool) -> Option<usize> {\n-        let mut active = ACTIVE.load(Ordering::SeqCst).rotate_right(u32::try_from(start).expect(\"slot fits u32\"));\n-        while active != 0 {\n-            let slot = (active.trailing_zeros() as usize + start) % SLOTS;\n-            active &= active - 1;\n-            let ptr = REGISTERED[slot].load(Ordering::Acquire);\n-            // Sound: sources are never freed (they are recycled).\n-            if !ptr.is_null() && f(unsafe { &*ptr }) {\n-                return Some(slot);\n-            }\n-        }\n-        None\n+        Some(1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The items a worker takes lowest slot first before it takes one in\n     /// turn ([`run_one`]).\n     pub(crate) const TURN: u32 = 16;\n \n     /// A worker's count toward its next turn, and where that turn's walk\n     /// begins.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3221
+        },
+        "start": {
+          "column": 5,
+          "line": 3207
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3210:9: replace sources::find_from -> Option<usize> with Some(1)",
+    "package": "blake3-servil",
+    "replacement": "Some(1)",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 3220
+      },
+      "start": {
+        "column": 9,
+        "line": 3210
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::run_one_from -> bool with true\n@@ -3257,32 +3257,17 @@\n     /// (the same message then took about 1 ms).\n     pub(crate) fn run_one(turn: &mut Turn) -> bool {\n         run_one_from(turn, serve)\n     }\n \n     /// [`run_one`]'s walk, with `serve` what is done with the item taken\n     /// (the test's way in: a recording `serve`).\n     fn run_one_from(turn: &mut Turn, mut serve: impl FnMut(&'static Source, Item)) -> bool {\n-        let in_turn = turn.taken >= TURN;\n-        let start = if in_turn { turn.cursor as usize } else { 0 };\n-        let taken_from = find_from(start, |source| {\n-            let Some(item) = source.take() else { return false };\n-            serve(source, item);\n-            true\n-        });\n-        let Some(slot) = taken_from else { return false };\n-        if in_turn {\n-            // The slot after this one (after the last, the first: the\n-            // walk takes its start round).\n-            *turn = Turn { taken: 0, cursor: u32::try_from(slot + 1).expect(\"slot fits u32\") };\n-        } else {\n-            turn.taken += 1;\n-        }\n-        true\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Hash `item` of `source` on this thread, waking the next worker first\n     /// when two or more wait and one is parked.\n     fn serve(source: &'static Source, item: Item) {\n         if source.waiting() >= 2 {\n             noted(Noted::WakeTry);\n             if source.near.load(Ordering::Relaxed) {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::run_one_from",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3281
+        },
+        "start": {
+          "column": 5,
+          "line": 3262
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3265:9: replace sources::run_one_from -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 3280
+      },
+      "start": {
+        "column": 9,
+        "line": 3265
+      }
+    }
+  }
+]

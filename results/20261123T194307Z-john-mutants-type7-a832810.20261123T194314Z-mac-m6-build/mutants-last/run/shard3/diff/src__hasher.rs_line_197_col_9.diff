@@ -1,0 +1,82 @@
+--- src/hasher.rs
++++ replace CvStack::condense with ()
+@@ -189,78 +189,17 @@
+     /// two dividing `TILE` and rows are packed widest first, the running
+     /// tile fill is always a multiple of the next row's width, so no row
+     /// ever straddles a tile boundary. Layers 2..=5 then ping-pong between
+     /// `a` and `b` (`b` holds at most `HALF_RUN / 2 = 2 * ROW` parents),
+     /// popping rows that reach one value from the narrowest end. Total
+     /// scratch: 6 KiB (down from 16 KiB).
+     #[inline(never)]
+     fn condense<P: Parent>(&self, p: &P, live: u64, values: &mut [Cv; ROWS]) {
+-        let mut a = [const { core::mem::MaybeUninit::<Cv>::uninit() }; HALF_RUN];
+-        let mut b = [const { core::mem::MaybeUninit::<Cv>::uninit() }; 2 * ROW];
+-        let mut order = [0usize; ROWS];
+-        let (mut rows, mut fill, mut len) = (0, 0, 0);
+-        let mut flush = |b: &[core::mem::MaybeUninit<Cv>; 2 * ROW], fill: usize| {
+-            // Sound: `b[..fill]` holds `fill` written values from whole rows.
+-            let children = unsafe { core::slice::from_raw_parts(b.as_ptr() as *const Cv, fill) };
+-            let out = a[len..len + fill / 2].write_copy_of_slice(&children[..fill / 2]);
+-            let places = out.len();
+-            let made = p.parents(children, out);
+-            assert_eq!((2 * made, places), (fill, made), "a parent for every two children, each in its place");
+-            len += made;
+-        };
+-        for width in [ROW, ROW / 2, ROW / 4, ROW / 8] {
+-            let mut left = live;
+-            for _ in 0..live.count_ones() {
+-                let i = left.trailing_zeros() as usize;
+-                left &= left - 1;
+-                let row = self.row(i);
+-                if row.len() == width {
+-                    b[fill..fill + width].write_copy_of_slice(row);
+-                    fill += width;
+-                    order[rows] = i;
+-                    rows += 1;
+-                    if fill == TILE {
+-                        flush(&b, fill);
+-                        fill = 0;
+-                    }
+-                }
+-            }
+-        }
+-        assert_eq!(rows, live.count_ones() as usize, "every live row was collected");
+-        assert!(rows >= 2, "condense is entered only for two or more live rows");
+-        if fill > 0 {
+-            flush(&b, fill);
+-        }
+-        // Sound: Layer 1 wrote `a[..len]`, one parent per two children of every row.
+-        let mut from = unsafe { core::slice::from_raw_parts_mut(a.as_mut_ptr() as *mut Cv, len) };
+-        // Layer 2 writes at most `len / 2 <= 2 * ROW` parents into `b`; copy
+-        // `from[..len / 2]` so `to` holds initialized values before the kernels write.
+-        let mut to = b[..len / 2].write_copy_of_slice(&from[..len / 2]);
+-        // Layers 2 through log2(ROW): every row started at width >= 4, so
+-        // none reached one value in Layer 1.
+-        for layer in 2..=ROW.trailing_zeros() {
+-            for start in (0..len).step_by(TILE) {
+-                let n = (len - start).min(TILE);
+-                let out = &mut to[start / 2..(start + n) / 2];
+-                let places = out.len();
+-                let made = p.parents(&from[start..start + n], out);
+-                assert_eq!((2 * made, places), (n, made), "a parent for every two children, each in its place");
+-            }
+-            len /= 2;
+-            // The rows that were two wide are one value each now: the
+-            // narrowest, so the run's last.
+-            while rows > 0 && self.row(order[rows - 1]).len() == 1 << layer {
+-                rows -= 1;
+-                len -= 1;
+-                values[order[rows] % ROWS] = to[len];
+-            }
+-            core::mem::swap(&mut from, &mut to);
+-        }
+-        assert_eq!((rows, len), (0, 0), "every row condensed to its one value");
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Entry `i`'s one value, below the length: a single entry's own, a
+     /// row's from `rows` ([`CvStack::rows_values`]).
+     pub fn value(&self, rows: &[Cv; ROWS], i: usize) -> Cv {
+         assert!(i < self.len, "a value below the stack's length");
+         if self.is_row(i) {
+             return rows[i % ROWS];
