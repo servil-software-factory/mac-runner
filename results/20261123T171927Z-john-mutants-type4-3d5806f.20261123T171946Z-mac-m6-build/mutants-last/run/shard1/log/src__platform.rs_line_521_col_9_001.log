@@ -1,0 +1,70 @@
+
+*** src/platform.rs:521:9: replace Platform::neon -> Option<Self> with Some(Default::default())
+
+*** mutation diff:
+--- src/platform.rs
++++ replace Platform::neon -> Option<Self> with Some(Default::default())
+@@ -513,19 +513,17 @@
+     #[cfg(feature = "std")]
+     pub fn avx512() -> Option<Self> {
+         Self::require_initialized();
+         if avx512_detected() { Some(Self::AVX512) } else { None }
+     }
+ 
+     #[cfg(blake3_neon)]
+     pub fn neon() -> Option<Self> {
+-        Self::require_initialized();
+-        // Assumed to be safe if the "neon" feature is on.
+-        Some(Self::NEON)
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[cfg(blake3_sme2)]
+     #[cfg(feature = "std")]
+     pub fn sme2() -> Option<Self> {
+         // Issue Platform::SME2 only when the startup self-test actually tested
+         // SME2 (recorded as the process platform) and this thread's SVL is 512 bits.
+         if matches!(Self::detect(), Self::SME2) && sme2_detected() { Some(Self::SME2) } else { None }
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.10.0+dev --features=serde
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43075]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[67171]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+error[E0277]: the trait bound `platform::Platform: Default` is not satisfied
+   --> src/platform.rs:521:14
+    |
+521 |         Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+    |              ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `platform::Platform`
+    |
+help: consider annotating `platform::Platform` with `#[derive(Default)]`
+    |
+ 50 + #[derive(Default)]
+ 51 | pub enum Platform {
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.10.0+dev' '--features=serde' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
