@@ -1,0 +1,52 @@
+--- src/each.rs
++++ replace update_turn with ()
+@@ -211,48 +211,17 @@
+ /// waiting list, or the turn's end hashes what is held and gathers what
+ /// waited, pass after pass, until nothing waits. Outside a drain every
+ /// waiting piece's hasher is held (it entered waiting because the hasher
+ /// was held, or as the rest of the piece that filled the stage; only a
+ /// drain un-holds, and a drain leaves nothing waiting), so a hasher that
+ /// is not held has no earlier bytes waiting, and takes its piece now. Both
+ /// lists live on the stack: a turn allocates nothing.
+ fn update_turn(hashers: &mut [Hasher], pieces: &[(usize, &[u8])], pooled: Option<&crate::incremental::Pool<'_>>) {
+-    /// The stages a turn holds, hashed however the turn ends. A turn that
+-    /// panics part-way (an index that names no hasher, the caller's
+-    /// callback) unwinds through here: a full stage that no list named
+-    /// any more would have no room for its hasher's next update, and its
+-    /// next turn would wait for ever for a pass to hash it. (A panic out
+-    /// of the hashing itself, which runs none of the caller's code and so
+-    /// would be this crate's own bug, meets its stages here a second
+-    /// time: that second panic ends the process.)
+-    struct Held<'h> {
+-        hashers: &'h mut [Hasher],
+-        held: crate::stack_vec::StackVec<usize, TABLE>,
+-    }
+-    impl Drop for Held<'_> {
+-        fn drop(&mut self) {
+-            if !self.held.is_empty() {
+-                flush_held(self.hashers, &mut self.held);
+-            }
+-        }
+-    }
+-    let mut turn = Held { hashers, held: crate::stack_vec::StackVec::new() };
+-    let mut waiting = crate::stack_vec::StackVec::<(usize, &[u8]), TABLE>::new();
+-    for &(i, bytes) in pieces {
+-        if waiting.is_full() || turn.held.is_full() {
+-            drain(turn.hashers, &mut turn.held, &mut waiting, pooled);
+-        }
+-        if turn.hashers[i].held_group().is_some() {
+-            waiting.push((i, bytes));
+-            continue;
+-        }
+-        gather(turn.hashers, i, bytes, pooled, &mut turn.held, &mut waiting);
+-    }
+-    drain(turn.hashers, &mut turn.held, &mut waiting, pooled);
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// `bytes` into hasher `i`, which is not held: as much as fills its stage;
+ /// a filled stage is held and the rest of the piece waits.
+ fn gather<'a>(
+     hashers: &mut [Hasher],
+     i: usize,
+     bytes: &'a [u8],
