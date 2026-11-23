@@ -1,0 +1,48 @@
+--- src/self_test.rs
++++ replace ensure_slow with ()
+@@ -636,44 +636,17 @@
+     fn drop(&mut self) {
+         stop(format_args!("blake3-servil startup self-test failed: a kernel panicked on this build or this CPU"));
+     }
+ }
+ 
+ #[cold]
+ #[inline(never)]
+ fn ensure_slow() {
+-    #[cfg(feature = "std")]
+-    {
+-        // `std::sync::Once` allocates nothing on macOS or Linux (its waiter
+-        // nodes live on contending threads' stacks) and parks waiters in the
+-        // OS kernel rather than spinning.
+-        INIT.call_once(|| {
+-            let failed = Failed;
+-            run();
+-            core::mem::forget(failed);
+-            STATE.store(PASSED, core::sync::atomic::Ordering::Release);
+-        });
+-    }
+-    #[cfg(not(feature = "std"))]
+-    {
+-        use core::sync::atomic::Ordering::{Acquire, Relaxed, Release};
+-        if STATE.compare_exchange(UNTESTED, RUNNING, Relaxed, Relaxed).is_ok() {
+-            let failed = Failed;
+-            run();
+-            core::mem::forget(failed);
+-            STATE.store(PASSED, Release);
+-            return;
+-        }
+-        while STATE.load(Acquire) == RUNNING {
+-            core::hint::spin_loop();
+-        }
+-        let state = STATE.load(Acquire);
+-        assert!(state == PASSED, "the self-test's state is {state} after it ran");
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(all(test, feature = "std"))]
+ mod test {
+     use super::*;
+ 
+     /// The startup run checks every case, on every platform (a run that
+     /// skipped them would pass by doing nothing).

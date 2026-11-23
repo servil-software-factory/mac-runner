@@ -1,0 +1,30 @@
+--- src/incremental.rs
++++ replace HasherCore::update_pooled -> &mut Self with Box::leak(Box::new(Default::default()))
+@@ -858,26 +858,17 @@
+     #[inline(always)]
+     pub(crate) fn update_groups(&mut self, groups: &[u8], pooled: Option<&Pool<'_>>) {
+         self.update_pooled(groups, pooled.filter(|pool| groups.len() >= pool.min_len));
+     }
+ 
+     /// `update`'s loop; with `pooled`, whole subtrees at or above the
+     /// callback's threshold may go to the pool.
+     pub(crate) fn update_pooled(&mut self, input: &[u8], pooled: Option<&Pool<'_>>) -> &mut Self {
+-        check_input_room(self.count(), input.len());
+-        // The partial chunk first (hasher::fill), then whole subtrees and the
+-        // last chunk (hasher::feed), as src/hasher.rs describes.
+-        let fill_kernels = kernels_on(&self.domain, &self.chunk_state, self.chunk_state.platform(), pooled);
+-        let rest = hasher::fill(&fill_kernels, &mut self.chunk_state, &mut self.cv_stack, 0, input);
+-        // Pooled, the subtrees take the lock one at a time (children).
+-        let turn = platform::Sme2Turn::take(self.chunk_state.platform(), pooled.is_none() && rest.len() >= SME2_SIZED_LEN);
+-        let kernels = kernels_on(&self.domain, &self.chunk_state, turn.platform(), pooled);
+-        hasher::feed(&kernels, &mut self.chunk_state, &mut self.cv_stack, 0, rest);
+-        self
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// A Hasher's own kernels for its final output, with no pool.
+     #[inline(always)]
+     fn kernels(&self) -> HasherKernels<'_> {
+         kernels_on(&self.domain, &self.chunk_state, self.chunk_state.platform(), None)
+     }
+ 
