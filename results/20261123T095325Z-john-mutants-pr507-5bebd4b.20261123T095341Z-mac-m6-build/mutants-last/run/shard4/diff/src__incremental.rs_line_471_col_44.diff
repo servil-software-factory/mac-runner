@@ -1,0 +1,21 @@
+--- src/incremental.rs
++++ replace && with || in Hasher::gather_part
+@@ -463,17 +463,17 @@
+             // Whole groups skip the stage. So does a fresh hasher's first
+             // chunk in a turn of many hashers (`hold`) on x86-64, where
+             // `finalize_each` finishes the messages still in their chunk
+             // states side by side (ffi_output::input). Everywhere else the
+             // first chunk is staged: `finalize` then finds a short message
+             // whole in the stage, on AArch64 `finalize_each` hashes those
+             // side by side (each.rs), and a longer message's first chunk
+             // joins its group of sixteen.
+-            let first_chunk_to_core = hold && !cfg!(blake3_neon) && self.core.count() + input.len() as u64 <= CHUNK_LEN as u64;
++            let first_chunk_to_core = hold || /* ~ changed by cargo-mutants ~ */ !cfg!(blake3_neon) && self.core.count() + input.len() as u64 <= CHUNK_LEN as u64;
+             if self.stage.is_empty() && first_chunk_to_core {
+                 self.core.update_pooled(input, pooled);
+                 return &[];
+             }
+             let at = self.count() % STAGE_LEN as u64;
+             // On a 16 KiB boundary with nothing staged, the input's whole
+             // groups go to the core as they lie; what follows them is
+             // staged below, so the next groups start on a boundary too

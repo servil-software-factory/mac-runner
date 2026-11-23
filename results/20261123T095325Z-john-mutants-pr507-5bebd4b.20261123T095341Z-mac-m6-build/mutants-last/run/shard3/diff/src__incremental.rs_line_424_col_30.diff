@@ -1,0 +1,21 @@
+--- src/incremental.rs
++++ replace != with == in Hasher::single_compression_root
+@@ -416,17 +416,17 @@
+     }
+ 
+     /// Borrow the single-compression root inputs when this hasher is still
+     /// in its first chunk with no stacked subtrees (`ffi_output::input`).
+     #[cfg(all(blake3_avx512_ffi, target_os = "linux", feature = "std"))]
+     #[inline(always)]
+     pub(crate) fn single_compression_root(&self) -> Option<(&[u8; BLOCK_LEN], &CVWords, u8, u8)> {
+         let c = &self.core.chunk_state;
+-        if c.chunk_counter() != 0 {
++        if c.chunk_counter() == /* ~ changed by cargo-mutants ~ */ 0 {
+             return None;
+         }
+         if self.stage.is_empty() {
+             return Some((c.buf(), c.cv(), c.buf_len(), self.core.domain.flags() | c.start_flag() | CHUNK_END | ROOT));
+         }
+         (self.stage.len() <= BLOCK_LEN && self.core.count() == 0)
+             .then(|| (self.stage.first_block(), c.cv(), self.stage.len() as u8, self.core.domain.flags() | CHUNK_START | CHUNK_END | ROOT))
+     }
