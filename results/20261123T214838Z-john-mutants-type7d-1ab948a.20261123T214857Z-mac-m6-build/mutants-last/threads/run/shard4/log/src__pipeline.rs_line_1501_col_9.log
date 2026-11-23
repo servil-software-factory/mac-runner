@@ -1,0 +1,307 @@
+
+*** src/pipeline.rs:1501:9: replace Pipeline<T, B>::commit_multi with ()
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace Pipeline<T, B>::commit_multi with ()
+@@ -1493,80 +1493,17 @@
+             self.slots[s].kind = SlotKind::OpenShort { room: room.index, offset: start_offset, len: u32::try_from(written).expect("written < ROOM_LEN") };
+             return;
+         }
+         self.commit_multi(s, room, written);
+     }
+ 
+     #[inline(never)]
+     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {
+-        let start_offset = room.offset;
+-        let room_idx = room.index;
+-
+-        match self.slots[s].kind {
+-            SlotKind::OpenEmpty => {
+-                debug_assert_eq!(written, ROOM_LEN);
+-                debug_assert_eq!(start_offset, 0);
+-                room.offset = u32::try_from(ROOM_LEN).unwrap();
+-                self.room_streams[s] = RoomStream::EMPTY;
+-                self.slots[s].kind = SlotKind::OpenRooms { sealed: false };
+-            }
+-            SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {
+-                panic!("commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room");
+-            }
+-            SlotKind::OpenRooms { ref mut sealed } => {
+-                if written == ROOM_LEN {
+-                    debug_assert_eq!(start_offset, 0);
+-                    room.offset = u32::try_from(ROOM_LEN).unwrap();
+-                } else {
+-                    *sealed = true;
+-                    room.offset = u32::try_from(((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN)).expect("bounded by ROOM_LEN");
+-                    if written == 0 {
+-                        return;
+-                    }
+-                }
+-            }
+-            _ => unreachable!("Message token refers to a non-open slot"),
+-        }
+-
+-        room.take_credit();
+-        let rs = &mut self.room_streams[s];
+-        // The earlier commits all filled a whole room. A short one
+-        // seals the message, so there can be no commit after it.
+-        let index = rs.len / ROOM_LEN as u64;
+-        rs.len = rs.len.checked_add(written as u64).expect("a message fits in u64 bytes");
+-
+-        self.drain_slot_pieces(s);
+-        let pnode = self.alloc_piece_node(s);
+-        // Sound: as `shared()`. The node came off the free list, so no task
+-        // uses it: its fields are the owner's to write before the dispatch
+-        // below.
+-        let shared = unsafe { &*self.shared };
+-        let node = &shared.pieces[pnode as usize];
+-        unsafe {
+-            *node.room.get() = room_idx;
+-            *node.offset.get() = start_offset;
+-            *node.len.get() = u32::try_from(written).expect("written <= ROOM_LEN");
+-            *node.index.get() = index;
+-            *node.next.get() = NONE;
+-        }
+-        node.done.store(false, Ordering::Relaxed);
+-
+-        let rs = &mut self.room_streams[s];
+-        if rs.tail_piece == NONE {
+-            rs.head_piece = pnode;
+-        } else {
+-            // Sound: `next` is the owner's alone (workers read a node's other
+-            // fields).
+-            unsafe { *shared.pieces[rs.tail_piece as usize].next.get() = pnode };
+-        }
+-        rs.tail_piece = pnode;
+-
+-        let arg = pack_arg(KIND_ROOM_PIECE, pnode, 0, written >= SME2_MIN_LEN);
+-        self.dispatch_one(arg);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {
+         if let Some(p) = self.free_pieces.pop_front() {
+             return p;
+         }
+         loop {
+             self.drain_slot_pieces(current_slot);
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-4/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4/version)
+   Compiling blake3-servil v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4/threads)
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4)
+warning: unused variable: `s`
+    --> src/pipeline.rs:1500:32
+     |
+1500 |     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {
+     |                                ^ help: if this is intentional, prefix it with an underscore: `_s`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `room`
+    --> src/pipeline.rs:1500:42
+     |
+1500 |     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {
+     |                                          ^^^^ help: if this is intentional, prefix it with an underscore: `_room`
+
+warning: unused variable: `written`
+    --> src/pipeline.rs:1500:59
+     |
+1500 |     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {
+     |                                                           ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_written`
+
+warning: variant `OpenRooms` is never constructed
+   --> src/pipeline.rs:872:5
+    |
+867 | enum SlotKind {
+    |      -------- variant in this enum
+...
+872 |     OpenRooms { sealed: bool },
+    |     ^^^^^^^^^
+    |
+    = note: `SlotKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `alloc_piece_node` is never used
+    --> src/pipeline.rs:1504:8
+     |
+1180 | impl<T, B> Pipeline<T, B> {
+     | ------------------------- method in this implementation
+...
+1504 |     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {
+     |        ^^^^^^^^^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 5 warnings (run `cargo fix --lib -p blake3-servil` to apply 3 suggestions)
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1692:27
+     |
+1692 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `OpenRooms` is never constructed
+   --> src/pipeline.rs:872:5
+    |
+867 | enum SlotKind {
+    |      -------- variant in this enum
+...
+872 |     OpenRooms { sealed: bool },
+    |     ^^^^^^^^^
+    |
+    = note: `SlotKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: `blake3-servil` (lib test) generated 6 warnings (4 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:27:1
+   |
+27 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 9.52s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev --lib --tests
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-4/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: unused variable: `s`
+    --> src/pipeline.rs:1500:32
+     |
+1500 |     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {
+     |                                ^ help: if this is intentional, prefix it with an underscore: `_s`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `room`
+    --> src/pipeline.rs:1500:42
+     |
+1500 |     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {
+     |                                          ^^^^ help: if this is intentional, prefix it with an underscore: `_room`
+
+warning: unused variable: `written`
+    --> src/pipeline.rs:1500:59
+     |
+1500 |     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {
+     |                                                           ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_written`
+
+warning: variant `OpenRooms` is never constructed
+   --> src/pipeline.rs:872:5
+    |
+867 | enum SlotKind {
+    |      -------- variant in this enum
+...
+872 |     OpenRooms { sealed: bool },
+    |     ^^^^^^^^^
+    |
+    = note: `SlotKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `alloc_piece_node` is never used
+    --> src/pipeline.rs:1504:8
+     |
+1180 | impl<T, B> Pipeline<T, B> {
+     | ------------------------- method in this implementation
+...
+1504 |     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {
+     |        ^^^^^^^^^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 5 warnings (run `cargo fix --lib -p blake3-servil` to apply 3 suggestions)
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1692:27
+     |
+1692 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `OpenRooms` is never constructed
+   --> src/pipeline.rs:872:5
+    |
+867 | enum SlotKind {
+    |      -------- variant in this enum
+...
+872 |     OpenRooms { sealed: bool },
+    |     ^^^^^^^^^
+    |
+    = note: `SlotKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: `blake3-servil` (lib test) generated 6 warnings (4 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:27:1
+   |
+27 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.04s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID cac40ac1-5dfd-4d75-b721-81d96405e815 with nextest profile: mutants
+    Starting 152 tests across 15 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/152) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+       START [         ] (  1/152) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+        PASS [   0.027s] (  1/152) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  2/152) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+        PASS [   0.050s] (  2/152) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+       START [         ] (  3/152) blake3-servil finish::tests::wait_rejects_target_reaching_sleeping_bit
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact finish::tests::wait_rejects_target_reaching_sleeping_bit --nocapture
+        PASS [   0.023s] (  3/152) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  4/152) blake3-servil forms_test::a_short_output_slice_is_refused_above_the_split
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact forms_test::a_short_output_slice_is_refused_above_the_split --nocapture
+        PASS [   0.025s] (  4/152) blake3-servil finish::tests::wait_rejects_target_reaching_sleeping_bit
+       START [         ] (  5/152) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        PASS [   0.025s] (  5/152) blake3-servil forms_test::a_short_output_slice_is_refused_above_the_split
+       START [         ] (  6/152) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact forms_test::test_every_multithreaded_call_inside_guard_pages --nocapture
+        FAIL [   0.019s] (  6/152) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+  stdout ───
+
+    running 1 test
+    test forms_test::test_every_multithreaded_call_inside_guard_pages ... FAILED
+
+    failures:
+
+    failures:
+        forms_test::test_every_multithreaded_call_inside_guard_pages
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 120 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'forms_test::test_every_multithreaded_call_inside_guard_pages' (26726642) panicked at src/forms_test.rs:199:83:
+    assertion `left == right` failed: pipeline rooms, hash, 65543 B, at end true
+      left: [146, 171, 125, 223, 109, 24, 12, 210, 20, 242, 128, 75, 73, 179, 113, 175, 7, 243, 166, 103, 118, 62, 118, 102, 205, 45, 110, 153, 98, 118, 181, 89]
+     right: [52, 233, 163, 218, 161, 43, 198, 201, 227, 26, 150, 225, 98, 255, 234, 12, 67, 102, 9, 248, 12, 173, 113, 105, 2, 11, 72, 133, 70, 89, 183, 160]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+        PASS [   0.070s] (  7/152) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+────────────
+     Summary [   0.145s] 7/152 tests run: 6 passed, 1 failed, 0 skipped
+warning: 145/152 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
