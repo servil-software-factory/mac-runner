@@ -1,0 +1,60 @@
+--- src/self_test.rs
++++ replace ensure_slow with ()
+@@ -618,56 +618,17 @@
+     if STATE.load(core::sync::atomic::Ordering::Relaxed) != PASSED {
+         ensure_slow();
+     }
+ }
+ 
+ #[cold]
+ #[inline(never)]
+ fn ensure_slow() {
+-    use core::sync::atomic::Ordering::{Acquire, Relaxed, Release};
+-    if STATE.compare_exchange(UNTESTED, RUNNING, Relaxed, Relaxed).is_ok() {
+-        /// A kernel that panics during the test stops the process too:
+-        /// its unwind passes here.
+-        struct Failed;
+-        impl Drop for Failed {
+-            fn drop(&mut self) {
+-                stop(format_args!("blake3-servil startup self-test failed: a kernel panicked on this build or this CPU"));
+-            }
+-        }
+-        let failed = Failed;
+-        run();
+-        core::mem::forget(failed);
+-        #[cfg(feature = "std")]
+-        {
+-            let _guard = WAIT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+-            STATE.store(PASSED, Release);
+-            WAIT_COND.notify_all();
+-        }
+-        #[cfg(not(feature = "std"))]
+-        STATE.store(PASSED, Release);
+-        return;
+-    }
+-    #[cfg(feature = "std")]
+-    {
+-        let mut guard = WAIT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+-        #[cfg(test)]
+-        WAITING.fetch_add(1, Relaxed);
+-        while STATE.load(Acquire) == RUNNING {
+-            guard = WAIT_COND.wait(guard).unwrap_or_else(|e| e.into_inner());
+-        }
+-    }
+-    #[cfg(not(feature = "std"))]
+-    {
+-        while STATE.load(Acquire) == RUNNING {
+-            core::hint::spin_loop();
+-        }
+-    }
+-    let state = STATE.load(Acquire);
+-    assert!(state == PASSED, "the self-test's state is {state} after it ran");
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(all(test, feature = "std"))]
+ mod test {
+     use super::*;
+ 
+     /// The startup run checks every case, on every platform (a run that
+     /// skipped them would pass by doing nothing).
