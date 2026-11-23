@@ -1,0 +1,85 @@
+--- src/each.rs
++++ replace finalize_each with ()
+@@ -111,81 +111,17 @@
+ /// messages of up to 1024 bytes fed by [`update_each`].
+ ///
+ /// # Key-dependent timing
+ ///
+ /// Selected hashers may use different secret keys. Key values and key equality
+ /// select neither the finalization path nor its amount of work.
+ /// See the [key-independence contract](crate#key-dependent-timing).
+ pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {
+-    assert_eq!(which.len(), out.len(), "one digest per message named");
+-    name_each(hashers, which);
+-    #[cfg(all(blake3_avx512_ffi, target_os = "linux"))]
+-    if which.len() >= 16 && matches!(Platform::detect(), Platform::AVX512) {
+-        #[cfg(all(test, feature = "std"))]
+-        crate::counted(crate::Counted::OutputGroupTurn);
+-        for (which, out) in which.chunks(16).zip(out.chunks_mut(16)) {
+-            if which.len() == 16 {
+-                let hashed = {
+-                    let inputs: Option<crate::stack_vec::StackVec<_, 16>> = which.iter().map(|&i| crate::ffi_output::input(&hashers[i])).collect();
+-                    match inputs {
+-                        Some(inputs) => {
+-                            // Sound: the detected platform supplies AVX-512F+VL;
+-                            // borrowed descriptors keep every block/CV readable.
+-                            unsafe { crate::ffi_output::hash_group::<16>(inputs.as_slice().try_into().unwrap(), out) };
+-                            true
+-                        }
+-                        None => false,
+-                    }
+-                };
+-                if hashed {
+-                    for &i in which {
+-                        hashers[i].reset();
+-                    }
+-                    continue;
+-                }
+-            }
+-            finish_each(hashers, which, out);
+-        }
+-        return;
+-    }
+-    // AArch64: the messages of up to a chunk that a turn left whole in
+-    // their stages (`Hasher::gather_part`) hash side by side by their
+-    // blocks, as a collection's small items do (`hash_by_blocks`: the NEON
+-    // lanes, or one SME2 call for a table of equal whole blocks). The
+-    // plain ones only: their key is the IV, the same for all, and a keyed
+-    // hasher's key is its own and secret, so it finishes alone (BLAKE3
+-    // #312). Which hashers qualify is their public shape: mode and length.
+-    #[cfg(blake3_neon)]
+-    {
+-        let whole_in_stage = |h: &Hasher| h.is_plain_single_chunk_staged();
+-        if which.iter().filter(|&&i| whole_in_stage(&hashers[i])).nth(1).is_some() {
+-            let platform = Platform::detect();
+-            // BY_BLOCKS_AT_ONCE of them at a time, their places on the
+-            // stack: a finish allocates nothing.
+-            let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();
+-            while small.peek().is_some() {
+-                let part: crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();
+-                let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> = part.iter().map(|&k| hashers[which[k]].staged_bytes()).collect();
+-                let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];
+-                hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);
+-                for (&k, digest) in part.iter().zip(&digests) {
+-                    out[k] = *digest;
+-                }
+-            }
+-            for (&i, out) in which.iter().zip(out.iter_mut()) {
+-                if !whole_in_stage(&hashers[i]) {
+-                    *out = *hashers[i].take_root_hash().as_bytes();
+-                }
+-                hashers[i].reset();
+-            }
+-            return;
+-        }
+-    }
+-    finish_each(hashers, which, out);
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Each hasher `which` names finished in place and reset, its digest into
+ /// `out`: the path every message takes but a sixteen-lane group.
+ fn finish_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {
+     for (&i, out) in which.iter().zip(out) {
+         *out = *hashers[i].take_root_hash().as_bytes();
+         hashers[i].reset();
