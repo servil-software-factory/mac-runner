@@ -1,0 +1,55 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B>::owned with ()
+@@ -1134,51 +1134,17 @@
+     /// [`Event::Hashed`].
+     ///
+     /// # Panics
+     ///
+     /// If `message` is another Pipeline's, or has had a commit from a
+     /// Room already, even one of no bytes: a message's bytes come one way.
+     #[inline]
+     pub fn owned(&mut self, message: Message, owner: B) {
+-        let (pid, s) = message.take();
+-        assert_eq!(pid, self.id, "Message belongs to a different Pipeline");
+-        self.assert_uncommitted(s);
+-        self.open_messages -= 1;
+-
+-        // Sound: the slot is open and has no owner yet (assert_uncommitted);
+-        // the owner stays in the move-insensitive raw slot, where its bytes
+-        // cannot move or be retagged by moving `Pipeline`, until the slot's
+-        // event reads it out or the Pipeline's drop drops it.
+-        let slot: *mut B = unsafe { (*self.owners.slot(s)).write(owner) };
+-        // `as_ref` is the program's code. Until the slice is submitted
+-        // nothing records that the slot holds an owner, so if `as_ref`
+-        // unwinds, the owner is dropped here, where it lies (the
+-        // Pipeline's drop would never have found it). The guard holds
+-        // the slot by a raw pointer: an owner may hold its bytes inside
+-        // itself (`[u8; 8]`), and a `&mut` to it moved into `forget`
+-        // after the bytes' pointer was taken would end that pointer's
+-        // right to them (a reviewer's Miri run, November 20).
+-        struct Unrecorded<B>(*mut B);
+-        impl<B> Drop for Unrecorded<B> {
+-            fn drop(&mut self) {
+-                // Sound: the owner was written just above and nothing else
+-                // holds or records it; this runs only while `as_ref`
+-                // unwinds (the guard is forgotten once it has returned).
+-                unsafe { core::ptr::drop_in_place(self.0) };
+-            }
+-        }
+-        let unrecorded = Unrecorded(slot);
+-        // Sound: the owner just written, in its slot, read through a
+-        // shared borrow; nothing else names it.
+-        let bytes: &[u8] = unsafe { &*slot }.as_ref();
+-        let (ptr, len) = (bytes.as_ptr(), bytes.len());
+-        core::mem::forget(unrecorded);
+-        self.submit_slice(s, ptr, len, true);
+-        self.end_queue.push_back(u32::try_from(s).expect("slot fits u32"));
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<T, B> Pipeline<T, B> {
+     #[inline(always)]
+     fn shared(&self) -> &Shared {
+         // Sound: `shared` is this Pipeline's Shared (create), never freed.
+         unsafe { &*self.shared }
