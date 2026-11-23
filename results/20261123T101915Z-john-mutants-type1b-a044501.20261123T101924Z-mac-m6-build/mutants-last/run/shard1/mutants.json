@@ -1,0 +1,834 @@
+[
+  {
+    "diff": "--- src/self_test.rs\n+++ replace != with == in stop\n@@ -552,17 +552,17 @@\n         // Rust's stderr mutex and skipping the write if stderr is full.\n         let mut buf = StackBuf { bytes: [0; 320], len: 0 };\n         let _ = buf.write_fmt(why);\n         let _ = buf.write_str(\"\\n\");\n         let mut pfd = PollFd { fd: 2, events: POLLOUT, revents: 0 };\n         // Sound: valid PollFd pointer and initialized stack slice of length `buf.len <= 320 <= PIPE_BUF`.\n         unsafe {\n             let _ = poll(&mut pfd, 1, 0);\n-            if pfd.revents & POLLOUT != 0 {\n+            if pfd.revents & POLLOUT == /* ~ changed by cargo-mutants ~ */ 0 {\n                 let _ = write(2, buf.bytes.as_ptr().cast(), buf.len);\n             }\n         }\n         std::process::abort()\n     }\n     #[cfg(all(feature = \"std\", not(unix)))]\n     {\n         let _ = why;\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "stop",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 576
+        },
+        "start": {
+          "column": 1,
+          "line": 515
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/self_test.rs:560:38: replace != with == in stop",
+    "package": "blake3-servil-core",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 560
+      },
+      "start": {
+        "column": 38,
+        "line": 560
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace & with | in stop\n@@ -552,17 +552,17 @@\n         // Rust's stderr mutex and skipping the write if stderr is full.\n         let mut buf = StackBuf { bytes: [0; 320], len: 0 };\n         let _ = buf.write_fmt(why);\n         let _ = buf.write_str(\"\\n\");\n         let mut pfd = PollFd { fd: 2, events: POLLOUT, revents: 0 };\n         // Sound: valid PollFd pointer and initialized stack slice of length `buf.len <= 320 <= PIPE_BUF`.\n         unsafe {\n             let _ = poll(&mut pfd, 1, 0);\n-            if pfd.revents & POLLOUT != 0 {\n+            if pfd.revents | /* ~ changed by cargo-mutants ~ */ POLLOUT != 0 {\n                 let _ = write(2, buf.bytes.as_ptr().cast(), buf.len);\n             }\n         }\n         std::process::abort()\n     }\n     #[cfg(all(feature = \"std\", not(unix)))]\n     {\n         let _ = why;\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "stop",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 576
+        },
+        "start": {
+          "column": 1,
+          "line": 515
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/self_test.rs:560:28: replace & with | in stop",
+    "package": "blake3-servil-core",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 560
+      },
+      "start": {
+        "column": 28,
+        "line": 560
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace <impl Drop for Failed>::drop with ()\n@@ -629,17 +629,17 @@\n         ensure_slow();\n     }\n }\n \n /// Drop guard that turns any panic during `run()` into an uncatchable stop.\n struct Failed;\n impl Drop for Failed {\n     fn drop(&mut self) {\n-        stop(format_args!(\"blake3-servil startup self-test failed: a kernel panicked on this build or this CPU\"));\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n #[cold]\n #[inline(never)]\n fn ensure_slow() {\n     #[cfg(feature = \"std\")]\n     {\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "<impl Drop for Failed>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 638
+        },
+        "start": {
+          "column": 5,
+          "line": 636
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:637:9: replace <impl Drop for Failed>::drop with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 115,
+        "line": 637
+      },
+      "start": {
+        "column": 9,
+        "line": 637
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace ensure_slow with ()\n@@ -636,44 +636,17 @@\n     fn drop(&mut self) {\n         stop(format_args!(\"blake3-servil startup self-test failed: a kernel panicked on this build or this CPU\"));\n     }\n }\n \n #[cold]\n #[inline(never)]\n fn ensure_slow() {\n-    #[cfg(feature = \"std\")]\n-    {\n-        // `std::sync::Once` allocates nothing on macOS or Linux (its waiter\n-        // nodes live on contending threads' stacks) and parks waiters in the\n-        // OS kernel rather than spinning.\n-        INIT.call_once(|| {\n-            let failed = Failed;\n-            run();\n-            core::mem::forget(failed);\n-            STATE.store(PASSED, core::sync::atomic::Ordering::Release);\n-        });\n-    }\n-    #[cfg(not(feature = \"std\"))]\n-    {\n-        use core::sync::atomic::Ordering::{Acquire, Relaxed, Release};\n-        if STATE.compare_exchange(UNTESTED, RUNNING, Relaxed, Relaxed).is_ok() {\n-            let failed = Failed;\n-            run();\n-            core::mem::forget(failed);\n-            STATE.store(PASSED, Release);\n-            return;\n-        }\n-        while STATE.load(Acquire) == RUNNING {\n-            core::hint::spin_loop();\n-        }\n-        let state = STATE.load(Acquire);\n-        assert!(state == PASSED, \"the self-test's state is {state} after it ran\");\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, feature = \"std\"))]\n mod test {\n     use super::*;\n \n     /// The startup run checks every case, on every platform (a run that\n     /// skipped them would pass by doing nothing).\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "ensure_slow",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 672
+        },
+        "start": {
+          "column": 1,
+          "line": 641
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:644:5: replace ensure_slow with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 671
+      },
+      "start": {
+        "column": 5,
+        "line": 644
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace == with != in ensure_slow\n@@ -658,17 +658,17 @@\n         use core::sync::atomic::Ordering::{Acquire, Relaxed, Release};\n         if STATE.compare_exchange(UNTESTED, RUNNING, Relaxed, Relaxed).is_ok() {\n             let failed = Failed;\n             run();\n             core::mem::forget(failed);\n             STATE.store(PASSED, Release);\n             return;\n         }\n-        while STATE.load(Acquire) == RUNNING {\n+        while STATE.load(Acquire) != /* ~ changed by cargo-mutants ~ */ RUNNING {\n             core::hint::spin_loop();\n         }\n         let state = STATE.load(Acquire);\n         assert!(state == PASSED, \"the self-test's state is {state} after it ran\");\n     }\n }\n \n #[cfg(all(test, feature = \"std\"))]\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "ensure_slow",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 672
+        },
+        "start": {
+          "column": 1,
+          "line": 641
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/self_test.rs:666:35: replace == with != in ensure_slow",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 666
+      },
+      "start": {
+        "column": 35,
+        "line": 666
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::push_row_with with ()\n@@ -295,35 +295,17 @@\n     /// the entry only once `fill` returns a valid power-of-two width in\n     /// `4..=ROW`. Any lower live rows colliding on the same slot (`i % ROWS`)\n     /// are condensed first; each slot is zeroed once on first use so kernels\n     /// always see initialized memory. If `fill` panics or returns an invalid\n     /// width, the stack length and logical chaining values stay unchanged\n     /// (any colliding lower row may already have been condensed to its\n     /// equivalent single chaining value).\n     pub fn push_row_with<P: Parent>(&mut self, p: &P, fill: impl FnOnce(&mut [Cv; ROW]) -> usize) {\n-        assert!(self.len < DEPTH, \"the stack holds DEPTH entries\");\n-        for below in (self.len % ROWS..self.len).step_by(ROWS) {\n-            if self.is_row(below) {\n-                self.narrow(p, below);\n-            }\n-        }\n-        let slot = self.len % ROWS;\n-        let place = unsafe { (self.rows.as_mut_ptr() as *mut [Cv; ROW]).add(slot) };\n-        if self.ready >> slot & 1 == 0 {\n-            // Sound: the slot's own storage.\n-            unsafe { place.write_bytes(0, 1) };\n-            self.ready |= 1 << slot;\n-        }\n-        // Sound: the slot's storage, every byte of it written (now or before).\n-        let width = fill(unsafe { &mut *place });\n-        assert!((4..=ROW).contains(&width) && width.is_power_of_two(), \"a row of 4 to ROW values, a power of two\");\n-        self.widths[slot] = width as u8;\n-        self.wide |= 1 << self.len;\n-        self.len += 1;\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Entry `i`, a row, becomes the row half as wide: its values' parents.\n     fn halve<P: Parent>(&mut self, p: &P, i: usize) {\n         assert!(self.row(i).len() >= 8, \"a row stays 4 wide or more\");\n         let mut parents = [[0u8; 32]; ROW];\n         let made = p.parents(self.row(i), &mut parents);\n         assert_eq!(2 * made, self.row(i).len(), \"a parent for every two children\");\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::push_row_with",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 322
+        },
+        "start": {
+          "column": 5,
+          "line": 293
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:303:9: replace CvStack::push_row_with with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 321
+      },
+      "start": {
+        "column": 9,
+        "line": 303
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace feed with ()\n@@ -494,48 +494,17 @@\n     push(k, stack, initial, k.chunk_cv(chunk), counter);\n     *chunk = k.new_chunk(counter + 1);\n     rest\n }\n \n /// `input` after an empty chunk: whole subtrees onto the stack, then at most\n /// a chunk into the chunk, and the stack merged behind it.\n pub fn feed<C: Chunk, K: Feed<C>>(k: &K, chunk: &mut C, stack: &mut CvStack, initial: u64, input: &[u8]) {\n-    let mut input = input;\n-    while input.len() > CHUNK_LEN {\n-        let counter = chunk.counter();\n-        let len = subtree_len(counter, input.len());\n-        let chunks = (len / CHUNK_LEN) as u64;\n-        let ahead = input.len() - len;\n-        let sub = &input[..len];\n-        let flat = if counter > initial { k.subtree_cv(sub, ahead, counter) } else { None };\n-        match flat {\n-            Some(cv) => push(k, stack, initial, cv, counter),\n-            None => {\n-                if len <= CHUNK_LEN {\n-                    push(k, stack, initial, k.whole_chunk_cv(sub, counter), counter);\n-                } else if counter > initial && k.cuts(len) {\n-                    // The merges the stack owes first, then the cut,\n-                    // written into the place it keeps.\n-                    stack.merge(k, ones(counter - initial));\n-                    stack.push_row_with(k, |place| k.cut(sub, ahead, counter, place));\n-                } else {\n-                    let [left, right] = k.children(sub, ahead, counter);\n-                    push(k, stack, initial, left, counter);\n-                    push(k, stack, initial, right, counter + chunks / 2);\n-                }\n-            }\n-        }\n-        chunk.advance(chunks);\n-        input = &input[len..];\n-    }\n-    if !input.is_empty() {\n-        chunk.update(input);\n-        stack.merge(k, ones(chunk.counter() - initial));\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// The root's node: the last chunk's (or the top two values' parent),\n /// folded into the stack's values from the top.\n pub fn final_node<C: Chunk, N, K: Nodes<C, N> + Parent>(k: &K, chunk: &C, stack: &CvStack) -> N {\n     if stack.len() == 0 {\n         return k.chunk_node(chunk);\n     }\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "feed",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 534
+        },
+        "start": {
+          "column": 1,
+          "line": 499
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:502:5: replace feed with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 533
+      },
+      "start": {
+        "column": 5,
+        "line": 502
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace <impl Clone for ChunkState<P>>::clone -> Self with Default::default()\n@@ -696,25 +696,17 @@\n const _: () = {\n     assert!(core::mem::align_of::<ChunkState<crate::platform::Platform>>() == 64);\n     assert!(core::mem::offset_of!(ChunkState<crate::platform::Platform>, buf) == 0);\n };\n \n impl<P: Copy> Clone for ChunkState<P> {\n     #[inline]\n     fn clone(&self) -> Self {\n-        ChunkState {\n-            buf: self.buf,\n-            cv: self.cv,\n-            chunk_counter: self.chunk_counter,\n-            buf_len: self.buf_len,\n-            blocks_compressed: self.blocks_compressed,\n-            flags: self.flags,\n-            platform: self.platform,\n-        }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<P: Blocks> ChunkState<P> {\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "<impl Clone for ChunkState<P>>::clone",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 713
+        },
+        "start": {
+          "column": 5,
+          "line": 702
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:704:9: replace <impl Clone for ChunkState<P>>::clone -> Self with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 712
+      },
+      "start": {
+        "column": 9,
+        "line": 704
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 0)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 0)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 1)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 1)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 0)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 0)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 1)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 1)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 0)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 0)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 1)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 1)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 0)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 0)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 1)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([0; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 1)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 0)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 0)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 1)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 0, 1)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 0)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 0)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 1)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([0; 8])), 1, 1)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 0)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 0)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 1)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 0, 1)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 0)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 0)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 1)\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:725:9: replace ChunkState<P>::output_parts -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) with (Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(Box::leak(Box::new([1; BLOCK_LEN])), Box::leak(Box::new([1; 8])), 1, 1)",
+    "span": {
+      "end": {
+        "column": 88,
+        "line": 725
+      },
+      "start": {
+        "column": 9,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace | with & in ChunkState<P>::output_parts\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() & /* ~ changed by cargo-mutants ~ */ CHUNK_END)\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:725:76: replace | with & in ChunkState<P>::output_parts",
+    "package": "blake3-servil-core",
+    "replacement": "&",
+    "span": {
+      "end": {
+        "column": 77,
+        "line": 725
+      },
+      "start": {
+        "column": 76,
+        "line": 725
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace | with & in ChunkState<P>::output_parts\n@@ -717,17 +717,17 @@\n     pub fn new(key: &[u32; 8], chunk_counter: u64, flags: u8, platform: P) -> Self {\n         ChunkState { buf: [0; BLOCK_LEN], cv: *key, chunk_counter, buf_len: 0, blocks_compressed: 0, flags, platform }\n     }\n \n     /// Borrow the chunk's buffered block, chaining value, block length, and\n     /// block-output flags (`flags | start_flag | CHUNK_END`) together.\n     #[inline(always)]\n     pub(crate) fn output_parts(&self) -> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8) {\n-        (&self.buf, &self.cv, self.buf_len, self.flags | self.start_flag() | CHUNK_END)\n+        (&self.buf, &self.cv, self.buf_len, self.flags & /* ~ changed by cargo-mutants ~ */ self.start_flag() | CHUNK_END)\n     }\n \n     #[inline(always)]\n     pub(crate) fn cv(&self) -> &[u32; 8] {\n         &self.cv\n     }\n \n     #[inline(always)]\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "ChunkState<P>::output_parts",
+      "return_type": "-> (&[u8; BLOCK_LEN], &[u32; 8], u8, u8)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 726
+        },
+        "start": {
+          "column": 5,
+          "line": 721
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:725:56: replace | with & in ChunkState<P>::output_parts",
+    "package": "blake3-servil-core",
+    "replacement": "&",
+    "span": {
+      "end": {
+        "column": 57,
+        "line": 725
+      },
+      "start": {
+        "column": 56,
+        "line": 725
+      }
+    }
+  }
+]
