@@ -1,0 +1,40 @@
+--- src/hasher.rs
++++ replace CvStack::push_row_with with ()
+@@ -296,36 +296,17 @@
+     /// the entry only once `fill` returns a valid power-of-two width in
+     /// `4..=ROW`. Any lower live rows colliding on the same slot (`i % ROWS`)
+     /// are condensed first; each slot is zeroed once on first use so kernels
+     /// always see initialized memory. If `fill` panics or returns an invalid
+     /// width, the stack length and logical chaining values stay unchanged
+     /// (any colliding lower row may already have been condensed to its
+     /// equivalent single chaining value).
+     pub fn push_row_with<P: Parent>(&mut self, p: &P, fill: impl FnOnce(&mut [Cv; ROW]) -> usize) {
+-        assert!(self.len < DEPTH, "the stack holds DEPTH entries");
+-        for below in (self.len % ROWS..self.len).step_by(ROWS) {
+-            if self.is_row(below) {
+-                self.narrow(p, below);
+-            }
+-        }
+-        let slot = self.len % ROWS;
+-        // Sound: `slot < ROWS`, so `place` stays within `self.rows`'s `ROWS` elements.
+-        let place = unsafe { (self.rows.as_mut_ptr() as *mut [Cv; ROW]).add(slot) };
+-        if self.ready >> slot & 1 == 0 {
+-            // Sound: the slot's own storage.
+-            unsafe { place.write_bytes(0, 1) };
+-            self.ready |= 1 << slot;
+-        }
+-        // Sound: the slot's storage, every byte of it written (now or before).
+-        let width = fill(unsafe { &mut *place });
+-        assert!((4..=ROW).contains(&width) && width.is_power_of_two(), "a row of 4 to ROW values, a power of two");
+-        self.widths[slot] = width.to_le_bytes()[0];
+-        self.wide |= 1 << self.len;
+-        self.len += 1;
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Entry `i`, a row, becomes the row half as wide: its values' parents.
+     fn halve<P: Parent>(&mut self, p: &P, i: usize) {
+         assert!(self.row(i).len() >= 8, "a row stays 4 wide or more");
+         let mut parents = [[0u8; 32]; ROW];
+         let made = p.parents(self.row(i), &mut parents);
+         assert_eq!(2 * made, self.row(i).len(), "a parent for every two children");
