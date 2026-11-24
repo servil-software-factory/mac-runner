@@ -1,0 +1,21 @@
+--- src/many.rs
++++ replace - with + in multi_block_short_last_tile
+@@ -313,17 +313,17 @@
+         crate::pair::hash_many_blocks(platform, &ptrs, prefix_blocks, key, 0, false, flags, CHUNK_START, 0, cv_bytes[..padded_count].as_flattened_mut());
+     }
+     let mut cvs = [[0u32; 8]; TILE];
+     for i in 0..count {
+         cvs[i] = core::array::from_fn(|w| u32::from_le_bytes(cv_bytes[i][4 * w..4 * w + 4].try_into().unwrap()));
+     }
+     let last_block = |i: usize| -> &[u8; BLOCK_LEN] { messages[i * slot + prefix_len..][..BLOCK_LEN].try_into().unwrap() };
+     let inputs: [crate::ffi_output::Input<'_>; TILE] = core::array::from_fn(|j| {
+-        let idx = j.min(count - 1);
++        let idx = j.min(count + /* ~ changed by cargo-mutants ~ */ 1);
+         crate::ffi_output::final_block(last_block(idx), &cvs[idx], last_len_u8, flags)
+     });
+     if count == TILE {
+         // Sound: `TILE` matches AVX-512 (16) or AVX2/AVX-512 (8); all inputs are valid.
+         unsafe { crate::ffi_output::hash_group::<TILE>(&inputs, outputs) };
+     } else {
+         let mut scratch = [[0u8; OUT_LEN]; TILE];
+         // Sound: `TILE` matches AVX-512 (16) or AVX2/AVX-512 (8); all inputs are valid.
