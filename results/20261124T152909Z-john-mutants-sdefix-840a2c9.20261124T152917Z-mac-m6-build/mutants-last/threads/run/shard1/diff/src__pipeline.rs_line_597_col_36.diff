@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace != with == in <impl Drop for Room>::drop
+@@ -589,17 +589,17 @@
+     }
+ }
+ 
+ impl Drop for Room {
+     #[inline]
+     fn drop(&mut self) {
+         let unused = ROOM_CREDITS - (self.commits as usize);
+         let prev = self.storage.rooms.refs[self.index as usize].fetch_sub(unused, Ordering::SeqCst);
+-        if prev & ROOM_CLOSING_BIT != 0 {
++        if prev & ROOM_CLOSING_BIT == /* ~ changed by cargo-mutants ~ */ 0 {
+             // Pipeline::drop stamped ROOM_CLOSING_BIT after observing all
+             // dispatched work complete and reserved a `holders` ref for this
+             // Room; clear the slot back to 0 before releasing that hold
+             // (`AcqRel` establishes happens-before with the storage returning
+             // to FREE_STORAGES).
+             assert_eq!(prev & !ROOM_CLOSING_BIT, unused, "surviving room ref count");
+             self.storage.rooms.refs[self.index as usize].store(0, Ordering::Release);
+             PipeStorage::release(self.storage);
