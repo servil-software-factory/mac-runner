@@ -1,0 +1,21 @@
+--- src/lib.rs
++++ replace < with <= in throughput::hash_many_multithreaded
+@@ -565,17 +565,17 @@
+     #[inline(always)]
+     pub fn hash_many_multithreaded<P: Prepared>(mode: Mode, batch: &P, out: &mut [[u8; OUT_LEN]]) {
+         crate::lanes::require();
+         // The short path first and inline, so a small batch costs what
+         // hash_many costs (which checks its length against the digests);
+         // everything the pool needs is behind the call after. Each message
+         // takes at least one 64-byte compression, so Packed<16>/Packed<32>
+         // count 64 bytes per message toward MIN_SPLIT_LEN just as Batch does.
+-        if out.len() < 2 || out.len().saturating_mul(batch.slot().max(crate::BLOCK_LEN)) < crate::lanes::MIN_SPLIT_LEN {
++        if out.len() <= /* ~ changed by cargo-mutants ~ */ 2 || out.len().saturating_mul(batch.slot().max(crate::BLOCK_LEN)) < crate::lanes::MIN_SPLIT_LEN {
+             return hash_many(mode, batch, out);
+         }
+         // Check the output count against the whole batch before taking
+         // `batch.part(0..out.len())`, which would otherwise silently hash a
+         // prefix when `out` is too short.
+         assert_eq!(Some(batch.bytes().len()), batch.slot().checked_mul(out.len()), "input holds one slot per output");
+         let (kind, key, context) = crate::lanes::parts(mode);
+         crate::lanes::hash_many_in(kind, key, context, batch.part(0..out.len()), out);

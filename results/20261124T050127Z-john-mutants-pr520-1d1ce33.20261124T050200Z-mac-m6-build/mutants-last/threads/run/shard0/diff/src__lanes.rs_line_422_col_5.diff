@@ -1,0 +1,36 @@
+--- src/lanes.rs
++++ replace hash_many_over_pool with ()
+@@ -414,32 +414,17 @@
+         [left, ChainingValue::at(right_level, right.first_chunk() >> right_level, *right.as_bytes())]
+     })
+ }
+ 
+ /// The hashes of `batch`'s messages, two or more in MIN_SPLIT_LEN bytes
+ /// or more, in `tree`'s mode, over the machine's threads (a smaller batch
+ /// is the caller's, on its own thread: the public call's short path).
+ pub(crate) fn hash_many_over_pool(tree: &TreeHasher, batch: crate::throughput::Part, outputs: &mut [[u8; crate::OUT_LEN]]) {
+-    let (input, slot) = (batch.bytes(), batch.slot());
+-    assert_eq!(Some(input.len()), slot.checked_mul(outputs.len()), "input holds one slot per output");
+-    let Some((pool, _caller)) = spare_pool() else {
+-        return tree.hash_many(&batch, outputs);
+-    };
+-    let count = outputs.len();
+-    let work_slot = slot.max(crate::BLOCK_LEN);
+-    let plan = pool.plan(places::Kind::Messages, count.saturating_mul(work_slot));
+-    with_scratch(
+-        |pieces| cut_messages(pieces, count, work_slot, plan.threads),
+-        |(), pieces, _| {
+-            let work = Work::Messages { batch, tree: tree.clone().on_this_core(), pieces, outputs: outputs.as_mut_ptr() };
+-            pool.run_job(work, pieces.len(), 0, plan.threads, plan.near());
+-            plan.done();
+-        },
+-    )
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// [`crate::throughput::hash_each_multithreaded`]'s pool job: the items under
+ /// MIN_SPLIT_LEN, cut into ranges of about [`next_piece_len`] of the
+ /// bytes that remain, each range hashed by one thread. An item of
+ /// MIN_SPLIT_LEN or more is set aside here (its digest zero, a stand-in)
+ /// and hashed by the caller over the whole pool after.
+ pub(crate) fn hash_each(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {
