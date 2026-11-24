@@ -1,0 +1,418 @@
+[
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace + with - in base_and_word\n@@ -46,17 +46,17 @@\n fn wrapping_add_usize(start: u32, delta: usize) -> u32 {\n     let bytes = delta.to_le_bytes();\n     start.wrapping_add(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))\n }\n \n #[inline]\n #[cfg(any(blake3_sme2, blake3_neon, blake3_avx2_ffi, all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n fn base_and_word(base: u32, counter_word: usize) -> u64 {\n-    u64::from(base) + ((counter_word as u64) << 32)\n+    u64::from(base) - /* ~ changed by cargo-mutants ~ */ ((counter_word as u64) << 32)\n }\n \n /// Hash every full SIMD group of counter-range single-block messages on\n /// `platform`, returning the number of digests written to `out`.\n fn hash_counter_groups(\n     tmpl_words: &[u32; 16],\n     blen_u8: u8,\n     counter_word: usize,\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "base_and_word",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 55
+        },
+        "start": {
+          "column": 1,
+          "line": 51
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:54:21: replace + with - in base_and_word",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 54
+      },
+      "start": {
+        "column": 21,
+        "line": 54
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace << with >> in base_and_word\n@@ -46,17 +46,17 @@\n fn wrapping_add_usize(start: u32, delta: usize) -> u32 {\n     let bytes = delta.to_le_bytes();\n     start.wrapping_add(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))\n }\n \n #[inline]\n #[cfg(any(blake3_sme2, blake3_neon, blake3_avx2_ffi, all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n fn base_and_word(base: u32, counter_word: usize) -> u64 {\n-    u64::from(base) + ((counter_word as u64) << 32)\n+    u64::from(base) + ((counter_word as u64) >> /* ~ changed by cargo-mutants ~ */ 32)\n }\n \n /// Hash every full SIMD group of counter-range single-block messages on\n /// `platform`, returning the number of digests written to `out`.\n fn hash_counter_groups(\n     tmpl_words: &[u32; 16],\n     blen_u8: u8,\n     counter_word: usize,\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "base_and_word",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 55
+        },
+        "start": {
+          "column": 1,
+          "line": 51
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:54:46: replace << with >> in base_and_word",
+    "package": "blake3-servil-core",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 54
+      },
+      "start": {
+        "column": 46,
+        "line": 54
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace hash_counter_groups -> usize with 0\n@@ -61,118 +61,17 @@\n     blen_u8: u8,\n     counter_word: usize,\n     start: u32,\n     key: &CVWords,\n     root_flags: u8,\n     out: &mut [[u8; OUT_LEN]],\n     platform: Platform,\n ) -> usize {\n-    #[cfg(any(blake3_sme2, blake3_neon, blake3_avx2_ffi, all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n-    let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) << 8);\n-    let mut done = 0usize;\n-\n-    #[cfg(blake3_sme2)]\n-    if matches!(platform, Platform::SME2 { .. }) {\n-        let groups = out.len() / 16;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) -> u64 = ffi_sme2::blake3_servil_sme2_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            // Sound: `Platform::SME2` verified SME2 support; `tmpl_words` holds\n-            // 16 readable `u32` words, `key` holds 8 readable `u32` words,\n-            // `counter_word < 16`, and `out` holds at least `16 * groups`\n-            // writable 32-byte slots. The kernel checks SVL == 16 and\n-            // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state\n-            // and returns 16 only when all `16 * groups` digests were written.\n-            let svl =\n-                unsafe { kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast(), groups as u64) };\n-            if svl == 16 {\n-                done += groups * 16;\n-            }\n-        }\n-        // Any remainder (< 16, SVL != 16, or nonzero TPIDR2_EL0 reserved bytes)\n-        // falls through to NEON 8+3 below.\n-    }\n-\n-    #[cfg(blake3_neon)]\n-    if matches!(platform, Platform::NEON { .. }) || {\n-        #[cfg(blake3_sme2)]\n-        {\n-            matches!(platform, Platform::SME2 { .. })\n-        }\n-        #[cfg(not(blake3_sme2))]\n-        {\n-            false\n-        }\n-    } {\n-        let rem = out.len() - done;\n-        let groups = rem / 11;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) = ffi_neon::blake3_servil_neon_p11_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            let cur = wrapping_add_usize(start, done);\n-            // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`;\n-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n-            // readable `u32` words, `counter_word < 16`, and `out[done..]`\n-            // holds at least `11 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast(), groups as u64);\n-            }\n-            done += groups * 11;\n-        }\n-        return done;\n-    }\n-\n-    #[cfg(all(blake3_avx512_ffi, target_arch = \"x86_64\"))]\n-    if matches!(platform, Platform::AVX512 { .. }) {\n-        let groups = out.len() / 16;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx512_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            // Sound: `Platform::AVX512` verified AVX-512F+VL; `tmpl_words`\n-            // holds 16 readable `u32` words, `key` holds 8 readable `u32`\n-            // words, `counter_word < 16`, and `out` holds at least\n-            // `16 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast());\n-            }\n-            done += groups * 16;\n-        }\n-    }\n-\n-    #[cfg(blake3_avx2_ffi)]\n-    if matches!(platform, Platform::AVX2 { .. }) || {\n-        #[cfg(all(blake3_avx512_ffi, target_arch = \"x86_64\"))]\n-        {\n-            matches!(platform, Platform::AVX512 { .. })\n-        }\n-        #[cfg(not(all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n-        {\n-            false\n-        }\n-    } {\n-        let rem = out.len() - done;\n-        let groups = rem / 8;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx2_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            let cur = wrapping_add_usize(start, done);\n-            // Sound: `Platform::AVX2` and `Platform::AVX512` guarantee AVX2;\n-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n-            // readable `u32` words, `counter_word < 16`, and `out[done..]`\n-            // holds at least `8 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast());\n-            }\n-            done += groups * 8;\n-        }\n-    }\n-\n-    let _ = (tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n-    done\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Hash `out.len()` single-block messages derived from `template` on\n /// `platform`, replacing the 4-byte little-endian word at `counter_word * 4`\n /// with `start.wrapping_add(i)` (modulo 2^32) for `i in 0..out.len()`.\n pub(crate) fn hash_counter_range_on(template: &[u8], counter_word: usize, start: u32, key: &CVWords, flags: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n     validate_counter_range(template, counter_word);\n     if out.is_empty() {\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_counter.rs:69:5: replace hash_counter_groups -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 170
+      },
+      "start": {
+        "column": 5,
+        "line": 69
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace hash_counter_groups -> usize with 1\n@@ -61,118 +61,17 @@\n     blen_u8: u8,\n     counter_word: usize,\n     start: u32,\n     key: &CVWords,\n     root_flags: u8,\n     out: &mut [[u8; OUT_LEN]],\n     platform: Platform,\n ) -> usize {\n-    #[cfg(any(blake3_sme2, blake3_neon, blake3_avx2_ffi, all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n-    let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) << 8);\n-    let mut done = 0usize;\n-\n-    #[cfg(blake3_sme2)]\n-    if matches!(platform, Platform::SME2 { .. }) {\n-        let groups = out.len() / 16;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) -> u64 = ffi_sme2::blake3_servil_sme2_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            // Sound: `Platform::SME2` verified SME2 support; `tmpl_words` holds\n-            // 16 readable `u32` words, `key` holds 8 readable `u32` words,\n-            // `counter_word < 16`, and `out` holds at least `16 * groups`\n-            // writable 32-byte slots. The kernel checks SVL == 16 and\n-            // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state\n-            // and returns 16 only when all `16 * groups` digests were written.\n-            let svl =\n-                unsafe { kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast(), groups as u64) };\n-            if svl == 16 {\n-                done += groups * 16;\n-            }\n-        }\n-        // Any remainder (< 16, SVL != 16, or nonzero TPIDR2_EL0 reserved bytes)\n-        // falls through to NEON 8+3 below.\n-    }\n-\n-    #[cfg(blake3_neon)]\n-    if matches!(platform, Platform::NEON { .. }) || {\n-        #[cfg(blake3_sme2)]\n-        {\n-            matches!(platform, Platform::SME2 { .. })\n-        }\n-        #[cfg(not(blake3_sme2))]\n-        {\n-            false\n-        }\n-    } {\n-        let rem = out.len() - done;\n-        let groups = rem / 11;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) = ffi_neon::blake3_servil_neon_p11_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            let cur = wrapping_add_usize(start, done);\n-            // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`;\n-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n-            // readable `u32` words, `counter_word < 16`, and `out[done..]`\n-            // holds at least `11 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast(), groups as u64);\n-            }\n-            done += groups * 11;\n-        }\n-        return done;\n-    }\n-\n-    #[cfg(all(blake3_avx512_ffi, target_arch = \"x86_64\"))]\n-    if matches!(platform, Platform::AVX512 { .. }) {\n-        let groups = out.len() / 16;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx512_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            // Sound: `Platform::AVX512` verified AVX-512F+VL; `tmpl_words`\n-            // holds 16 readable `u32` words, `key` holds 8 readable `u32`\n-            // words, `counter_word < 16`, and `out` holds at least\n-            // `16 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast());\n-            }\n-            done += groups * 16;\n-        }\n-    }\n-\n-    #[cfg(blake3_avx2_ffi)]\n-    if matches!(platform, Platform::AVX2 { .. }) || {\n-        #[cfg(all(blake3_avx512_ffi, target_arch = \"x86_64\"))]\n-        {\n-            matches!(platform, Platform::AVX512 { .. })\n-        }\n-        #[cfg(not(all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n-        {\n-            false\n-        }\n-    } {\n-        let rem = out.len() - done;\n-        let groups = rem / 8;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx2_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            let cur = wrapping_add_usize(start, done);\n-            // Sound: `Platform::AVX2` and `Platform::AVX512` guarantee AVX2;\n-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n-            // readable `u32` words, `counter_word < 16`, and `out[done..]`\n-            // holds at least `8 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast());\n-            }\n-            done += groups * 8;\n-        }\n-    }\n-\n-    let _ = (tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n-    done\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Hash `out.len()` single-block messages derived from `template` on\n /// `platform`, replacing the 4-byte little-endian word at `counter_word * 4`\n /// with `start.wrapping_add(i)` (modulo 2^32) for `i in 0..out.len()`.\n pub(crate) fn hash_counter_range_on(template: &[u8], counter_word: usize, start: u32, key: &CVWords, flags: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n     validate_counter_range(template, counter_word);\n     if out.is_empty() {\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_counter.rs:69:5: replace hash_counter_groups -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 170
+      },
+      "start": {
+        "column": 5,
+        "line": 69
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace + with - in hash_counter_groups\n@@ -62,17 +62,17 @@\n     counter_word: usize,\n     start: u32,\n     key: &CVWords,\n     root_flags: u8,\n     out: &mut [[u8; OUT_LEN]],\n     platform: Platform,\n ) -> usize {\n     #[cfg(any(blake3_sme2, blake3_neon, blake3_avx2_ffi, all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n-    let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) << 8);\n+    let flags_and_len = u64::from(root_flags) - /* ~ changed by cargo-mutants ~ */ (u64::from(blen_u8) << 8);\n     let mut done = 0usize;\n \n     #[cfg(blake3_sme2)]\n     if matches!(platform, Platform::SME2 { .. }) {\n         let groups = out.len() / 16;\n         if groups > 0 {\n             let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) -> u64 = ffi_sme2::blake3_servil_sme2_counter;\n             crate::ran_kernel(kernel as *const ());\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:70:47: replace + with - in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 70
+      },
+      "start": {
+        "column": 47,
+        "line": 70
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace << with >> in hash_counter_groups\n@@ -62,17 +62,17 @@\n     counter_word: usize,\n     start: u32,\n     key: &CVWords,\n     root_flags: u8,\n     out: &mut [[u8; OUT_LEN]],\n     platform: Platform,\n ) -> usize {\n     #[cfg(any(blake3_sme2, blake3_neon, blake3_avx2_ffi, all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n-    let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) << 8);\n+    let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) >> /* ~ changed by cargo-mutants ~ */ 8);\n     let mut done = 0usize;\n \n     #[cfg(blake3_sme2)]\n     if matches!(platform, Platform::SME2 { .. }) {\n         let groups = out.len() / 16;\n         if groups > 0 {\n             let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) -> u64 = ffi_sme2::blake3_servil_sme2_counter;\n             crate::ran_kernel(kernel as *const ());\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:70:69: replace << with >> in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 71,
+        "line": 70
+      },
+      "start": {
+        "column": 69,
+        "line": 70
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace / with % in hash_counter_groups\n@@ -67,17 +67,17 @@\n     platform: Platform,\n ) -> usize {\n     #[cfg(any(blake3_sme2, blake3_neon, blake3_avx2_ffi, all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n     let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) << 8);\n     let mut done = 0usize;\n \n     #[cfg(blake3_sme2)]\n     if matches!(platform, Platform::SME2 { .. }) {\n-        let groups = out.len() / 16;\n+        let groups = out.len() % /* ~ changed by cargo-mutants ~ */ 16;\n         if groups > 0 {\n             let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) -> u64 = ffi_sme2::blake3_servil_sme2_counter;\n             crate::ran_kernel(kernel as *const ());\n             // Sound: `Platform::SME2` verified SME2 support; `tmpl_words` holds\n             // 16 readable `u32` words, `key` holds 8 readable `u32` words,\n             // `counter_word < 16`, and `out` holds at least `16 * groups`\n             // writable 32-byte slots. The kernel checks SVL == 16 and\n             // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:75:32: replace / with % in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 75
+      },
+      "start": {
+        "column": 32,
+        "line": 75
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace > with >= in hash_counter_groups\n@@ -68,17 +68,17 @@\n ) -> usize {\n     #[cfg(any(blake3_sme2, blake3_neon, blake3_avx2_ffi, all(blake3_avx512_ffi, target_arch = \"x86_64\")))]\n     let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) << 8);\n     let mut done = 0usize;\n \n     #[cfg(blake3_sme2)]\n     if matches!(platform, Platform::SME2 { .. }) {\n         let groups = out.len() / 16;\n-        if groups > 0 {\n+        if groups >= /* ~ changed by cargo-mutants ~ */ 0 {\n             let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) -> u64 = ffi_sme2::blake3_servil_sme2_counter;\n             crate::ran_kernel(kernel as *const ());\n             // Sound: `Platform::SME2` verified SME2 support; `tmpl_words` holds\n             // 16 readable `u32` words, `key` holds 8 readable `u32` words,\n             // `counter_word < 16`, and `out` holds at least `16 * groups`\n             // writable 32-byte slots. The kernel checks SVL == 16 and\n             // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state\n             // and returns 16 only when all `16 * groups` digests were written.\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:76:19: replace > with >= in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": ">=",
+    "span": {
+      "end": {
+        "column": 20,
+        "line": 76
+      },
+      "start": {
+        "column": 19,
+        "line": 76
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace == with != in hash_counter_groups\n@@ -79,17 +79,17 @@\n             // Sound: `Platform::SME2` verified SME2 support; `tmpl_words` holds\n             // 16 readable `u32` words, `key` holds 8 readable `u32` words,\n             // `counter_word < 16`, and `out` holds at least `16 * groups`\n             // writable 32-byte slots. The kernel checks SVL == 16 and\n             // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state\n             // and returns 16 only when all `16 * groups` digests were written.\n             let svl =\n                 unsafe { kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast(), groups as u64) };\n-            if svl == 16 {\n+            if svl != /* ~ changed by cargo-mutants ~ */ 16 {\n                 done += groups * 16;\n             }\n         }\n         // Any remainder (< 16, SVL != 16, or nonzero TPIDR2_EL0 reserved bytes)\n         // falls through to NEON 8+3 below.\n     }\n \n     #[cfg(blake3_neon)]\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:87:20: replace == with != in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 87
+      },
+      "start": {
+        "column": 20,
+        "line": 87
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace += with -= in hash_counter_groups\n@@ -80,17 +80,17 @@\n             // 16 readable `u32` words, `key` holds 8 readable `u32` words,\n             // `counter_word < 16`, and `out` holds at least `16 * groups`\n             // writable 32-byte slots. The kernel checks SVL == 16 and\n             // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state\n             // and returns 16 only when all `16 * groups` digests were written.\n             let svl =\n                 unsafe { kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast(), groups as u64) };\n             if svl == 16 {\n-                done += groups * 16;\n+                done -= /* ~ changed by cargo-mutants ~ */ groups * 16;\n             }\n         }\n         // Any remainder (< 16, SVL != 16, or nonzero TPIDR2_EL0 reserved bytes)\n         // falls through to NEON 8+3 below.\n     }\n \n     #[cfg(blake3_neon)]\n     if matches!(platform, Platform::NEON { .. }) || {\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:88:22: replace += with -= in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": "-=",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 88
+      },
+      "start": {
+        "column": 22,
+        "line": 88
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace * with + in hash_counter_groups\n@@ -80,17 +80,17 @@\n             // 16 readable `u32` words, `key` holds 8 readable `u32` words,\n             // `counter_word < 16`, and `out` holds at least `16 * groups`\n             // writable 32-byte slots. The kernel checks SVL == 16 and\n             // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state\n             // and returns 16 only when all `16 * groups` digests were written.\n             let svl =\n                 unsafe { kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast(), groups as u64) };\n             if svl == 16 {\n-                done += groups * 16;\n+                done += groups + /* ~ changed by cargo-mutants ~ */ 16;\n             }\n         }\n         // Any remainder (< 16, SVL != 16, or nonzero TPIDR2_EL0 reserved bytes)\n         // falls through to NEON 8+3 below.\n     }\n \n     #[cfg(blake3_neon)]\n     if matches!(platform, Platform::NEON { .. }) || {\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:88:32: replace * with + in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 88
+      },
+      "start": {
+        "column": 32,
+        "line": 88
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace || with && in hash_counter_groups\n@@ -88,17 +88,17 @@\n                 done += groups * 16;\n             }\n         }\n         // Any remainder (< 16, SVL != 16, or nonzero TPIDR2_EL0 reserved bytes)\n         // falls through to NEON 8+3 below.\n     }\n \n     #[cfg(blake3_neon)]\n-    if matches!(platform, Platform::NEON { .. }) || {\n+    if matches!(platform, Platform::NEON { .. }) && /* ~ changed by cargo-mutants ~ */ {\n         #[cfg(blake3_sme2)]\n         {\n             matches!(platform, Platform::SME2 { .. })\n         }\n         #[cfg(not(blake3_sme2))]\n         {\n             false\n         }\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:96:50: replace || with && in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 52,
+        "line": 96
+      },
+      "start": {
+        "column": 50,
+        "line": 96
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace - with + in hash_counter_groups\n@@ -98,17 +98,17 @@\n         {\n             matches!(platform, Platform::SME2 { .. })\n         }\n         #[cfg(not(blake3_sme2))]\n         {\n             false\n         }\n     } {\n-        let rem = out.len() - done;\n+        let rem = out.len() + /* ~ changed by cargo-mutants ~ */ done;\n         let groups = rem / 11;\n         if groups > 0 {\n             let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) = ffi_neon::blake3_servil_neon_p11_counter;\n             crate::ran_kernel(kernel as *const ());\n             let cur = wrapping_add_usize(start, done);\n             // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`;\n             // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n             // readable `u32` words, `counter_word < 16`, and `out[done..]`\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:106:29: replace - with + in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 106
+      },
+      "start": {
+        "column": 29,
+        "line": 106
+      }
+    }
+  }
+]
