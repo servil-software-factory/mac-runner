@@ -1,0 +1,170 @@
+--- src/each.rs
++++ replace by_blocks_at_once with ()
+@@ -557,166 +557,17 @@
+     assert_eq!(items.len(), out.len(), "one digest per item");
+     assert!(items.iter().all(|i| i.len() <= CHUNK_LEN), "items of up to a chunk");
+     for (items, out) in items.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {
+         by_blocks_at_once(items, key, counter, flags, flags_end, out, platform);
+     }
+ }
+ 
+ fn by_blocks_at_once(items: &[&[u8]], key: &CVWords, counter: u64, flags: u8, flags_end: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {
+-    const GROUP: usize = 16;
+-    // On SME2, a table of messages of one length, whole blocks, at counter 0,
+-    // with at least the work that pays for the SME2 turn: one call of the message
+-    // kernel for all of them (a turn's 1 KiB messages finishing together:
+-    // the NEON lanes took 30-64% longer on an Apple M4 Max, jobs 2016 and
+-    // 2019). A table of one-block messages never reaches the threshold
+-    // (BY_BLOCKS_AT_ONCE of 64 bytes is under SME2_SIZED_LEN).
+-    #[cfg(blake3_sme2)]
+-    {
+-        let len = items[0].len();
+-        if counter == 0
+-            && matches!(platform, Platform::SME2)
+-            && items.len() * len >= crate::SME2_SIZED_LEN
+-            && len % crate::BLOCK_LEN == 0
+-            && items.iter().all(|item| item.len() == len)
+-        {
+-            let turn = crate::platform::Sme2Turn::take(platform, true);
+-            if matches!(turn.platform(), Platform::SME2) {
+-                macro_rules! run {
+-                    ($n:expr) => {{
+-                        let mut lanes: crate::stack_vec::StackVec<&[u8; $n], BY_BLOCKS_AT_ONCE> =
+-                            items.iter().map(|item| (*item).try_into().expect("equal whole-block lengths")).collect();
+-                        while lanes.len() % GROUP != 0 {
+-                            lanes.push(*lanes.last().unwrap());
+-                        }
+-                        crate::counted(crate::Counted::ByBlocksCall);
+-                        // Sound: detection and the turn provide SME2. Every
+-                        // typed lane holds its whole input; spare lanes
+-                        // repeat a valid input and write no output.
+-                        unsafe { crate::sme2::hash_messages(&lanes, key, flags, CHUNK_START, flags_end, crate::BLOCK_LEN, out.as_flattened_mut()) };
+-                    }};
+-                }
+-                match len {
+-                    128 => run!(128),
+-                    192 => run!(192),
+-                    256 => run!(256),
+-                    320 => run!(320),
+-                    384 => run!(384),
+-                    448 => run!(448),
+-                    512 => run!(512),
+-                    576 => run!(576),
+-                    640 => run!(640),
+-                    704 => run!(704),
+-                    768 => run!(768),
+-                    832 => run!(832),
+-                    896 => run!(896),
+-                    960 => run!(960),
+-                    1024 => run!(1024),
+-                    _ => unreachable!("an SME2-sized table of whole blocks of up to a chunk"),
+-                }
+-                return;
+-            }
+-        }
+-    }
+-    let whole = |item: &[u8]| item.len().saturating_sub(1) / crate::BLOCK_LEN;
+-    let mut order: crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE> = (0..items.len()).collect();
+-    order.sort_unstable_by_key(|&i| whole(items[i]));
+-    // With SHA-3 the last block stays in the lanes too; other AArch64
+-    // CPUs keep the prefix kernels followed by scalar last blocks.
+-    #[cfg(blake3_neon)]
+-    let last_lanes = crate::neon_hybrid::sha3_detected();
+-    #[cfg(not(blake3_neon))]
+-    let last_lanes = false;
+-    let mut cvs = [*key; BY_BLOCKS_AT_ONCE];
+-    // chunk_by always advances and returns nonempty groups, even if a
+-    // changed predicate groups the wrong items; no mutable loop bound.
+-    for same_blocks in order.chunk_by(|&a, &b| whole(items[a]) == whole(items[b])) {
+-        let k = whole(items[same_blocks[0]]);
+-        #[cfg(blake3_neon)]
+-        if last_lanes {
+-            for group in same_blocks.chunks(GROUP) {
+-                let inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[i].as_ptr()).collect();
+-                let mut last_blocks = [[0u8; crate::BLOCK_LEN]; GROUP];
+-                let mut lengths = [0u32; GROUP];
+-                for ((&i, block), len) in group.iter().zip(&mut last_blocks).zip(&mut lengths) {
+-                    let tail = &items[i][k * crate::BLOCK_LEN..];
+-                    block[..tail.len()].copy_from_slice(tail);
+-                    *len = u32::from(tail.len().to_le_bytes()[0]);
+-                }
+-                let lasts: crate::stack_vec::StackVec<*const u8, GROUP> = last_blocks[..group.len()].iter().map(|b| b.as_ptr()).collect();
+-                let mut digests = [0u8; GROUP * OUT_LEN];
+-                crate::counted(crate::Counted::ByBlocksCall);
+-                // Sound: SHA-3 is present; these items share k whole blocks
+-                // before their separately padded last block, 0 to 64 bytes.
+-                unsafe {
+-                    crate::neon_hybrid::hash_last_lanes(
+-                        &inputs,
+-                        &lasts,
+-                        &lengths[..group.len()],
+-                        k + 1,
+-                        key,
+-                        counter,
+-                        flags,
+-                        CHUNK_START,
+-                        flags_end,
+-                        &mut digests[..group.len() * OUT_LEN],
+-                    );
+-                }
+-                for (&i, digest) in group.iter().zip(digests.chunks_exact(OUT_LEN)) {
+-                    out[i].copy_from_slice(digest);
+-                }
+-            }
+-            continue;
+-        }
+-        if k > 0 {
+-            for group in same_blocks.chunks(GROUP) {
+-                let inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[i].as_ptr()).collect();
+-                let mut lanes = [0u8; GROUP * OUT_LEN];
+-                crate::counted(crate::Counted::ByBlocksCall);
+-                // Sound: each item holds more than k whole blocks; the
+-                // caller selected this platform's block-group path.
+-                #[cfg(target_arch = "x86_64")]
+-                unsafe {
+-                    crate::pair::hash_many_blocks(platform, &inputs, k, key, counter, false, flags, CHUNK_START, 0, &mut lanes[..group.len() * OUT_LEN])
+-                };
+-                #[cfg(blake3_neon)]
+-                unsafe {
+-                    crate::neon_hybrid::hash_messages_raw(
+-                        inputs.as_ptr(),
+-                        group.len(),
+-                        k,
+-                        key,
+-                        counter,
+-                        flags,
+-                        CHUNK_START,
+-                        0,
+-                        crate::BLOCK_LEN,
+-                        &mut lanes[..group.len() * OUT_LEN],
+-                    )
+-                };
+-                for (n, &i) in group.iter().enumerate() {
+-                    cvs[i] = crate::platform::words_from_le_bytes_32(lanes[n * OUT_LEN..][..OUT_LEN].try_into().unwrap());
+-                }
+-            }
+-        }
+-    }
+-    if last_lanes {
+-        return;
+-    }
+-    for &i in &order {
+-        let item = items[i];
+-        let k = whole(item);
+-        let mut cv = cvs[i];
+-        let mut block = [0u8; crate::BLOCK_LEN];
+-        let last = item.len() - k * crate::BLOCK_LEN;
+-        block[..last].copy_from_slice(&item[k * crate::BLOCK_LEN..]);
+-        let start = if k == 0 { CHUNK_START } else { 0 };
+-        platform.compress_in_place(&mut cv, &block, last.to_le_bytes()[0], counter, flags | start | flags_end);
+-        out[i] = crate::hasher::le_bytes(&cv);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// An item of a collection, as hash_each_on reads it: its bytes. The
+ /// public calls' items are messages in blocks; the pool's ranges, bytes.
+ pub(crate) trait Item {
+     fn bytes(&self) -> &[u8];
+ }
+ 
