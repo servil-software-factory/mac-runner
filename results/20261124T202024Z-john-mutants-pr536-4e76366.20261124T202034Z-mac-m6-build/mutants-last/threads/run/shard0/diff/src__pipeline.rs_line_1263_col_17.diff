@@ -1,0 +1,24 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::owned::<impl Drop for Unrecorded<T, B, P>>::drop with ()
+@@ -1255,20 +1255,17 @@
+             s: usize,
+         }
+         impl<T, B, P> Drop for Unrecorded<T, B, P> {
+             fn drop(&mut self) {
+                 // Sound: the owner was written just above and nothing else
+                 // holds or records it; `self.pipe` points to this live
+                 // Pipeline; this runs only while `as_ref` unwinds (the guard
+                 // is forgotten once `as_ref` returns).
+-                unsafe {
+-                    core::ptr::drop_in_place(self.slot);
+-                    (*self.pipe).abort_slot(self.s);
+-                }
++                () /* ~ changed by cargo-mutants ~ */
+             }
+         }
+         let unrecorded = Unrecorded { pipe, slot, s };
+         // Sound: the owner just written, in its slot, read through a
+         // shared borrow; nothing else names it.
+         let bytes: &[u8] = unsafe { &*slot }.as_ref();
+         let (ptr, len) = (bytes.as_ptr(), bytes.len());
+         core::mem::forget(unrecorded);

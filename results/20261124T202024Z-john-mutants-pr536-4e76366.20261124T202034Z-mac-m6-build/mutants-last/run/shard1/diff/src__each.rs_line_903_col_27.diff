@@ -1,0 +1,21 @@
+--- src/each.rs
++++ replace && with || in hash_each_middle
+@@ -895,17 +895,17 @@
+     // use SME2, and each partial chunk writes only `cvs[at + c]`, disjoint from
+     // full chunks `cvs[at..at + c]`). Batch through `hash_chunks_by_blocks`
+     // only when at least two tails at counter `c` share a SIMD-eligible
+     // prefix-block length, avoiding sort/scatter overhead on incompatible pairs.
+     for c in 1..ALONE_CHUNKS {
+         if !partial_any[c] {
+             continue;
+         }
+-        if platform_takes && partial_shared[c] {
++        if platform_takes || /* ~ changed by cargo-mutants ~ */ partial_shared[c] {
+             let mut slices = crate::stack_vec::StackVec::<&[u8], BY_BLOCKS_AT_ONCE>::new();
+             let mut owners = crate::stack_vec::StackVec::<usize, BY_BLOCKS_AT_ONCE>::new();
+             let mut flush_partial = |slices: &mut crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE>,
+                                      owners: &mut crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE>| {
+                 let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];
+                 hash_chunks_by_blocks(slices, key, c as u64, flags, CHUNK_END, &mut digests[..slices.len()], platform);
+                 for (&slot, digest) in owners.iter().zip(&digests) {
+                     cvs[slot] = *digest;
