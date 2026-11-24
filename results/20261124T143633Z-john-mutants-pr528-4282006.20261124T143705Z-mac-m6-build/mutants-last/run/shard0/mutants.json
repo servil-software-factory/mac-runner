@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_many_on with ()\n@@ -72,87 +72,17 @@\n /// plain hashing), on `platform`: messages of up to a chunk go to\n /// the kernels TABLE at a time, 2 to 15 chunks side by side on SME2, others\n /// through the one-message path. Requires `input.len() == slot *\n /// outputs.len()` and every slot's bytes past `len` zero (a Batch's, or\n /// the crate's own).\n pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n     // One-block messages first, on the path they took before slots (a\n     // shared entry cost 64 B x 3 7% in the regression check).\n-    if len == BLOCK_LEN && outputs.len() >= 2 {\n-        crate::ran(crate::Ran::BlockRun);\n-        assert_slots(input, len, slot, outputs.len());\n-        for (messages, digests) in input.chunks(BLOCK_LEN * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-            hash_run::<{ BLOCK_LEN }>(messages, key, flags, digests, platform);\n-        }\n-        return;\n-    }\n-    assert_slots(input, len, slot, outputs.len());\n-    if packed(len, slot) {\n-        return hash_packed(input, len, key, flags, outputs, platform);\n-    }\n-    // Empty messages: the NEON plans take a last block of 1 to 64 bytes\n-    // (hash_many_in's contract), so without this arm a batch of them stops\n-    // there (#251: CI's Cortex-A72, and every NEON machine since the pair\n-    // kernels left).\n-    if len == 0 {\n-        outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());\n-        return;\n-    }\n-    #[cfg(blake3_sme2)]\n-    if chunked(len) && platform_is_sme2(platform) && (outputs.len() >= 16 || outputs.len() >= sme2_chunked_min(len)) {\n-        return hash_chunked(input, len, key, flags, outputs, platform);\n-    }\n-    #[cfg(blake3_neon)]\n-    if (CHUNK_LEN + 1..=2 * CHUNK_LEN).contains(&len) && outputs.len() >= 2 && neon_plans() {\n-        return hash_two_chunks(input, len, key, flags, outputs);\n-    }\n-    if outputs.len() < 2 || len > CHUNK_LEN {\n-        #[cfg(target_arch = \"x86_64\")]\n-        return hash_long_or_single(input, len, key, flags, outputs, platform);\n-        #[cfg(not(target_arch = \"x86_64\"))]\n-        {\n-            for (i, output) in outputs.iter_mut().enumerate() {\n-                *output = *crate::hash_serial_on(&input[i * slot..][..len], key, flags, platform).as_bytes();\n-            }\n-            return;\n-        }\n-    }\n-    crate::ran(crate::Ran::ShortRun);\n-    let plans = neon_plans();\n-    let last_len = len - (slot - BLOCK_LEN);\n-    #[cfg(all(feature = \"std\", blake3_avx512_ffi, target_os = \"linux\"))]\n-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n-        let width = crate::ffi_output::lanes(platform);\n-        if width != 0 {\n-            multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n-            return;\n-        }\n-    }\n-    for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-        match slot / BLOCK_LEN {\n-            1 => hash_run_short::<{ BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            5 => hash_blocks::<{ 5 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            6 => hash_blocks::<{ 6 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            7 => hash_blocks::<{ 7 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            8 => hash_blocks::<{ 8 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            9 => hash_blocks::<{ 9 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            10 => hash_blocks::<{ 10 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            11 => hash_blocks::<{ 11 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            12 => hash_blocks::<{ 12 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            13 => hash_blocks::<{ 13 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            14 => hash_blocks::<{ 14 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            15 => hash_blocks::<{ 15 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            16 => hash_blocks::<{ 16 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            _ => unreachable!(\"messages of up to a chunk\"),\n-        }\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Packed messages (`len` bytes each, at a stride of `len`): full SIMD\n /// groups run directly on the zero-padding-free packed kernels in\n /// `ffi_packed` (#501) across SME2, AVX-512, AVX2, and NEON `8+3`; any\n /// short remainder (or SSE4.1 fallback) expands up to 16 messages at a\n /// time into a 1 KiB zero-padded stack buffer.\n #[inline(never)]\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:80:5: replace hash_many_on with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 150
+      },
+      "start": {
+        "column": 5,
+        "line": 80
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace && with || in hash_many_on\n@@ -115,17 +115,17 @@\n             }\n             return;\n         }\n     }\n     crate::ran(crate::Ran::ShortRun);\n     let plans = neon_plans();\n     let last_len = len - (slot - BLOCK_LEN);\n     #[cfg(all(feature = \"std\", blake3_avx512_ffi, target_os = \"linux\"))]\n-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n+    if slot > BLOCK_LEN && last_len < BLOCK_LEN || /* ~ changed by cargo-mutants ~ */ outputs.len() >= X86_PAD8_MIN {\n         let width = crate::ffi_output::lanes(platform);\n         if width != 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         match slot / BLOCK_LEN {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:123:49: replace && with || in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 51,
+        "line": 123
+      },
+      "start": {
+        "column": 49,
+        "line": 123
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace && with || in hash_many_on\n@@ -115,17 +115,17 @@\n             }\n             return;\n         }\n     }\n     crate::ran(crate::Ran::ShortRun);\n     let plans = neon_plans();\n     let last_len = len - (slot - BLOCK_LEN);\n     #[cfg(all(feature = \"std\", blake3_avx512_ffi, target_os = \"linux\"))]\n-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n+    if slot > BLOCK_LEN || /* ~ changed by cargo-mutants ~ */ last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n         let width = crate::ffi_output::lanes(platform);\n         if width != 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         match slot / BLOCK_LEN {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:123:25: replace && with || in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 27,
+        "line": 123
+      },
+      "start": {
+        "column": 25,
+        "line": 123
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace < with <= in hash_many_on\n@@ -115,17 +115,17 @@\n             }\n             return;\n         }\n     }\n     crate::ran(crate::Ran::ShortRun);\n     let plans = neon_plans();\n     let last_len = len - (slot - BLOCK_LEN);\n     #[cfg(all(feature = \"std\", blake3_avx512_ffi, target_os = \"linux\"))]\n-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n+    if slot > BLOCK_LEN && last_len <= /* ~ changed by cargo-mutants ~ */ BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n         let width = crate::ffi_output::lanes(platform);\n         if width != 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         match slot / BLOCK_LEN {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:123:37: replace < with <= in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 38,
+        "line": 123
+      },
+      "start": {
+        "column": 37,
+        "line": 123
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace >= with < in hash_many_on\n@@ -115,17 +115,17 @@\n             }\n             return;\n         }\n     }\n     crate::ran(crate::Ran::ShortRun);\n     let plans = neon_plans();\n     let last_len = len - (slot - BLOCK_LEN);\n     #[cfg(all(feature = \"std\", blake3_avx512_ffi, target_os = \"linux\"))]\n-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n+    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() < /* ~ changed by cargo-mutants ~ */ X86_PAD8_MIN {\n         let width = crate::ffi_output::lanes(platform);\n         if width != 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         match slot / BLOCK_LEN {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:123:66: replace >= with < in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 68,
+        "line": 123
+      },
+      "start": {
+        "column": 66,
+        "line": 123
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace != with == in hash_many_on\n@@ -117,17 +117,17 @@\n         }\n     }\n     crate::ran(crate::Ran::ShortRun);\n     let plans = neon_plans();\n     let last_len = len - (slot - BLOCK_LEN);\n     #[cfg(all(feature = \"std\", blake3_avx512_ffi, target_os = \"linux\"))]\n     if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n         let width = crate::ffi_output::lanes(platform);\n-        if width != 0 {\n+        if width == /* ~ changed by cargo-mutants ~ */ 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         match slot / BLOCK_LEN {\n             1 => hash_run_short::<{ BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:125:18: replace != with == in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 20,
+        "line": 125
+      },
+      "start": {
+        "column": 18,
+        "line": 125
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace - with + in one_block_groups\n@@ -211,17 +211,17 @@\n             if lanes == 16 {\n                 packed_group::<16>(group, out, len, key, flags);\n             } else {\n                 packed_group::<8>(group, out, len, key, flags);\n             }\n         }\n     }\n     let mut done = groups * lanes;\n-    let rem = digests.len() - done;\n+    let rem = digests.len() + /* ~ changed by cargo-mutants ~ */ done;\n     let tail = &bytes[done * BLOCK_LEN..];\n     if lanes == 16 && rem >= X86_PAD16_MIN {\n         // Sound: Platform::AVX512 supports output16; every lane reads a valid\n         // 64-byte slot in `tail`, repeating the last message for spare lanes.\n         unsafe { packed_tail::<16>(tail, &mut digests[done..], len, key, flags) };\n         done += rem;\n     } else if rem == 8 {\n         // Sound: both Platform::AVX512 and Platform::AVX2 support AVX2 output8.\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "one_block_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 236
+        },
+        "start": {
+          "column": 1,
+          "line": 188
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:219:29: replace - with + in one_block_groups",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 219
+      },
+      "start": {
+        "column": 29,
+        "line": 219
+      }
+    }
+  }
+]

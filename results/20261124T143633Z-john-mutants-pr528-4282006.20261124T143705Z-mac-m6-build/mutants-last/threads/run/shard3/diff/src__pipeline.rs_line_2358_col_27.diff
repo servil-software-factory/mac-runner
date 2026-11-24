@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace += with -= in <impl Drop for Pipeline<T, B, P>>::drop
+@@ -2350,17 +2350,17 @@
+         // any surviving Room dropped concurrently on another thread cannot drop
+         // `storage.holders` to 0 while this loop is still running.
+         let room_count = storage.rooms.count;
+         storage.holders.fetch_add(room_count, Ordering::Relaxed);
+         let mut survivors = 0usize;
+         for r in &storage.rooms.refs {
+             let prev = r.fetch_or(ROOM_CLOSING_BIT, Ordering::SeqCst);
+             if prev != 0 {
+-                survivors += 1;
++                survivors -= /* ~ changed by cargo-mutants ~ */ 1;
+             } else {
+                 r.store(0, Ordering::Relaxed);
+             }
+         }
+         let release_holds = (room_count - survivors) + 1;
+         // Sound: the Pipeline still holds the storage; these cells are its
+         // holder's. Save epochs before any user drop (waker or owner) can unwind.
+         unsafe {

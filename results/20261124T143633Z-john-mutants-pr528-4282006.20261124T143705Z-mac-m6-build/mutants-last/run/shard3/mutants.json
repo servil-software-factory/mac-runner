@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/many.rs\n+++ replace % with + in prefix_padded_count\n@@ -269,17 +269,17 @@\n /// Padded lane count for a single `<= TILE` tile of multi-block prefix\n /// `hash_many_blocks`: round `9..15` lanes up to 16 on AVX-512 (`width == 16`)\n /// and `5..7` lanes up to 8 on both AVX-512 and AVX2 so prefix hashing avoids\n /// scalar tails.\n #[cfg(all(feature = \"std\", blake3_avx512_ffi, target_os = \"linux\"))]\n pub(crate) fn prefix_padded_count(count: usize, width: usize) -> usize {\n     if width == 16 && count % 16 >= X86_PAD16_MIN {\n         count.next_multiple_of(16)\n-    } else if count % 8 >= 5 {\n+    } else if count + /* ~ changed by cargo-mutants ~ */ 8 >= 5 {\n         count.next_multiple_of(8)\n     } else {\n         count\n     }\n }\n \n /// One `4..=TILE` (`TILE` in `{8, 16}`) tile of multi-block short-last messages:\n /// keeps the stack workspace small (`512 B` for `TILE = 8`, `1 KiB` for\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "prefix_padded_count",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 282
+        },
+        "start": {
+          "column": 1,
+          "line": 269
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:277:21: replace % with + in prefix_padded_count",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 277
+      },
+      "start": {
+        "column": 21,
+        "line": 277
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace multi_block_short_last_tile with ()\n@@ -290,51 +290,17 @@\n     messages: &[u8],\n     slot: usize,\n     key: &CVWords,\n     flags: u8,\n     last_len_u8: u8,\n     outputs: &mut [[u8; OUT_LEN]],\n     platform: Platform,\n ) {\n-    let count = outputs.len();\n-    assert!((X86_PAD8_MIN..=TILE).contains(&count), \"tile holds 4..=TILE messages\");\n-    let prefix_len = slot - BLOCK_LEN;\n-    let prefix_blocks = prefix_len / BLOCK_LEN;\n-    let padded_count = prefix_padded_count(count, TILE);\n-    let mut ptrs = crate::stack_vec::StackVec::<*const u8, TILE>::new();\n-    for i in 0..count {\n-        ptrs.push(messages[i * slot..].as_ptr());\n-    }\n-    let last_ptr = ptrs[count - 1];\n-    ptrs.extend(core::iter::repeat_n(last_ptr, padded_count - count));\n-    let mut cv_bytes = [[0u8; OUT_LEN]; TILE];\n-    // Sound: every pointer in `ptrs` reaches `prefix_blocks` whole blocks inside\n-    // its slot in `messages`, and `cv_bytes[..padded_count]` holds `padded_count` CVs.\n-    unsafe {\n-        crate::pair::hash_many_blocks(platform, &ptrs, prefix_blocks, key, 0, false, flags, CHUNK_START, 0, cv_bytes[..padded_count].as_flattened_mut());\n-    }\n-    let mut cvs = [[0u32; 8]; TILE];\n-    for i in 0..count {\n-        cvs[i] = core::array::from_fn(|w| u32::from_le_bytes(cv_bytes[i][4 * w..4 * w + 4].try_into().unwrap()));\n-    }\n-    let last_block = |i: usize| -> &[u8; BLOCK_LEN] { messages[i * slot + prefix_len..][..BLOCK_LEN].try_into().unwrap() };\n-    let inputs: [crate::ffi_output::Input<'_>; TILE] = core::array::from_fn(|j| {\n-        let idx = j.min(count - 1);\n-        crate::ffi_output::final_block(last_block(idx), &cvs[idx], last_len_u8, flags)\n-    });\n-    if count == TILE {\n-        // Sound: `TILE` matches AVX-512 (16) or AVX2/AVX-512 (8); all inputs are valid.\n-        unsafe { crate::ffi_output::hash_group::<TILE>(&inputs, outputs) };\n-    } else {\n-        let mut scratch = [[0u8; OUT_LEN]; TILE];\n-        // Sound: `TILE` matches AVX-512 (16) or AVX2/AVX-512 (8); all inputs are valid.\n-        unsafe { crate::ffi_output::hash_group::<TILE>(&inputs, &mut scratch) };\n-        outputs.copy_from_slice(&scratch[..count]);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Multi-block messages (`slot = 2..=16` blocks) whose final block is short\n /// (`1..64` bytes, zero-padded in each slot) on x86-64 AVX-512 / AVX2: tile\n /// by `width` (`16` on AVX-512, `8` on AVX2), dispatching `4..=8` through the\n /// `512 B` 8-lane tile and `9..=16` through the `1 KiB` 16-lane tile, and\n /// running trailing `1..3` messages serially.\n #[cfg(all(feature = \"std\", blake3_avx512_ffi, target_os = \"linux\"))]\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "multi_block_short_last_tile",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 333
+        },
+        "start": {
+          "column": 1,
+          "line": 284
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:298:5: replace multi_block_short_last_tile with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 332
+      },
+      "start": {
+        "column": 5,
+        "line": 298
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace - with + in multi_block_short_last_tile\n@@ -292,17 +292,17 @@\n     key: &CVWords,\n     flags: u8,\n     last_len_u8: u8,\n     outputs: &mut [[u8; OUT_LEN]],\n     platform: Platform,\n ) {\n     let count = outputs.len();\n     assert!((X86_PAD8_MIN..=TILE).contains(&count), \"tile holds 4..=TILE messages\");\n-    let prefix_len = slot - BLOCK_LEN;\n+    let prefix_len = slot + /* ~ changed by cargo-mutants ~ */ BLOCK_LEN;\n     let prefix_blocks = prefix_len / BLOCK_LEN;\n     let padded_count = prefix_padded_count(count, TILE);\n     let mut ptrs = crate::stack_vec::StackVec::<*const u8, TILE>::new();\n     for i in 0..count {\n         ptrs.push(messages[i * slot..].as_ptr());\n     }\n     let last_ptr = ptrs[count - 1];\n     ptrs.extend(core::iter::repeat_n(last_ptr, padded_count - count));\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "multi_block_short_last_tile",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 333
+        },
+        "start": {
+          "column": 1,
+          "line": 284
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:300:27: replace - with + in multi_block_short_last_tile",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 300
+      },
+      "start": {
+        "column": 27,
+        "line": 300
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace / with % in multi_block_short_last_tile\n@@ -293,17 +293,17 @@\n     flags: u8,\n     last_len_u8: u8,\n     outputs: &mut [[u8; OUT_LEN]],\n     platform: Platform,\n ) {\n     let count = outputs.len();\n     assert!((X86_PAD8_MIN..=TILE).contains(&count), \"tile holds 4..=TILE messages\");\n     let prefix_len = slot - BLOCK_LEN;\n-    let prefix_blocks = prefix_len / BLOCK_LEN;\n+    let prefix_blocks = prefix_len % /* ~ changed by cargo-mutants ~ */ BLOCK_LEN;\n     let padded_count = prefix_padded_count(count, TILE);\n     let mut ptrs = crate::stack_vec::StackVec::<*const u8, TILE>::new();\n     for i in 0..count {\n         ptrs.push(messages[i * slot..].as_ptr());\n     }\n     let last_ptr = ptrs[count - 1];\n     ptrs.extend(core::iter::repeat_n(last_ptr, padded_count - count));\n     let mut cv_bytes = [[0u8; OUT_LEN]; TILE];\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "multi_block_short_last_tile",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 333
+        },
+        "start": {
+          "column": 1,
+          "line": 284
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:301:36: replace / with % in multi_block_short_last_tile",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 301
+      },
+      "start": {
+        "column": 36,
+        "line": 301
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace * with + in multi_block_short_last_tile\n@@ -297,17 +297,17 @@\n ) {\n     let count = outputs.len();\n     assert!((X86_PAD8_MIN..=TILE).contains(&count), \"tile holds 4..=TILE messages\");\n     let prefix_len = slot - BLOCK_LEN;\n     let prefix_blocks = prefix_len / BLOCK_LEN;\n     let padded_count = prefix_padded_count(count, TILE);\n     let mut ptrs = crate::stack_vec::StackVec::<*const u8, TILE>::new();\n     for i in 0..count {\n-        ptrs.push(messages[i * slot..].as_ptr());\n+        ptrs.push(messages[i + /* ~ changed by cargo-mutants ~ */ slot..].as_ptr());\n     }\n     let last_ptr = ptrs[count - 1];\n     ptrs.extend(core::iter::repeat_n(last_ptr, padded_count - count));\n     let mut cv_bytes = [[0u8; OUT_LEN]; TILE];\n     // Sound: every pointer in `ptrs` reaches `prefix_blocks` whole blocks inside\n     // its slot in `messages`, and `cv_bytes[..padded_count]` holds `padded_count` CVs.\n     unsafe {\n         crate::pair::hash_many_blocks(platform, &ptrs, prefix_blocks, key, 0, false, flags, CHUNK_START, 0, cv_bytes[..padded_count].as_flattened_mut());\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "multi_block_short_last_tile",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 333
+        },
+        "start": {
+          "column": 1,
+          "line": 284
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:305:30: replace * with + in multi_block_short_last_tile",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 305
+      },
+      "start": {
+        "column": 30,
+        "line": 305
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace - with + in multi_block_short_last_tile\n@@ -299,17 +299,17 @@\n     assert!((X86_PAD8_MIN..=TILE).contains(&count), \"tile holds 4..=TILE messages\");\n     let prefix_len = slot - BLOCK_LEN;\n     let prefix_blocks = prefix_len / BLOCK_LEN;\n     let padded_count = prefix_padded_count(count, TILE);\n     let mut ptrs = crate::stack_vec::StackVec::<*const u8, TILE>::new();\n     for i in 0..count {\n         ptrs.push(messages[i * slot..].as_ptr());\n     }\n-    let last_ptr = ptrs[count - 1];\n+    let last_ptr = ptrs[count + /* ~ changed by cargo-mutants ~ */ 1];\n     ptrs.extend(core::iter::repeat_n(last_ptr, padded_count - count));\n     let mut cv_bytes = [[0u8; OUT_LEN]; TILE];\n     // Sound: every pointer in `ptrs` reaches `prefix_blocks` whole blocks inside\n     // its slot in `messages`, and `cv_bytes[..padded_count]` holds `padded_count` CVs.\n     unsafe {\n         crate::pair::hash_many_blocks(platform, &ptrs, prefix_blocks, key, 0, false, flags, CHUNK_START, 0, cv_bytes[..padded_count].as_flattened_mut());\n     }\n     let mut cvs = [[0u32; 8]; TILE];\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "multi_block_short_last_tile",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 333
+        },
+        "start": {
+          "column": 1,
+          "line": 284
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:307:31: replace - with + in multi_block_short_last_tile",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 307
+      },
+      "start": {
+        "column": 31,
+        "line": 307
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace - with + in multi_block_short_last_tile\n@@ -300,17 +300,17 @@\n     let prefix_len = slot - BLOCK_LEN;\n     let prefix_blocks = prefix_len / BLOCK_LEN;\n     let padded_count = prefix_padded_count(count, TILE);\n     let mut ptrs = crate::stack_vec::StackVec::<*const u8, TILE>::new();\n     for i in 0..count {\n         ptrs.push(messages[i * slot..].as_ptr());\n     }\n     let last_ptr = ptrs[count - 1];\n-    ptrs.extend(core::iter::repeat_n(last_ptr, padded_count - count));\n+    ptrs.extend(core::iter::repeat_n(last_ptr, padded_count + /* ~ changed by cargo-mutants ~ */ count));\n     let mut cv_bytes = [[0u8; OUT_LEN]; TILE];\n     // Sound: every pointer in `ptrs` reaches `prefix_blocks` whole blocks inside\n     // its slot in `messages`, and `cv_bytes[..padded_count]` holds `padded_count` CVs.\n     unsafe {\n         crate::pair::hash_many_blocks(platform, &ptrs, prefix_blocks, key, 0, false, flags, CHUNK_START, 0, cv_bytes[..padded_count].as_flattened_mut());\n     }\n     let mut cvs = [[0u32; 8]; TILE];\n     for i in 0..count {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "multi_block_short_last_tile",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 333
+        },
+        "start": {
+          "column": 1,
+          "line": 284
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:308:61: replace - with + in multi_block_short_last_tile",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 62,
+        "line": 308
+      },
+      "start": {
+        "column": 61,
+        "line": 308
+      }
+    }
+  }
+]
