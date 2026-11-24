@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace == with != in Pipeline<T, B, P>::batch
+@@ -1273,17 +1273,17 @@
+         let msg_len = hold.0.message_len();
+         let slot_len = hold.0.slot();
+         let bytes = hold.0.bytes();
+         let count = hold.1.len();
+         let digests_ptr = hold.1.as_mut_ptr();
+         let work_slot = slot_len.max(crate::BLOCK_LEN);
+         let work_bytes = count.saturating_mul(work_slot);
+ 
+-        if count == 0 {
++        if count != /* ~ changed by cargo-mutants ~ */ 0 {
+             self.shared().slot_done[s].store(true, Ordering::Relaxed);
+             self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };
+         } else if work_bytes < TASK_LEN {
+             let (group, epoch) = self.push_member(s, bytes.as_ptr(), bytes.len(), digests_ptr as *mut u8, NONE, Some((msg_len, slot_len)));
+             self.slots[s].kind = SlotKind::WaitBatch { group, epoch };
+         } else {
+             self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };
+             let per_part = (TASK_LEN / work_slot).max(1).max(count.div_ceil(MAX_SLOT_PIECES));
