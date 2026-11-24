@@ -1,0 +1,63 @@
+--- src/lanes.rs
++++ replace places::assign -> Option<Places> with Some(Default::default())
+@@ -1352,59 +1352,17 @@
+     /// The places for `cpus` (in any order) and `workers` workers, started
+     /// by a thread on CPU `starter`: None with fewer than two caches, or
+     /// more than 256. The places are numbered from the starter's, its
+     /// socket's first; worker k is of the place of CPU k + 1 in that
+     /// order (one CPU of the starter's place is left for the starter),
+     /// around again where there are more workers than CPUs.
+     #[cfg(any(target_os = "linux", test))]
+     pub(crate) fn assign(cpus: &[Cpu], starter: usize, workers: usize) -> Option<Places> {
+-        let mut caches: Vec<usize> = cpus.iter().map(|c| c.cache).collect();
+-        caches.sort_unstable();
+-        caches.dedup();
+-        if caches.len() < 2 || caches.len() > 256 || cpus.iter().any(|c| c.cpu >= CPUS) {
+-            return None;
+-        }
+-        let first = cpus.iter().find(|c| c.cpu == starter).unwrap_or(&cpus[0]);
+-        // The caches in order: the starter's, its socket's others, the rest.
+-        caches.sort_by_key(|&cache| {
+-            let socket = cpus.iter().find(|c| c.cache == cache).expect("a cache of some CPU").socket;
+-            (cache != first.cache, socket != first.socket, socket, cache)
+-        });
+-        let place = |cache: usize| caches.iter().position(|&c| c == cache).expect("every CPU's cache is listed");
+-        let mut order: Vec<(usize, Cpu)> = cpus.iter().map(|&c| (place(c.cache), c)).collect();
+-        order.sort_by_key(|&(place, c)| (place, c.cpu));
+-        let words = workers.div_ceil(64).max(1);
+-        let mut places = Places {
+-            of_cpu: std::vec![u16::MAX; CPUS].into(),
+-            cpus: std::vec![[0u64; CPUS / 64]; caches.len()].into(),
+-            of_worker: (0..workers).map(|k| u8::try_from(order[(k + 1) % order.len()].0).expect("place fits u8")).collect(),
+-            near: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),
+-            beside: std::vec![std::vec![0u64; words].into_boxed_slice(); caches.len()].into(),
+-            count: std::vec![0usize; caches.len()].into(),
+-        };
+-        let mut socket_of = std::vec![0usize; caches.len()];
+-        for &(place, c) in &order {
+-            places.of_cpu[c.cpu] = u16::try_from(place).expect("place fits u16");
+-            places.cpus[place][c.cpu / 64] |= 1 << (c.cpu % 64);
+-            socket_of[place] = c.socket;
+-        }
+-        for k in 0..workers {
+-            let place = places.of_worker[k] as usize;
+-            places.count[place] += 1;
+-            for q in 0..caches.len() {
+-                if q == place {
+-                    places.near[q][k / 64] |= 1 << (k % 64);
+-                }
+-                if socket_of[q] == socket_of[place] {
+-                    places.beside[q][k / 64] |= 1 << (k % 64);
+-                }
+-            }
+-        }
+-        Some(places)
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[cfg(target_os = "linux")]
+     unsafe extern "C" {
+         fn sched_getcpu() -> i32;
+         fn sched_getaffinity(pid: i32, len: usize, set: *mut Set) -> i32;
+         fn sched_setaffinity(pid: i32, len: usize, set: *const Set) -> i32;
+     }
