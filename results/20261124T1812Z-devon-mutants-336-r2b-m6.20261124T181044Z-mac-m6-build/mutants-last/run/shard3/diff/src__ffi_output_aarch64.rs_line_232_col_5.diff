@@ -1,0 +1,41 @@
+--- src/ffi_output_aarch64.rs
++++ replace self_test_shape -> u64 with 0
+@@ -224,37 +224,17 @@
+ 
+ /// Planted corruption selector for subprocess fail-stop tests:
+ /// 1 = corrupt last output byte of NEON `output8`,
+ /// 2 = corrupt last output byte of SME2 `chunks_keyed`.
+ #[cfg(test)]
+ pub(crate) static PLANTED_WRONG_OUTPUT: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+ 
+ fn self_test_shape(mut hash: impl FnMut(&[Input<'_>; 16], &mut [[u8; OUT_LEN]])) -> u64 {
+-    let mut lens: [u8; 16] = [0, 1, 31, 63, 64, 7, 32, 55, 3, 15, 48, 60, 2, 33, 62, 64];
+-    let flags: [u8; 16] = core::array::from_fn(|i| {
+-        let shape = [3u8, 2, 4][i % 3];
+-        if shape == 4 {
+-            lens[i] = 64;
+-        }
+-        shape + [0u8, 16, 32, 64][i % 4]
+-    });
+-    let cvs: [[u32; 8]; 16] = core::array::from_fn(|i| {
+-        let i = u32::try_from(i).unwrap();
+-        core::array::from_fn(|w| {
+-            let w = u32::try_from(w).unwrap();
+-            (0x1234abcdu32.wrapping_add(i * 0x9e37).wrapping_add(w * 0x1020304)).wrapping_mul(0x85ebca6b)
+-        })
+-    });
+-    let blocks: [[u8; 64]; 16] =
+-        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { ((i * 37 + j * 17) ^ 0x5a).to_le_bytes()[0] } else { 0 }));
+-    let inputs = core::array::from_fn(|i| Input { block: &blocks[i], cv: &cvs[i], len: lens[i], flags: flags[i] + if (i / 4) % 2 == 0 { ROOT } else { 0 } });
+-    let mut out = [[0u8; OUT_LEN]; 16];
+-    hash(&inputs, &mut out);
+-    crate::self_test::fold(out.as_flattened())
++    0 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(blake3_sme2)]
+ fn chunks_keyed_self_test_shape(mut hash: impl FnMut(&[[u8; CHUNK_LEN]; 32], &[u64; 2], &[[u32; 8]; 2], &[u8; 2], &mut [[u8; OUT_LEN]; 32])) -> u64 {
+     let chunks: [[u8; CHUNK_LEN]; 32] = core::array::from_fn(|c| core::array::from_fn(|b| ((c * 37 + b * 17 + (b >> 6)) ^ 0x5a).to_le_bytes()[0]));
+     let counters = [u64::from(u32::MAX) - 5, 0x0000_0003_0000_0007];
+     let keys: [[u32; 8]; 2] = core::array::from_fn(|g| {
+         let g = u32::try_from(g).unwrap();
