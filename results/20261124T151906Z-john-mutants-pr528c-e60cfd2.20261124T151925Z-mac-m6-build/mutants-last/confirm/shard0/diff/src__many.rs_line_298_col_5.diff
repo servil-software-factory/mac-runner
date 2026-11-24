@@ -1,0 +1,55 @@
+--- src/many.rs
++++ replace multi_block_short_last_tile with ()
+@@ -290,51 +290,17 @@
+     messages: &[u8],
+     slot: usize,
+     key: &CVWords,
+     flags: u8,
+     last_len_u8: u8,
+     outputs: &mut [[u8; OUT_LEN]],
+     platform: Platform,
+ ) {
+-    let count = outputs.len();
+-    assert!((X86_PAD8_MIN..=TILE).contains(&count), "tile holds 4..=TILE messages");
+-    let prefix_len = slot - BLOCK_LEN;
+-    let prefix_blocks = prefix_len / BLOCK_LEN;
+-    let padded_count = prefix_padded_count(count, TILE);
+-    let mut ptrs = crate::stack_vec::StackVec::<*const u8, TILE>::new();
+-    for i in 0..count {
+-        ptrs.push(messages[i * slot..].as_ptr());
+-    }
+-    let last_ptr = ptrs[count - 1];
+-    ptrs.extend(core::iter::repeat_n(last_ptr, padded_count - count));
+-    let mut cv_bytes = [[0u8; OUT_LEN]; TILE];
+-    // Sound: every pointer in `ptrs` reaches `prefix_blocks` whole blocks inside
+-    // its slot in `messages`, and `cv_bytes[..padded_count]` holds `padded_count` CVs.
+-    unsafe {
+-        crate::pair::hash_many_blocks(platform, &ptrs, prefix_blocks, key, 0, false, flags, CHUNK_START, 0, cv_bytes[..padded_count].as_flattened_mut());
+-    }
+-    let mut cvs = [[0u32; 8]; TILE];
+-    for i in 0..count {
+-        cvs[i] = core::array::from_fn(|w| u32::from_le_bytes(cv_bytes[i][4 * w..4 * w + 4].try_into().unwrap()));
+-    }
+-    let last_block = |i: usize| -> &[u8; BLOCK_LEN] { messages[i * slot + prefix_len..][..BLOCK_LEN].try_into().unwrap() };
+-    let inputs: [crate::ffi_output::Input<'_>; TILE] = core::array::from_fn(|j| {
+-        let idx = j.min(count - 1);
+-        crate::ffi_output::final_block(last_block(idx), &cvs[idx], last_len_u8, flags)
+-    });
+-    if count == TILE {
+-        // Sound: `TILE` matches AVX-512 (16) or AVX2/AVX-512 (8); all inputs are valid.
+-        unsafe { crate::ffi_output::hash_group::<TILE>(&inputs, outputs) };
+-    } else {
+-        let mut scratch = [[0u8; OUT_LEN]; TILE];
+-        // Sound: `TILE` matches AVX-512 (16) or AVX2/AVX-512 (8); all inputs are valid.
+-        unsafe { crate::ffi_output::hash_group::<TILE>(&inputs, &mut scratch) };
+-        outputs.copy_from_slice(&scratch[..count]);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Multi-block messages (`slot = 2..=16` blocks) whose final block is short
+ /// (`1..64` bytes, zero-padded in each slot) on x86-64 AVX-512 / AVX2: tile
+ /// by `width` (`16` on AVX-512, `8` on AVX2), dispatching `4..=8` through the
+ /// `512 B` 8-lane tile and `9..=16` through the `1 KiB` 16-lane tile, and
+ /// running trailing `1..3` messages serially.
+ #[cfg(all(feature = "std", blake3_avx512_ffi, target_os = "linux"))]
