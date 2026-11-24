@@ -1,0 +1,32 @@
+--- src/pipeline.rs
++++ delete match arm SlotKind::OpenRooms{ref mut sealed} in Pipeline<T, B>::commit_multi
+@@ -1507,28 +1507,17 @@
+                 debug_assert_eq!(start_offset, 0);
+                 room.offset = u32::try_from(ROOM_LEN).unwrap();
+                 self.room_streams[s] = RoomStream::EMPTY;
+                 self.slots[s].kind = SlotKind::OpenRooms { sealed: false };
+             }
+             SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {
+                 panic!("commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room");
+             }
+-            SlotKind::OpenRooms { ref mut sealed } => {
+-                if written == ROOM_LEN {
+-                    debug_assert_eq!(start_offset, 0);
+-                    room.offset = u32::try_from(ROOM_LEN).unwrap();
+-                } else {
+-                    *sealed = true;
+-                    room.offset = u32::try_from(((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN)).expect("bounded by ROOM_LEN");
+-                    if written == 0 {
+-                        return;
+-                    }
+-                }
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             _ => unreachable!("Message token refers to a non-open slot"),
+         }
+ 
+         room.take_credit();
+         let rs = &mut self.room_streams[s];
+         // The earlier commits all filled a whole room. A short one
+         // seals the message, so there can be no commit after it.
+         let index = rs.len / ROOM_LEN as u64;
