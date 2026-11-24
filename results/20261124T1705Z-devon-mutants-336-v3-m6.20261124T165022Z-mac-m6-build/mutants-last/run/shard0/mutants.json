@@ -1,0 +1,514 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace finalize_each with ()\n@@ -101,128 +101,17 @@\n /// messages of up to 1024 bytes fed by [`update_each`].\n ///\n /// # Key-dependent timing\n ///\n /// Selected hashers may use different secret keys. Key values and key equality\n /// select neither the finalization path nor its amount of work.\n /// See the [key-independence contract](crate#key-dependent-timing).\n pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n-    assert_eq!(which.len(), out.len(), \"one digest per message named\");\n-    let mut marked = Marked { hashers, which, count: 0, active: true };\n-    for &i in which {\n-        assert!(i < marked.hashers.len(), \"finalize_each names hasher {i} of {}\", marked.hashers.len());\n-        assert!(!marked.hashers[i].mark_finishing(), \"each finalized index is distinct\");\n-        marked.count += 1;\n-    }\n-    let hashers = &mut *marked.hashers;\n-    #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n-    if which.len() >= 16 && matches!(Platform::detect(), Platform::AVX512) {\n-        #[cfg(all(test, feature = \"std\"))]\n-        crate::counted(crate::Counted::OutputGroupTurn);\n-        for (which, out) in which.chunks(16).zip(out.chunks_mut(16)) {\n-            if which.len() == 16 {\n-                let hashed = {\n-                    let inputs: Option<crate::stack_vec::StackVec<_, 16>> = which.iter().map(|&i| crate::ffi_output::input(&hashers[i])).collect();\n-                    match inputs {\n-                        Some(inputs) => {\n-                            // Sound: the detected platform supplies AVX-512F+VL;\n-                            // borrowed descriptors keep every block/CV readable.\n-                            unsafe { crate::ffi_output::hash_group::<16>(inputs.as_slice().try_into().unwrap(), out) };\n-                            true\n-                        }\n-                        None => false,\n-                    }\n-                };\n-                if hashed {\n-                    for &i in which {\n-                        hashers[i].reset();\n-                    }\n-                    continue;\n-                }\n-            }\n-            finish_each(hashers, which, out);\n-        }\n-        marked.active = false;\n-        return;\n-    }\n-    // AArch64: partition each 128-hasher slice in a single pass into plain\n-    // staged first chunks (`hash_by_blocks` when >= 2), remaining counter-zero\n-    // single-chunk hashers (keyed/derived/mixed `<= 64 B` staged or ChunkState-\n-    // resident -> NEON `output8` when >= 8, #336), and general hashers. Key\n-    // values never select grouping or dispatch.\n-    #[cfg(blake3_neon)]\n-    {\n-        const FINALIZE_BATCH: usize = 128;\n-        const { assert!(FINALIZE_BATCH <= u8::MAX as usize) };\n-        let platform = Platform::detect();\n-        for (w_chunk, o_chunk) in which.chunks(FINALIZE_BATCH).zip(out.chunks_mut(FINALIZE_BATCH)) {\n-            let mut plain = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-            let mut keyed = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-            let mut rest = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-            for (k, &i) in w_chunk.iter().enumerate() {\n-                let k = k.to_le_bytes()[0];\n-                if hashers[i].is_plain_single_chunk_staged() {\n-                    plain.push(k);\n-                } else if crate::ffi_output::input(&hashers[i]).is_some() {\n-                    keyed.push(k);\n-                } else {\n-                    rest.push(k);\n-                }\n-            }\n-            if plain.len() >= 2 {\n-                for part in plain.as_slice().chunks(BY_BLOCKS_AT_ONCE) {\n-                    let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> =\n-                        part.iter().map(|&k| hashers[w_chunk[usize::from(k)]].staged_bytes()).collect();\n-                    let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];\n-                    hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n-                    for (&k, digest) in part.iter().zip(&digests) {\n-                        o_chunk[usize::from(k)] = *digest;\n-                    }\n-                }\n-            } else {\n-                for &k in plain.as_slice() {\n-                    let k = usize::from(k);\n-                    o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-                }\n-            }\n-            let done = if keyed.len() >= 8 {\n-                let mut inputs = crate::stack_vec::StackVec::<crate::ffi_output::Input<'_>, FINALIZE_BATCH>::new();\n-                for &k in keyed.as_slice() {\n-                    inputs.push(crate::ffi_output::input(&hashers[w_chunk[usize::from(k)]]).unwrap());\n-                }\n-                let mut digests = [[0u8; OUT_LEN]; FINALIZE_BATCH];\n-                let done = crate::ffi_output::hash_groups_arm(inputs.as_slice(), &mut digests[..keyed.len()]);\n-                for (&k, digest) in keyed.as_slice()[..done].iter().zip(&digests[..done]) {\n-                    o_chunk[usize::from(k)] = *digest;\n-                }\n-                done\n-            } else {\n-                0\n-            };\n-            for &k in &keyed.as_slice()[done..] {\n-                let k = usize::from(k);\n-                o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-            }\n-            for &k in rest.as_slice() {\n-                let k = usize::from(k);\n-                o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-            }\n-            for &i in w_chunk {\n-                hashers[i].reset();\n-            }\n-        }\n-        marked.active = false;\n-        return;\n-    }\n-    #[cfg(not(blake3_neon))]\n-    {\n-        finish_each(hashers, which, out);\n-        marked.active = false;\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Each hasher `which` names finished in place and reset, its digest into\n /// `out`: the path every message takes but a sixteen-lane group.\n #[cfg(not(blake3_neon))]\n fn finish_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n     for (&i, out) in which.iter().zip(out) {\n         *out = *hashers[i].take_root_hash().as_bytes();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 221
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:109:5: replace finalize_each with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 220
+      },
+      "start": {
+        "column": 5,
+        "line": 109
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace >= with < in finalize_each\n@@ -163,17 +163,17 @@\n                 if hashers[i].is_plain_single_chunk_staged() {\n                     plain.push(k);\n                 } else if crate::ffi_output::input(&hashers[i]).is_some() {\n                     keyed.push(k);\n                 } else {\n                     rest.push(k);\n                 }\n             }\n-            if plain.len() >= 2 {\n+            if plain.len() < /* ~ changed by cargo-mutants ~ */ 2 {\n                 for part in plain.as_slice().chunks(BY_BLOCKS_AT_ONCE) {\n                     let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> =\n                         part.iter().map(|&k| hashers[w_chunk[usize::from(k)]].staged_bytes()).collect();\n                     let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];\n                     hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n                     for (&k, digest) in part.iter().zip(&digests) {\n                         o_chunk[usize::from(k)] = *digest;\n                     }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 221
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:171:28: replace >= with < in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 171
+      },
+      "start": {
+        "column": 28,
+        "line": 171
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace >= with < in finalize_each\n@@ -179,17 +179,17 @@\n                     }\n                 }\n             } else {\n                 for &k in plain.as_slice() {\n                     let k = usize::from(k);\n                     o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n                 }\n             }\n-            let done = if keyed.len() >= 8 {\n+            let done = if keyed.len() < /* ~ changed by cargo-mutants ~ */ 8 {\n                 let mut inputs = crate::stack_vec::StackVec::<crate::ffi_output::Input<'_>, FINALIZE_BATCH>::new();\n                 for &k in keyed.as_slice() {\n                     inputs.push(crate::ffi_output::input(&hashers[w_chunk[usize::from(k)]]).unwrap());\n                 }\n                 let mut digests = [[0u8; OUT_LEN]; FINALIZE_BATCH];\n                 let done = crate::ffi_output::hash_groups_arm(inputs.as_slice(), &mut digests[..keyed.len()]);\n                 for (&k, digest) in keyed.as_slice()[..done].iter().zip(&digests[..done]) {\n                     o_chunk[usize::from(k)] = *digest;\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 221
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:187:39: replace >= with < in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 187
+      },
+      "start": {
+        "column": 39,
+        "line": 187
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace independent_lanes -> bool with true\n@@ -347,31 +347,17 @@\n /// On x86-64 Linux and AArch64, hash the held stages with an independent key\n /// per parent lane (and on SME2, one multi-group keyed leaf entry), when any\n /// of them is keyed and there are enough of them, and say so. The mode, the\n /// count and the platform, all public, choose; key values never determine\n /// grouping, allocation or dispatch. Every other target compiles `hash_held`\n /// as it was.\n #[cfg(all(feature = \"std\", any(all(blake3_avx512_ffi, target_os = \"linux\"), blake3_neon)))]\n fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {\n-    let Some(&first) = held.first() else { return false };\n-    let platform = hashers[first].platform();\n-    #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n-    if !matches!(platform, Platform::AVX2 | Platform::AVX512) {\n-        return false;\n-    }\n-    // Public plain mode fixes every key to the IV: those share one pass.\n-    if held.len() < INDEPENDENT_MIN || held.iter().all(|&i| hashers[i].is_plain()) {\n-        return false;\n-    }\n-    crate::ffi_output::held_groups(hashers, held, platform);\n-    #[cfg(test)]\n-    let _ = HELD_GROUPS.try_with(|groups| groups.borrow_mut().push(held.to_vec()));\n-    crate::counted(crate::Counted::HeldPass);\n-    true\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, feature = \"std\"))]\n std::thread_local! {\n     /// Most recent `hash_cohort::<N>` workspace tier used on this thread.\n     static LAST_COHORT_TIER: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };\n }\n \n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "independent_lanes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 370
+        },
+        "start": {
+          "column": 1,
+          "line": 347
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:355:5: replace independent_lanes -> bool with true",
+    "package": "blake3-servil-core",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 369
+      },
+      "start": {
+        "column": 5,
+        "line": 355
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace independent_lanes -> bool with false\n@@ -347,31 +347,17 @@\n /// On x86-64 Linux and AArch64, hash the held stages with an independent key\n /// per parent lane (and on SME2, one multi-group keyed leaf entry), when any\n /// of them is keyed and there are enough of them, and say so. The mode, the\n /// count and the platform, all public, choose; key values never determine\n /// grouping, allocation or dispatch. Every other target compiles `hash_held`\n /// as it was.\n #[cfg(all(feature = \"std\", any(all(blake3_avx512_ffi, target_os = \"linux\"), blake3_neon)))]\n fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {\n-    let Some(&first) = held.first() else { return false };\n-    let platform = hashers[first].platform();\n-    #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n-    if !matches!(platform, Platform::AVX2 | Platform::AVX512) {\n-        return false;\n-    }\n-    // Public plain mode fixes every key to the IV: those share one pass.\n-    if held.len() < INDEPENDENT_MIN || held.iter().all(|&i| hashers[i].is_plain()) {\n-        return false;\n-    }\n-    crate::ffi_output::held_groups(hashers, held, platform);\n-    #[cfg(test)]\n-    let _ = HELD_GROUPS.try_with(|groups| groups.borrow_mut().push(held.to_vec()));\n-    crate::counted(crate::Counted::HeldPass);\n-    true\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, feature = \"std\"))]\n std::thread_local! {\n     /// Most recent `hash_cohort::<N>` workspace tier used on this thread.\n     static LAST_COHORT_TIER: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };\n }\n \n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "independent_lanes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 370
+        },
+        "start": {
+          "column": 1,
+          "line": 347
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:355:5: replace independent_lanes -> bool with false",
+    "package": "blake3-servil-core",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 369
+      },
+      "start": {
+        "column": 5,
+        "line": 355
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace || with && in independent_lanes\n@@ -354,17 +354,17 @@\n fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {\n     let Some(&first) = held.first() else { return false };\n     let platform = hashers[first].platform();\n     #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n     if !matches!(platform, Platform::AVX2 | Platform::AVX512) {\n         return false;\n     }\n     // Public plain mode fixes every key to the IV: those share one pass.\n-    if held.len() < INDEPENDENT_MIN || held.iter().all(|&i| hashers[i].is_plain()) {\n+    if held.len() < INDEPENDENT_MIN && /* ~ changed by cargo-mutants ~ */ held.iter().all(|&i| hashers[i].is_plain()) {\n         return false;\n     }\n     crate::ffi_output::held_groups(hashers, held, platform);\n     #[cfg(test)]\n     let _ = HELD_GROUPS.try_with(|groups| groups.borrow_mut().push(held.to_vec()));\n     crate::counted(crate::Counted::HeldPass);\n     true\n }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "independent_lanes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 370
+        },
+        "start": {
+          "column": 1,
+          "line": 347
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:362:37: replace || with && in independent_lanes",
+    "package": "blake3-servil-core",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 39,
+        "line": 362
+      },
+      "start": {
+        "column": 37,
+        "line": 362
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace < with <= in independent_lanes\n@@ -354,17 +354,17 @@\n fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {\n     let Some(&first) = held.first() else { return false };\n     let platform = hashers[first].platform();\n     #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n     if !matches!(platform, Platform::AVX2 | Platform::AVX512) {\n         return false;\n     }\n     // Public plain mode fixes every key to the IV: those share one pass.\n-    if held.len() < INDEPENDENT_MIN || held.iter().all(|&i| hashers[i].is_plain()) {\n+    if held.len() <= /* ~ changed by cargo-mutants ~ */ INDEPENDENT_MIN || held.iter().all(|&i| hashers[i].is_plain()) {\n         return false;\n     }\n     crate::ffi_output::held_groups(hashers, held, platform);\n     #[cfg(test)]\n     let _ = HELD_GROUPS.try_with(|groups| groups.borrow_mut().push(held.to_vec()));\n     crate::counted(crate::Counted::HeldPass);\n     true\n }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "independent_lanes",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 370
+        },
+        "start": {
+          "column": 1,
+          "line": 347
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:362:19: replace < with <= in independent_lanes",
+    "package": "blake3-servil-core",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 20,
+        "line": 362
+      },
+      "start": {
+        "column": 19,
+        "line": 362
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace input -> Option<Input<'_>> with None\n@@ -46,32 +46,17 @@\n     }\n }\n \n /// A whole message whose root is one compression away: still in its first\n /// chunk, with no staged suffix or stacked subtree, its final block already\n /// padded by ChunkState; or a block or less waiting in the stage, padded\n /// there (`Stage::first_block`). Other states keep Hasher's existing path.\n pub(crate) fn input(hasher: &Hasher) -> Option<Input<'_>> {\n-    let c = hasher.chunk_state();\n-    if c.chunk_counter() != 0 {\n-        return None;\n-    }\n-    let staged = hasher.staged_len();\n-    if staged == 0 {\n-        let (block, cv, len, flags) = c.output_parts();\n-        return Some(Input { block, cv, len, flags: flags + ROOT });\n-    }\n-    const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n-    (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n-        block: hasher.stage_first_block(),\n-        cv: c.cv(),\n-        len: staged.to_le_bytes()[0],\n-        flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n-    })\n+    None /* ~ changed by cargo-mutants ~ */\n }\n \n /// Hash all full 8-lane NEON groups of independent counter-zero compressions\n /// on AArch64, returning the number of digests written to `out`.\n ///\n /// On Apple M6, NEON `output8` runs at ~27 ns/compression with zero SME\n /// transition overhead, beating a 16-lane SME2 single-block kernel even at\n /// 128 lanes (~38 ns/compression) while leaving the shared SME unit free.\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 70
+        },
+        "start": {
+          "column": 1,
+          "line": 49
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_output_aarch64.rs:54:5: replace input -> Option<Input<'_>> with None",
+    "package": "blake3-servil-core",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 69
+      },
+      "start": {
+        "column": 5,
+        "line": 54
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace input -> Option<Input<'_>> with Some(Default::default())\n@@ -46,32 +46,17 @@\n     }\n }\n \n /// A whole message whose root is one compression away: still in its first\n /// chunk, with no staged suffix or stacked subtree, its final block already\n /// padded by ChunkState; or a block or less waiting in the stage, padded\n /// there (`Stage::first_block`). Other states keep Hasher's existing path.\n pub(crate) fn input(hasher: &Hasher) -> Option<Input<'_>> {\n-    let c = hasher.chunk_state();\n-    if c.chunk_counter() != 0 {\n-        return None;\n-    }\n-    let staged = hasher.staged_len();\n-    if staged == 0 {\n-        let (block, cv, len, flags) = c.output_parts();\n-        return Some(Input { block, cv, len, flags: flags + ROOT });\n-    }\n-    const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n-    (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n-        block: hasher.stage_first_block(),\n-        cv: c.cv(),\n-        len: staged.to_le_bytes()[0],\n-        flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n-    })\n+    Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n /// Hash all full 8-lane NEON groups of independent counter-zero compressions\n /// on AArch64, returning the number of digests written to `out`.\n ///\n /// On Apple M6, NEON `output8` runs at ~27 ns/compression with zero SME\n /// transition overhead, beating a 16-lane SME2 single-block kernel even at\n /// 128 lanes (~38 ns/compression) while leaving the shared SME unit free.\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 70
+        },
+        "start": {
+          "column": 1,
+          "line": 49
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_output_aarch64.rs:54:5: replace input -> Option<Input<'_>> with Some(Default::default())",
+    "package": "blake3-servil-core",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 69
+      },
+      "start": {
+        "column": 5,
+        "line": 54
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace != with == in input\n@@ -47,17 +47,17 @@\n }\n \n /// A whole message whose root is one compression away: still in its first\n /// chunk, with no staged suffix or stacked subtree, its final block already\n /// padded by ChunkState; or a block or less waiting in the stage, padded\n /// there (`Stage::first_block`). Other states keep Hasher's existing path.\n pub(crate) fn input(hasher: &Hasher) -> Option<Input<'_>> {\n     let c = hasher.chunk_state();\n-    if c.chunk_counter() != 0 {\n+    if c.chunk_counter() == /* ~ changed by cargo-mutants ~ */ 0 {\n         return None;\n     }\n     let staged = hasher.staged_len();\n     if staged == 0 {\n         let (block, cv, len, flags) = c.output_parts();\n         return Some(Input { block, cv, len, flags: flags + ROOT });\n     }\n     const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 70
+        },
+        "start": {
+          "column": 1,
+          "line": 49
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:55:26: replace != with == in input",
+    "package": "blake3-servil-core",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 55
+      },
+      "start": {
+        "column": 26,
+        "line": 55
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace == with != in input\n@@ -51,17 +51,17 @@\n /// padded by ChunkState; or a block or less waiting in the stage, padded\n /// there (`Stage::first_block`). Other states keep Hasher's existing path.\n pub(crate) fn input(hasher: &Hasher) -> Option<Input<'_>> {\n     let c = hasher.chunk_state();\n     if c.chunk_counter() != 0 {\n         return None;\n     }\n     let staged = hasher.staged_len();\n-    if staged == 0 {\n+    if staged != /* ~ changed by cargo-mutants ~ */ 0 {\n         let (block, cv, len, flags) = c.output_parts();\n         return Some(Input { block, cv, len, flags: flags + ROOT });\n     }\n     const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n     (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n         block: hasher.stage_first_block(),\n         cv: c.cv(),\n         len: staged.to_le_bytes()[0],\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 70
+        },
+        "start": {
+          "column": 1,
+          "line": 49
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:59:15: replace == with != in input",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 59
+      },
+      "start": {
+        "column": 15,
+        "line": 59
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace + with - in input\n@@ -53,17 +53,17 @@\n pub(crate) fn input(hasher: &Hasher) -> Option<Input<'_>> {\n     let c = hasher.chunk_state();\n     if c.chunk_counter() != 0 {\n         return None;\n     }\n     let staged = hasher.staged_len();\n     if staged == 0 {\n         let (block, cv, len, flags) = c.output_parts();\n-        return Some(Input { block, cv, len, flags: flags + ROOT });\n+        return Some(Input { block, cv, len, flags: flags - /* ~ changed by cargo-mutants ~ */ ROOT });\n     }\n     const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n     (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n         block: hasher.stage_first_block(),\n         cv: c.cv(),\n         len: staged.to_le_bytes()[0],\n         flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n     })\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 70
+        },
+        "start": {
+          "column": 1,
+          "line": 49
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:61:58: replace + with - in input",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 59,
+        "line": 61
+      },
+      "start": {
+        "column": 58,
+        "line": 61
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace + with - in input\n@@ -55,17 +55,17 @@\n     if c.chunk_counter() != 0 {\n         return None;\n     }\n     let staged = hasher.staged_len();\n     if staged == 0 {\n         let (block, cv, len, flags) = c.output_parts();\n         return Some(Input { block, cv, len, flags: flags + ROOT });\n     }\n-    const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n+    const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END - /* ~ changed by cargo-mutants ~ */ ROOT;\n     (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n         block: hasher.stage_first_block(),\n         cv: c.cv(),\n         len: staged.to_le_bytes()[0],\n         flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n     })\n }\n \n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 70
+        },
+        "start": {
+          "column": 1,
+          "line": 49
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:63:58: replace + with - in input",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 59,
+        "line": 63
+      },
+      "start": {
+        "column": 58,
+        "line": 63
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace + with - in input\n@@ -55,17 +55,17 @@\n     if c.chunk_counter() != 0 {\n         return None;\n     }\n     let staged = hasher.staged_len();\n     if staged == 0 {\n         let (block, cv, len, flags) = c.output_parts();\n         return Some(Input { block, cv, len, flags: flags + ROOT });\n     }\n-    const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n+    const WHOLE_ROOT_FLAGS: u8 = CHUNK_START - /* ~ changed by cargo-mutants ~ */ CHUNK_END + ROOT;\n     (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n         block: hasher.stage_first_block(),\n         cv: c.cv(),\n         len: staged.to_le_bytes()[0],\n         flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n     })\n }\n \n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 70
+        },
+        "start": {
+          "column": 1,
+          "line": 49
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:63:46: replace + with - in input",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 47,
+        "line": 63
+      },
+      "start": {
+        "column": 46,
+        "line": 63
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace && with || in input\n@@ -56,17 +56,17 @@\n         return None;\n     }\n     let staged = hasher.staged_len();\n     if staged == 0 {\n         let (block, cv, len, flags) = c.output_parts();\n         return Some(Input { block, cv, len, flags: flags + ROOT });\n     }\n     const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n-    (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n+    (staged <= BLOCK_LEN || /* ~ changed by cargo-mutants ~ */ c.count() == 0).then(|| Input {\n         block: hasher.stage_first_block(),\n         cv: c.cv(),\n         len: staged.to_le_bytes()[0],\n         flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n     })\n }\n \n /// Hash all full 8-lane NEON groups of independent counter-zero compressions\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 70
+        },
+        "start": {
+          "column": 1,
+          "line": 49
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:64:26: replace && with || in input",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 64
+      },
+      "start": {
+        "column": 26,
+        "line": 64
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace <= with > in input\n@@ -56,17 +56,17 @@\n         return None;\n     }\n     let staged = hasher.staged_len();\n     if staged == 0 {\n         let (block, cv, len, flags) = c.output_parts();\n         return Some(Input { block, cv, len, flags: flags + ROOT });\n     }\n     const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n-    (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n+    (staged > /* ~ changed by cargo-mutants ~ */ BLOCK_LEN && c.count() == 0).then(|| Input {\n         block: hasher.stage_first_block(),\n         cv: c.cv(),\n         len: staged.to_le_bytes()[0],\n         flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n     })\n }\n \n /// Hash all full 8-lane NEON groups of independent counter-zero compressions\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 70
+        },
+        "start": {
+          "column": 1,
+          "line": 49
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:64:13: replace <= with > in input",
+    "package": "blake3-servil-core",
+    "replacement": ">",
+    "span": {
+      "end": {
+        "column": 15,
+        "line": 64
+      },
+      "start": {
+        "column": 13,
+        "line": 64
+      }
+    }
+  }
+]
