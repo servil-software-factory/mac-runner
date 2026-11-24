@@ -1,0 +1,66 @@
+[
+  {
+    "diff": "--- src/platform.rs\n+++ replace Platform::hash_many with ()\n@@ -394,46 +394,17 @@\n         increment_counter: IncrementCounter,\n         flags: u8,\n         flags_start: u8,\n         flags_end: u8,\n         out: &mut [u8],\n     ) {\n         // Every kernel hashes whole blocks: an input of another length\n         // would lose its tail, so it cannot compile.\n-        const { assert!(N > 0 && N % BLOCK_LEN == 0, \"hash_many inputs are whole blocks\") };\n-        // The shapes the crate makes, which every kernel takes: whole chunks\n-        // at counters counting up, or 1 to 16 whole blocks at one counter.\n-        assert!(\n-            if increment_counter.yes() { N == CHUNK_LEN } else { N <= CHUNK_LEN },\n-            \"hash_many takes whole chunks at incrementing counters, or 1 to 16 blocks at one counter\"\n-        );\n-        #[cfg(all(test, feature = \"std\"))]\n-        {\n-            crate::counted(crate::Counted::HashManyCall);\n-            crate::record_hash_many_call(N / BLOCK_LEN, inputs.len());\n-        }\n-        match self {\n-            // Sound: `Platform::SSE41` is constructed only after CPUID or compile-time target-feature verification.\n-            #[cfg(blake3_sse41_ffi)]\n-            Platform::SSE41 => unsafe { crate::sse41::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-            // Sound: `Platform::AVX2` is constructed only after CPUID + XCR0 or compile-time target-feature verification.\n-            #[cfg(blake3_avx2_ffi)]\n-            Platform::AVX2 => unsafe { crate::avx2::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-            // Sound: `Platform::AVX512` is constructed only after CPUID + XCR0 or compile-time target-feature verification.\n-            #[cfg(blake3_avx512_ffi)]\n-            #[cfg(target_arch = \"x86_64\")]\n-            Platform::AVX512 => unsafe { crate::avx512::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-            // Sound: `Platform::NEON` is built only on AArch64 where NEON is baseline.\n-            #[cfg(blake3_neon)]\n-            Platform::NEON => unsafe { crate::neon_hybrid::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-            // Sound: startup verified FEAT_SME2; SME2 assembly checks the calling thread's SVL at entry and falls back to NEON if != 512 bits.\n-            #[cfg(blake3_sme2)]\n-            Platform::SME2 => unsafe { crate::sme2::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[allow(unused_mut)]\n     pub(crate) fn xof_many(&self, cv: &CVWords, block: &[u8; BLOCK_LEN], block_len: u8, mut counter: u64, flags: u8, out: &mut [u8]) {\n         assert_eq!(0, out.len() % BLOCK_LEN, \"whole blocks only\");\n         if out.is_empty() {\n             // The current assembly implementation always outputs at least 1 block.\n             return;\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "Platform::hash_many",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 432
+        },
+        "start": {
+          "column": 5,
+          "line": 389
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:402:9: replace Platform::hash_many with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 431
+      },
+      "start": {
+        "column": 9,
+        "line": 402
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_four_at_a_time with ()\n@@ -1005,56 +1005,17 @@\n /// NEON plans are absent: on x86-64, whole chunks (`1024 B`) delegate to\n /// `hash_many_rounded` (including Zen 5 `hash32` for `17..=31`), AVX2/AVX-512\n /// `128..=960 B` delegate to non-generic `hash_blocks_rounded_x86` (keeping\n /// `128..192 B` `n = 3` on the inline 4-lane scratch below), and SSE4.1 or\n /// non-x86 targets run groups of four plus a padded fourth lane for remainders\n /// of three.\n #[inline(never)]\n fn hash_four_at_a_time<const N: usize>(lanes: &[&[u8; N]], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        if N == CHUNK_LEN {\n-            noted_lanes(lanes.len());\n-            crate::hash_many_rounded(platform, lanes, key, 0, IncrementCounter::No, flags, CHUNK_START, CHUNK_END | ROOT, outputs.as_flattened_mut());\n-            return;\n-        }\n-        if crate::pair::takes_platform(platform) && lanes.len() != 3 {\n-            noted_lanes(lanes.len());\n-            let mut ptrs = crate::stack_vec::StackVec::<*const u8, TABLE>::new();\n-            ptrs.extend(lanes.iter().map(|m| m.as_ptr()));\n-            // Sound: every element of `lanes` is `&[u8; N]` (`N / BLOCK_LEN` whole blocks).\n-            unsafe { hash_blocks_rounded_x86(&ptrs, N / BLOCK_LEN, key, flags, outputs, platform) };\n-            return;\n-        }\n-        if lanes.len() % 4 != 3 {\n-            noted_lanes(lanes.len());\n-            whole_messages(lanes, key, flags, outputs, platform);\n-            return;\n-        }\n-    }\n-    let fours = lanes.len() / 4 * 4;\n-    if fours > 0 {\n-        noted_lanes(fours);\n-        whole_messages(&lanes[..fours], key, flags, &mut outputs[..fours], platform);\n-    }\n-    match lanes.len() - fours {\n-        3 => {\n-            let spare = [lanes[fours], lanes[fours + 1], lanes[fours + 2], lanes[fours + 2]];\n-            let mut digests = [[0u8; OUT_LEN]; 4];\n-            noted_lanes(4);\n-            whole_messages(&spare, key, flags, &mut digests, platform);\n-            outputs[fours..].copy_from_slice(&digests[..3]);\n-        }\n-        _ => {\n-            for (output, message) in outputs[fours..].iter_mut().zip(&lanes[fours..]) {\n-                *output = *crate::hash_serial_on(&message[..], key, flags, platform).as_bytes();\n-            }\n-        }\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(test)]\n std::thread_local! {\n     /// The lanes of each hash_many call hash_four_at_a_time made on this\n     /// thread, for the test of its arrangement (BLAKE3 #219).\n     pub(crate) static FOUR_AT_A_TIME_LANES: core::cell::RefCell<std::vec::Vec<usize>> = const { core::cell::RefCell::new(std::vec::Vec::new()) };\n }\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_four_at_a_time",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1053
+        },
+        "start": {
+          "column": 1,
+          "line": 1004
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:1013:5: replace hash_four_at_a_time with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 1052
+      },
+      "start": {
+        "column": 5,
+        "line": 1013
+      }
+    }
+  }
+]
