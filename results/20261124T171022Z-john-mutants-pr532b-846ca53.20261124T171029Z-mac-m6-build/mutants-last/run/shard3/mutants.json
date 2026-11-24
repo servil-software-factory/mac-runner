@@ -1,0 +1,405 @@
+[
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace * with + in hash_counter_groups\n@@ -157,17 +157,17 @@\n             let cur = wrapping_add_usize(start, done);\n             // Sound: `Platform::AVX2` and `Platform::AVX512` guarantee AVX2;\n             // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n             // readable `u32` words, `counter_word < 16`, and `out[done..]`\n             // holds at least `8 * groups` writable 32-byte slots.\n             unsafe {\n                 kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast());\n             }\n-            done += groups * 8;\n+            done += groups + /* ~ changed by cargo-mutants ~ */ 8;\n         }\n     }\n \n     let _ = (tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n     done\n }\n \n /// Hash `out.len()` single-block messages derived from `template` on\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 171
+        },
+        "start": {
+          "column": 1,
+          "line": 57
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:165:28: replace * with + in hash_counter_groups",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 165
+      },
+      "start": {
+        "column": 28,
+        "line": 165
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace hash_counter_range_on with ()\n@@ -169,40 +169,17 @@\n     let _ = (tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n     done\n }\n \n /// Hash `out.len()` single-block messages derived from `template` on\n /// `platform`, replacing the 4-byte little-endian word at `counter_word * 4`\n /// with `start.wrapping_add(i)` (modulo 2^32) for `i in 0..out.len()`.\n pub(crate) fn hash_counter_range_on(template: &[u8], counter_word: usize, start: u32, key: &CVWords, flags: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n-    validate_counter_range(template, counter_word);\n-    if out.is_empty() {\n-        return;\n-    }\n-\n-    let mut block = [0u8; BLOCK_LEN];\n-    block[..template.len()].copy_from_slice(template);\n-    let tmpl_words = words_from_block(&block);\n-\n-    const ROOT_BLOCK_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n-    let root_flags = flags + ROOT_BLOCK_FLAGS;\n-    let blen_u8 = u8::try_from(template.len()).expect(\"validated <= BLOCK_LEN\");\n-    let done = hash_counter_groups(&tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n-\n-    // Serial tail (< 16 / < 11 / < 8, or SSE4.1 / portable builds).\n-    let cw_off = counter_word * 4;\n-    let mut cur = wrapping_add_usize(start, done);\n-    for slot in &mut out[done..] {\n-        block[cw_off..cw_off + 4].copy_from_slice(&cur.to_le_bytes());\n-        let mut cv = *key;\n-        platform.compress_in_place(&mut cv, &block, blen_u8, 0, root_flags);\n-        *slot = bytes_from_cv(&cv);\n-        cur = cur.wrapping_add(1);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n const SELF_TEST_COUNT: usize = 43;\n const SELF_TEST_LEN: usize = 52;\n const SELF_TEST_CW: usize = 12;\n const SELF_TEST_START: u32 = u32::MAX - 5;\n const SELF_TEST_KEY: [u8; 32] = [\n     0x17, 0x2b, 0x3f, 0x53, 0x67, 0x7b, 0x8f, 0xa3, 0xb7, 0xcb, 0xdf, 0xf3, 0x09, 0x1d, 0x31, 0x45, 0x59, 0x6d, 0x81, 0x95, 0xa9, 0xbd, 0xd1, 0xe5, 0xf9, 0x0e,\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_range_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 201
+        },
+        "start": {
+          "column": 1,
+          "line": 173
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_counter.rs:177:5: replace hash_counter_range_on with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 200
+      },
+      "start": {
+        "column": 5,
+        "line": 177
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace + with - in hash_counter_range_on\n@@ -178,17 +178,17 @@\n     if out.is_empty() {\n         return;\n     }\n \n     let mut block = [0u8; BLOCK_LEN];\n     block[..template.len()].copy_from_slice(template);\n     let tmpl_words = words_from_block(&block);\n \n-    const ROOT_BLOCK_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n+    const ROOT_BLOCK_FLAGS: u8 = CHUNK_START + CHUNK_END - /* ~ changed by cargo-mutants ~ */ ROOT;\n     let root_flags = flags + ROOT_BLOCK_FLAGS;\n     let blen_u8 = u8::try_from(template.len()).expect(\"validated <= BLOCK_LEN\");\n     let done = hash_counter_groups(&tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n \n     // Serial tail (< 16 / < 11 / < 8, or SSE4.1 / portable builds).\n     let cw_off = counter_word * 4;\n     let mut cur = wrapping_add_usize(start, done);\n     for slot in &mut out[done..] {\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_range_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 201
+        },
+        "start": {
+          "column": 1,
+          "line": 173
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:186:58: replace + with - in hash_counter_range_on",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 59,
+        "line": 186
+      },
+      "start": {
+        "column": 58,
+        "line": 186
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace + with - in hash_counter_range_on\n@@ -178,17 +178,17 @@\n     if out.is_empty() {\n         return;\n     }\n \n     let mut block = [0u8; BLOCK_LEN];\n     block[..template.len()].copy_from_slice(template);\n     let tmpl_words = words_from_block(&block);\n \n-    const ROOT_BLOCK_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n+    const ROOT_BLOCK_FLAGS: u8 = CHUNK_START - /* ~ changed by cargo-mutants ~ */ CHUNK_END + ROOT;\n     let root_flags = flags + ROOT_BLOCK_FLAGS;\n     let blen_u8 = u8::try_from(template.len()).expect(\"validated <= BLOCK_LEN\");\n     let done = hash_counter_groups(&tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n \n     // Serial tail (< 16 / < 11 / < 8, or SSE4.1 / portable builds).\n     let cw_off = counter_word * 4;\n     let mut cur = wrapping_add_usize(start, done);\n     for slot in &mut out[done..] {\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_range_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 201
+        },
+        "start": {
+          "column": 1,
+          "line": 173
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:186:46: replace + with - in hash_counter_range_on",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 47,
+        "line": 186
+      },
+      "start": {
+        "column": 46,
+        "line": 186
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace + with - in hash_counter_range_on\n@@ -179,17 +179,17 @@\n         return;\n     }\n \n     let mut block = [0u8; BLOCK_LEN];\n     block[..template.len()].copy_from_slice(template);\n     let tmpl_words = words_from_block(&block);\n \n     const ROOT_BLOCK_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n-    let root_flags = flags + ROOT_BLOCK_FLAGS;\n+    let root_flags = flags - /* ~ changed by cargo-mutants ~ */ ROOT_BLOCK_FLAGS;\n     let blen_u8 = u8::try_from(template.len()).expect(\"validated <= BLOCK_LEN\");\n     let done = hash_counter_groups(&tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n \n     // Serial tail (< 16 / < 11 / < 8, or SSE4.1 / portable builds).\n     let cw_off = counter_word * 4;\n     let mut cur = wrapping_add_usize(start, done);\n     for slot in &mut out[done..] {\n         block[cw_off..cw_off + 4].copy_from_slice(&cur.to_le_bytes());\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_range_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 201
+        },
+        "start": {
+          "column": 1,
+          "line": 173
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:187:28: replace + with - in hash_counter_range_on",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 187
+      },
+      "start": {
+        "column": 28,
+        "line": 187
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace * with + in hash_counter_range_on\n@@ -184,17 +184,17 @@\n     let tmpl_words = words_from_block(&block);\n \n     const ROOT_BLOCK_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n     let root_flags = flags + ROOT_BLOCK_FLAGS;\n     let blen_u8 = u8::try_from(template.len()).expect(\"validated <= BLOCK_LEN\");\n     let done = hash_counter_groups(&tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n \n     // Serial tail (< 16 / < 11 / < 8, or SSE4.1 / portable builds).\n-    let cw_off = counter_word * 4;\n+    let cw_off = counter_word + /* ~ changed by cargo-mutants ~ */ 4;\n     let mut cur = wrapping_add_usize(start, done);\n     for slot in &mut out[done..] {\n         block[cw_off..cw_off + 4].copy_from_slice(&cur.to_le_bytes());\n         let mut cv = *key;\n         platform.compress_in_place(&mut cv, &block, blen_u8, 0, root_flags);\n         *slot = bytes_from_cv(&cv);\n         cur = cur.wrapping_add(1);\n     }\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_range_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 201
+        },
+        "start": {
+          "column": 1,
+          "line": 173
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:192:31: replace * with + in hash_counter_range_on",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 192
+      },
+      "start": {
+        "column": 31,
+        "line": 192
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace + with - in hash_counter_range_on\n@@ -187,17 +187,17 @@\n     let root_flags = flags + ROOT_BLOCK_FLAGS;\n     let blen_u8 = u8::try_from(template.len()).expect(\"validated <= BLOCK_LEN\");\n     let done = hash_counter_groups(&tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n \n     // Serial tail (< 16 / < 11 / < 8, or SSE4.1 / portable builds).\n     let cw_off = counter_word * 4;\n     let mut cur = wrapping_add_usize(start, done);\n     for slot in &mut out[done..] {\n-        block[cw_off..cw_off + 4].copy_from_slice(&cur.to_le_bytes());\n+        block[cw_off..cw_off - /* ~ changed by cargo-mutants ~ */ 4].copy_from_slice(&cur.to_le_bytes());\n         let mut cv = *key;\n         platform.compress_in_place(&mut cv, &block, blen_u8, 0, root_flags);\n         *slot = bytes_from_cv(&cv);\n         cur = cur.wrapping_add(1);\n     }\n }\n \n const SELF_TEST_COUNT: usize = 43;\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_range_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 201
+        },
+        "start": {
+          "column": 1,
+          "line": 173
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:195:30: replace + with - in hash_counter_range_on",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 195
+      },
+      "start": {
+        "column": 30,
+        "line": 195
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace - with +\n@@ -198,17 +198,17 @@\n         *slot = bytes_from_cv(&cv);\n         cur = cur.wrapping_add(1);\n     }\n }\n \n const SELF_TEST_COUNT: usize = 43;\n const SELF_TEST_LEN: usize = 52;\n const SELF_TEST_CW: usize = 12;\n-const SELF_TEST_START: u32 = u32::MAX - 5;\n+const SELF_TEST_START: u32 = u32::MAX + /* ~ changed by cargo-mutants ~ */ 5;\n const SELF_TEST_KEY: [u8; 32] = [\n     0x17, 0x2b, 0x3f, 0x53, 0x67, 0x7b, 0x8f, 0xa3, 0xb7, 0xcb, 0xdf, 0xf3, 0x09, 0x1d, 0x31, 0x45, 0x59, 0x6d, 0x81, 0x95, 0xa9, 0xbd, 0xd1, 0xe5, 0xf9, 0x0e,\n     0x22, 0x36, 0x4a, 0x5e, 0x72, 0x86,\n ];\n \n fn self_test_key_words() -> CVWords {\n     let mut words = [0u32; 8];\n     for i in 0..8 {\n",
+    "file": "src/ffi_counter.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:206:39: replace - with +",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 206
+      },
+      "start": {
+        "column": 39,
+        "line": 206
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace self_test_key_words -> CVWords with Default::default()\n@@ -205,21 +205,17 @@\n const SELF_TEST_CW: usize = 12;\n const SELF_TEST_START: u32 = u32::MAX - 5;\n const SELF_TEST_KEY: [u8; 32] = [\n     0x17, 0x2b, 0x3f, 0x53, 0x67, 0x7b, 0x8f, 0xa3, 0xb7, 0xcb, 0xdf, 0xf3, 0x09, 0x1d, 0x31, 0x45, 0x59, 0x6d, 0x81, 0x95, 0xa9, 0xbd, 0xd1, 0xe5, 0xf9, 0x0e,\n     0x22, 0x36, 0x4a, 0x5e, 0x72, 0x86,\n ];\n \n fn self_test_key_words() -> CVWords {\n-    let mut words = [0u32; 8];\n-    for i in 0..8 {\n-        words[i] = u32::from_le_bytes([SELF_TEST_KEY[4 * i], SELF_TEST_KEY[4 * i + 1], SELF_TEST_KEY[4 * i + 2], SELF_TEST_KEY[4 * i + 3]]);\n-    }\n-    words\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n fn self_test_template() -> [u8; SELF_TEST_LEN] {\n     let mut tmpl = [0u8; SELF_TEST_LEN];\n     for (j, b) in tmpl.iter_mut().enumerate() {\n         *b = (j.wrapping_mul(37) ^ 0x9a).to_le_bytes()[0];\n     }\n     tmpl\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "self_test_key_words",
+      "return_type": "-> CVWords",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 218
+        },
+        "start": {
+          "column": 1,
+          "line": 212
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_counter.rs:213:5: replace self_test_key_words -> CVWords with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 217
+      },
+      "start": {
+        "column": 5,
+        "line": 213
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace * with + in self_test_key_words\n@@ -207,17 +207,17 @@\n const SELF_TEST_KEY: [u8; 32] = [\n     0x17, 0x2b, 0x3f, 0x53, 0x67, 0x7b, 0x8f, 0xa3, 0xb7, 0xcb, 0xdf, 0xf3, 0x09, 0x1d, 0x31, 0x45, 0x59, 0x6d, 0x81, 0x95, 0xa9, 0xbd, 0xd1, 0xe5, 0xf9, 0x0e,\n     0x22, 0x36, 0x4a, 0x5e, 0x72, 0x86,\n ];\n \n fn self_test_key_words() -> CVWords {\n     let mut words = [0u32; 8];\n     for i in 0..8 {\n-        words[i] = u32::from_le_bytes([SELF_TEST_KEY[4 * i], SELF_TEST_KEY[4 * i + 1], SELF_TEST_KEY[4 * i + 2], SELF_TEST_KEY[4 * i + 3]]);\n+        words[i] = u32::from_le_bytes([SELF_TEST_KEY[4 + /* ~ changed by cargo-mutants ~ */ i], SELF_TEST_KEY[4 * i + 1], SELF_TEST_KEY[4 * i + 2], SELF_TEST_KEY[4 * i + 3]]);\n     }\n     words\n }\n \n fn self_test_template() -> [u8; SELF_TEST_LEN] {\n     let mut tmpl = [0u8; SELF_TEST_LEN];\n     for (j, b) in tmpl.iter_mut().enumerate() {\n         *b = (j.wrapping_mul(37) ^ 0x9a).to_le_bytes()[0];\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "self_test_key_words",
+      "return_type": "-> CVWords",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 218
+        },
+        "start": {
+          "column": 1,
+          "line": 212
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:215:56: replace * with + in self_test_key_words",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 57,
+        "line": 215
+      },
+      "start": {
+        "column": 56,
+        "line": 215
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace + with - in self_test_key_words\n@@ -207,17 +207,17 @@\n const SELF_TEST_KEY: [u8; 32] = [\n     0x17, 0x2b, 0x3f, 0x53, 0x67, 0x7b, 0x8f, 0xa3, 0xb7, 0xcb, 0xdf, 0xf3, 0x09, 0x1d, 0x31, 0x45, 0x59, 0x6d, 0x81, 0x95, 0xa9, 0xbd, 0xd1, 0xe5, 0xf9, 0x0e,\n     0x22, 0x36, 0x4a, 0x5e, 0x72, 0x86,\n ];\n \n fn self_test_key_words() -> CVWords {\n     let mut words = [0u32; 8];\n     for i in 0..8 {\n-        words[i] = u32::from_le_bytes([SELF_TEST_KEY[4 * i], SELF_TEST_KEY[4 * i + 1], SELF_TEST_KEY[4 * i + 2], SELF_TEST_KEY[4 * i + 3]]);\n+        words[i] = u32::from_le_bytes([SELF_TEST_KEY[4 * i], SELF_TEST_KEY[4 * i - /* ~ changed by cargo-mutants ~ */ 1], SELF_TEST_KEY[4 * i + 2], SELF_TEST_KEY[4 * i + 3]]);\n     }\n     words\n }\n \n fn self_test_template() -> [u8; SELF_TEST_LEN] {\n     let mut tmpl = [0u8; SELF_TEST_LEN];\n     for (j, b) in tmpl.iter_mut().enumerate() {\n         *b = (j.wrapping_mul(37) ^ 0x9a).to_le_bytes()[0];\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "self_test_key_words",
+      "return_type": "-> CVWords",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 218
+        },
+        "start": {
+          "column": 1,
+          "line": 212
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:215:82: replace + with - in self_test_key_words",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 83,
+        "line": 215
+      },
+      "start": {
+        "column": 82,
+        "line": 215
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace * with + in self_test_key_words\n@@ -207,17 +207,17 @@\n const SELF_TEST_KEY: [u8; 32] = [\n     0x17, 0x2b, 0x3f, 0x53, 0x67, 0x7b, 0x8f, 0xa3, 0xb7, 0xcb, 0xdf, 0xf3, 0x09, 0x1d, 0x31, 0x45, 0x59, 0x6d, 0x81, 0x95, 0xa9, 0xbd, 0xd1, 0xe5, 0xf9, 0x0e,\n     0x22, 0x36, 0x4a, 0x5e, 0x72, 0x86,\n ];\n \n fn self_test_key_words() -> CVWords {\n     let mut words = [0u32; 8];\n     for i in 0..8 {\n-        words[i] = u32::from_le_bytes([SELF_TEST_KEY[4 * i], SELF_TEST_KEY[4 * i + 1], SELF_TEST_KEY[4 * i + 2], SELF_TEST_KEY[4 * i + 3]]);\n+        words[i] = u32::from_le_bytes([SELF_TEST_KEY[4 * i], SELF_TEST_KEY[4 + /* ~ changed by cargo-mutants ~ */ i + 1], SELF_TEST_KEY[4 * i + 2], SELF_TEST_KEY[4 * i + 3]]);\n     }\n     words\n }\n \n fn self_test_template() -> [u8; SELF_TEST_LEN] {\n     let mut tmpl = [0u8; SELF_TEST_LEN];\n     for (j, b) in tmpl.iter_mut().enumerate() {\n         *b = (j.wrapping_mul(37) ^ 0x9a).to_le_bytes()[0];\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "self_test_key_words",
+      "return_type": "-> CVWords",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 218
+        },
+        "start": {
+          "column": 1,
+          "line": 212
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:215:78: replace * with + in self_test_key_words",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 79,
+        "line": 215
+      },
+      "start": {
+        "column": 78,
+        "line": 215
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace + with - in self_test_key_words\n@@ -207,17 +207,17 @@\n const SELF_TEST_KEY: [u8; 32] = [\n     0x17, 0x2b, 0x3f, 0x53, 0x67, 0x7b, 0x8f, 0xa3, 0xb7, 0xcb, 0xdf, 0xf3, 0x09, 0x1d, 0x31, 0x45, 0x59, 0x6d, 0x81, 0x95, 0xa9, 0xbd, 0xd1, 0xe5, 0xf9, 0x0e,\n     0x22, 0x36, 0x4a, 0x5e, 0x72, 0x86,\n ];\n \n fn self_test_key_words() -> CVWords {\n     let mut words = [0u32; 8];\n     for i in 0..8 {\n-        words[i] = u32::from_le_bytes([SELF_TEST_KEY[4 * i], SELF_TEST_KEY[4 * i + 1], SELF_TEST_KEY[4 * i + 2], SELF_TEST_KEY[4 * i + 3]]);\n+        words[i] = u32::from_le_bytes([SELF_TEST_KEY[4 * i], SELF_TEST_KEY[4 * i + 1], SELF_TEST_KEY[4 * i - /* ~ changed by cargo-mutants ~ */ 2], SELF_TEST_KEY[4 * i + 3]]);\n     }\n     words\n }\n \n fn self_test_template() -> [u8; SELF_TEST_LEN] {\n     let mut tmpl = [0u8; SELF_TEST_LEN];\n     for (j, b) in tmpl.iter_mut().enumerate() {\n         *b = (j.wrapping_mul(37) ^ 0x9a).to_le_bytes()[0];\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "self_test_key_words",
+      "return_type": "-> CVWords",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 218
+        },
+        "start": {
+          "column": 1,
+          "line": 212
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_counter.rs:215:108: replace + with - in self_test_key_words",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 109,
+        "line": 215
+      },
+      "start": {
+        "column": 108,
+        "line": 215
+      }
+    }
+  }
+]
