@@ -1,0 +1,202 @@
+--- src/each.rs
++++ replace hash_each_middle with ()
+@@ -795,198 +795,17 @@
+     flags: u8,
+     items: &[I],
+     out: &mut [[u8; OUT_LEN]],
+     platform: Platform,
+     by_blocks: bool,
+     platform_takes: bool,
+     alone: &impl Fn(&[u8]) -> Hash,
+ ) {
+-    let Shared { messages, cvs } = shared;
+-    messages.clear();
+-    let mut slots = 0;
+-    let mut most_full = 0;
+-    let mut max_chunks = 0usize;
+-    let mut partial_counts = [0usize; ALONE_CHUNKS];
+-    for (i, item) in items.iter().map(Item::bytes).enumerate() {
+-        let chunks = item.len().div_ceil(CHUNK_LEN);
+-        if chunks <= 1 && by_blocks {
+-            continue;
+-        }
+-        if chunks <= 1 || chunks >= ALONE_CHUNKS {
+-            out[i] = *alone(item).as_bytes();
+-        } else {
+-            let full = item.len() / CHUNK_LEN;
+-            most_full = most_full.max(full);
+-            max_chunks = max_chunks.max(chunks);
+-            if full != chunks {
+-                partial_counts[full] += 1;
+-            }
+-            messages.push((i, slots, chunks.to_le_bytes()[0]));
+-            slots += chunks;
+-        }
+-    }
+-    if messages.is_empty() {
+-        return;
+-    }
+-    cvs.clear();
+-    cvs.resize(slots, [0u8; OUT_LEN]);
+-    // Partial last chunks run before taking an SME2 turn (NEON `hash_last_lanes`
+-    // and x86 `hash_many_blocks` do not use SME2, and each partial chunk writes
+-    // only `cvs[at + c]`, disjoint from full chunks `cvs[at..at + c]`).
+-    for (c, &count) in partial_counts.iter().enumerate().skip(1) {
+-        if count == 0 {
+-            continue;
+-        }
+-        if platform_takes && count >= 2 {
+-            let mut slices = crate::stack_vec::StackVec::<&[u8], BY_BLOCKS_AT_ONCE>::new();
+-            let mut owners = crate::stack_vec::StackVec::<usize, BY_BLOCKS_AT_ONCE>::new();
+-            let mut flush_partial = |slices: &mut crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE>,
+-                                     owners: &mut crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE>| {
+-                let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];
+-                hash_chunks_by_blocks(slices, key, c as u64, flags, CHUNK_END, &mut digests[..slices.len()], platform);
+-                for (&slot, digest) in owners.iter().zip(&digests) {
+-                    cvs[slot] = *digest;
+-                }
+-                slices.clear();
+-                owners.clear();
+-            };
+-            for &(i, at, _) in messages.iter() {
+-                let item = items[i].bytes();
+-                let full = item.len() / CHUNK_LEN;
+-                if full == c && item.len() > c * CHUNK_LEN {
+-                    slices.push(&item[c * CHUNK_LEN..]);
+-                    owners.push(at + c);
+-                    if slices.is_full() {
+-                        flush_partial(&mut slices, &mut owners);
+-                    }
+-                }
+-            }
+-            if !slices.is_empty() {
+-                flush_partial(&mut slices, &mut owners);
+-            }
+-        } else {
+-            for &(i, at, _) in messages.iter() {
+-                let item = items[i].bytes();
+-                let full = item.len() / CHUNK_LEN;
+-                if full == c && item.len() > c * CHUNK_LEN {
+-                    cvs[at + c] = ChunkState::new(key, c as u64, flags, platform).update(&item[c * CHUNK_LEN..]).output().chaining_value();
+-                }
+-            }
+-        }
+-    }
+-    // Acquire one best-effort SME2 turn across the shared full-chunk rounds and
+-    // batched Merkle parent/root rounds when at least one full SME2 group (16
+-    // messages) participates, ensuring `hash_each` honors any held SME2 turn.
+-    let turn = crate::platform::Sme2Turn::take(platform, messages.len() >= 16);
+-    let round_platform = turn.platform();
+-    for k in 0..most_full {
+-        crate::counted(crate::Counted::EachRound);
+-        // A round's lanes go to the kernels LANES_AT_ONCE at a time,
+-        // their chunks and places on the stack.
+-        let mut refs = crate::stack_vec::StackVec::<&[u8; CHUNK_LEN], LANES_AT_ONCE>::new();
+-        let mut owners = crate::stack_vec::StackVec::<usize, LANES_AT_ONCE>::new();
+-        let mut flush = |refs: &mut crate::stack_vec::StackVec<&[u8; CHUNK_LEN], LANES_AT_ONCE>,
+-                         owners: &mut crate::stack_vec::StackVec<usize, LANES_AT_ONCE>| {
+-            let mut lane_out = [0u8; LANES_AT_ONCE * OUT_LEN];
+-            let lanes = &mut lane_out[..refs.len() * OUT_LEN];
+-            round_platform.hash_many(refs, key, k as u64, IncrementCounter::No, flags, CHUNK_START, CHUNK_END, lanes);
+-            for (j, &slot) in owners.iter().enumerate() {
+-                cvs[slot].copy_from_slice(&lanes[j * OUT_LEN..(j + 1) * OUT_LEN]);
+-            }
+-            refs.clear();
+-            owners.clear();
+-        };
+-        for &(i, at, _) in messages.iter() {
+-            if let Some(chunk) = items[i].bytes().get(k * CHUNK_LEN..(k + 1) * CHUNK_LEN) {
+-                refs.push(chunk.try_into().unwrap());
+-                owners.push(at + k);
+-                if refs.is_full() {
+-                    flush(&mut refs, &mut owners);
+-                }
+-            }
+-        }
+-        if !refs.is_empty() {
+-            flush(&mut refs, &mut owners);
+-        }
+-    }
+-    if messages.len() == 1 {
+-        drop(turn);
+-        let (i, at, len) = messages[0];
+-        out[i] = *root(&cvs[at..at + usize::from(len)], key, flags, platform).as_bytes();
+-    } else {
+-        // Reduce every message's chunk CVs bottom-up in place: left-to-right
+-        // adjacent pairing never crosses BLAKE3's power-of-two left-subtree
+-        // boundary, and each pair sits contiguously as a 64-byte parent block
+-        // in `cvs`. For `max_chunks` in 2..=15, `parent_rounds` (0..=3) leaves
+-        // every message with its 2 root-input CVs at `cvs[at..at + 2]`.
+-        let parent_flags = flags | crate::PARENT;
+-        let parent_rounds = usize::BITS - (max_chunks - 1).leading_zeros() - 1;
+-        for _ in 0..parent_rounds {
+-            let mut jobs = crate::stack_vec::StackVec::<(usize, usize), LANES_AT_ONCE>::new();
+-            let mut flushed = false;
+-            let mut flush_parents = |jobs: &mut crate::stack_vec::StackVec<(usize, usize), LANES_AT_ONCE>, cvs: &mut [CVBytes]| {
+-                flushed = true;
+-                let mut lane_out = [0u8; LANES_AT_ONCE * OUT_LEN];
+-                {
+-                    let mut refs = crate::stack_vec::StackVec::<&[u8; crate::BLOCK_LEN], LANES_AT_ONCE>::new();
+-                    for &(src, _) in jobs.iter() {
+-                        refs.push(cvs[src..src + 2].as_flattened().try_into().unwrap());
+-                    }
+-                    round_platform.hash_many(&refs, key, 0, IncrementCounter::No, parent_flags, 0, 0, &mut lane_out[..refs.len() * OUT_LEN]);
+-                }
+-                for (j, &(_, dst)) in jobs.iter().enumerate() {
+-                    cvs[dst].copy_from_slice(&lane_out[j * OUT_LEN..(j + 1) * OUT_LEN]);
+-                }
+-                jobs.clear();
+-            };
+-            for &(_, at, len) in messages.iter() {
+-                let n = usize::from(len);
+-                if n <= 2 {
+-                    continue;
+-                }
+-                for j in 0..(n / 2) {
+-                    jobs.push((at + 2 * j, at + j));
+-                    if jobs.is_full() {
+-                        flush_parents(&mut jobs, cvs);
+-                    }
+-                }
+-            }
+-            if !jobs.is_empty() {
+-                flush_parents(&mut jobs, cvs);
+-            }
+-            assert!(flushed, "each scheduled parent round reduces at least one pair");
+-            for &mut (_, at, ref mut len) in messages.iter_mut() {
+-                let n = usize::from(*len);
+-                if n <= 2 {
+-                    continue;
+-                }
+-                let pairs = n / 2;
+-                if (n & 1) == 1 {
+-                    cvs[at + pairs] = cvs[at + 2 * pairs];
+-                }
+-                *len = (pairs + (n & 1)).to_le_bytes()[0];
+-            }
+-        }
+-        let root_flags = flags | crate::PARENT | crate::ROOT;
+-        for chunk in messages.chunks(LANES_AT_ONCE) {
+-            let mut refs = crate::stack_vec::StackVec::<&[u8; crate::BLOCK_LEN], LANES_AT_ONCE>::new();
+-            for &(_, at, _) in chunk {
+-                refs.push(cvs[at..at + 2].as_flattened().try_into().unwrap());
+-            }
+-            let mut lane_out = [0u8; LANES_AT_ONCE * OUT_LEN];
+-            round_platform.hash_many(&refs, key, 0, IncrementCounter::No, root_flags, 0, 0, &mut lane_out[..refs.len() * OUT_LEN]);
+-            for (j, &(i, _, _)) in chunk.iter().enumerate() {
+-                out[i].copy_from_slice(&lane_out[j * OUT_LEN..(j + 1) * OUT_LEN]);
+-            }
+-        }
+-        drop(turn);
+-    }
+-    messages.clear();
+-    cvs.clear();
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The lanes of one call to the kernels within a round of [`hash_each_on`].
+ pub(crate) const LANES_AT_ONCE: usize = TABLE;
+ 
+ /// What [`hash_each_on`] keeps on a thread between calls, for a
+ /// collection's messages of 2 to ALONE_CHUNKS - 1 chunks: each one's index,
+ /// where its chunk values start, and its live CV count (24 bytes a message),

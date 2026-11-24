@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::owned with ()\n@@ -1226,60 +1226,17 @@\n     /// [`Event::Hashed`].\n     ///\n     /// # Panics\n     ///\n     /// If `message` is another Pipeline's, or has had a commit from a\n     /// Room already, even one of no bytes: a message's bytes come one way.\n     #[inline]\n     pub fn owned(&mut self, message: Message, owner: B) {\n-        assert_eq!(message.pipeline_id, self.id, \"Message belongs to a different Pipeline\");\n-        let (_, s) = message.take();\n-        self.require_uncommitted(s);\n-\n-        // Sound: the slot is open and has no owner yet (require_uncommitted);\n-        // the owner stays in the move-insensitive raw slot, where its bytes\n-        // cannot move or be retagged by moving `Pipeline`, until the slot's\n-        // event reads it out or the Pipeline's drop drops it.\n-        let slot: *mut B = unsafe { (*self.owners.slot(s)).write(owner) };\n-        let pipe: *mut Self = self;\n-        // `as_ref` is the program's code. Until the slice is submitted\n-        // nothing records that the slot holds an owner, so if `as_ref`\n-        // unwinds, drop the owner in place and abort slot `s` cleanly so\n-        // `open_messages` stays exact and the Pipeline remains usable (#465).\n-        // The pointer fields (`pipe`, `slot`) are raw pointers: an owner may\n-        // hold its bytes inside itself (`[u8; 8]`), and forgetting a guard\n-        // holding `&mut` would retag it after the bytes' pointer was taken\n-        // (Miri, November 20).\n-        struct Unrecorded<T, B, P> {\n-            pipe: *mut Pipeline<T, B, P>,\n-            slot: *mut B,\n-            s: usize,\n-        }\n-        impl<T, B, P> Drop for Unrecorded<T, B, P> {\n-            fn drop(&mut self) {\n-                // Sound: the owner was written just above and nothing else\n-                // holds or records it; `self.pipe` points to this live\n-                // Pipeline; this runs only while `as_ref` unwinds (the guard\n-                // is forgotten once `as_ref` returns).\n-                unsafe {\n-                    core::ptr::drop_in_place(self.slot);\n-                    (*self.pipe).abort_slot(self.s);\n-                }\n-            }\n-        }\n-        let unrecorded = Unrecorded { pipe, slot, s };\n-        // Sound: the owner just written, in its slot, read through a\n-        // shared borrow; nothing else names it.\n-        let bytes: &[u8] = unsafe { &*slot }.as_ref();\n-        let (ptr, len) = (bytes.as_ptr(), bytes.len());\n-        core::mem::forget(unrecorded);\n-        self.open_messages -= 1;\n-        self.submit_slice(s, ptr, len, true);\n-        self.end_queue.push_back(u32::try_from(s).expect(\"slot fits u32\"));\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P: Prepared + 'static> Pipeline<T, B, P> {\n     /// Hash `batch` into `digests` and return both in [`Event::Batch`].\n     ///\n     /// Accepts any owned [`Prepared`] batch type `P` chosen when the pipeline\n     /// was constructed ([`Batch<'static>`] by default, or\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::owned",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1278
+        },
+        "start": {
+          "column": 5,
+          "line": 1225
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1234:9: replace Pipeline<T, B, P>::owned with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 76,
+        "line": 1277
+      },
+      "start": {
+        "column": 9,
+        "line": 1234
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::owned::<impl Drop for Unrecorded<T, B, P>>::drop with ()\n@@ -1255,20 +1255,17 @@\n             s: usize,\n         }\n         impl<T, B, P> Drop for Unrecorded<T, B, P> {\n             fn drop(&mut self) {\n                 // Sound: the owner was written just above and nothing else\n                 // holds or records it; `self.pipe` points to this live\n                 // Pipeline; this runs only while `as_ref` unwinds (the guard\n                 // is forgotten once `as_ref` returns).\n-                unsafe {\n-                    core::ptr::drop_in_place(self.slot);\n-                    (*self.pipe).abort_slot(self.s);\n-                }\n+                () /* ~ changed by cargo-mutants ~ */\n             }\n         }\n         let unrecorded = Unrecorded { pipe, slot, s };\n         // Sound: the owner just written, in its slot, read through a\n         // shared borrow; nothing else names it.\n         let bytes: &[u8] = unsafe { &*slot }.as_ref();\n         let (ptr, len) = (bytes.as_ptr(), bytes.len());\n         core::mem::forget(unrecorded);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::owned::<impl Drop for Unrecorded<T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 14,
+          "line": 1267
+        },
+        "start": {
+          "column": 13,
+          "line": 1258
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1263:17: replace Pipeline<T, B, P>::owned::<impl Drop for Unrecorded<T, B, P>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 18,
+        "line": 1266
+      },
+      "start": {
+        "column": 17,
+        "line": 1263
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace -= with += in Pipeline<T, B, P>::owned\n@@ -1267,17 +1267,17 @@\n             }\n         }\n         let unrecorded = Unrecorded { pipe, slot, s };\n         // Sound: the owner just written, in its slot, read through a\n         // shared borrow; nothing else names it.\n         let bytes: &[u8] = unsafe { &*slot }.as_ref();\n         let (ptr, len) = (bytes.as_ptr(), bytes.len());\n         core::mem::forget(unrecorded);\n-        self.open_messages -= 1;\n+        self.open_messages += /* ~ changed by cargo-mutants ~ */ 1;\n         self.submit_slice(s, ptr, len, true);\n         self.end_queue.push_back(u32::try_from(s).expect(\"slot fits u32\"));\n     }\n }\n \n impl<T, B, P: Prepared + 'static> Pipeline<T, B, P> {\n     /// Hash `batch` into `digests` and return both in [`Event::Batch`].\n     ///\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::owned",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1278
+        },
+        "start": {
+          "column": 5,
+          "line": 1225
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1275:28: replace -= with += in Pipeline<T, B, P>::owned",
+    "package": "blake3-servil",
+    "replacement": "+=",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 1275
+      },
+      "start": {
+        "column": 28,
+        "line": 1275
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::batch with ()\n@@ -1288,81 +1288,17 @@\n     /// [`Pipeline::with_owners_and_batches`]).\n     ///\n     /// # Panics\n     ///\n     /// If `message` is another Pipeline's, or has had a commit from a\n     /// Room already (even one of no bytes); or if `digests` has not one place\n     /// for each message of `batch`.\n     pub fn batch(&mut self, message: Message, batch: P, digests: Box<[[u8; OUT_LEN]]>) {\n-        assert_eq!(message.pipeline_id, self.id, \"Message belongs to a different Pipeline\");\n-        let (_, s) = message.take();\n-        self.require_uncommitted(s);\n-        struct AbortOnUnwind<'a, T, B, P> {\n-            pipe: &'a mut Pipeline<T, B, P>,\n-            s: usize,\n-        }\n-        impl<T, B, P> Drop for AbortOnUnwind<'_, T, B, P> {\n-            fn drop(&mut self) {\n-                self.pipe.abort_slot(self.s);\n-            }\n-        }\n-        let guard = AbortOnUnwind { pipe: self, s };\n-        crate::assert_slots(batch.bytes(), batch.message_len(), batch.slot(), digests.len());\n-        core::mem::forget(guard);\n-        self.open_messages -= 1;\n-\n-        // Sound: the slot is open and holds no batch (require_uncommitted); the\n-        // batch and digests stay in the move-insensitive raw slot until its\n-        // event reads them out or the Pipeline's drop drops them.\n-        let hold = unsafe { (*self.batches.slot(s)).write((batch, digests)) };\n-        let msg_len = hold.0.message_len();\n-        let slot_len = hold.0.slot();\n-        let bytes = hold.0.bytes();\n-        let count = hold.1.len();\n-        let digests_ptr = hold.1.as_mut_ptr();\n-        let work_slot = slot_len.max(crate::BLOCK_LEN);\n-        let work_bytes = count.saturating_mul(work_slot);\n-\n-        if count == 0 {\n-            self.shared().slot_done[s].store(true, Ordering::Relaxed);\n-            self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };\n-        } else if work_bytes < TASK_LEN {\n-            let (group, epoch) = self.push_member(s, bytes.as_ptr(), bytes.len(), digests_ptr as *mut u8, NONE, Some((msg_len, slot_len)));\n-            self.slots[s].kind = SlotKind::WaitBatch { group, epoch };\n-        } else {\n-            self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };\n-            let per_part = (TASK_LEN / work_slot).max(1).max(count.div_ceil(MAX_SLOT_PIECES));\n-            let pieces = count.div_ceil(per_part);\n-            debug_assert!((1..=MAX_SLOT_PIECES).contains(&pieces));\n-            self.shared().slot_done[s].store(false, Ordering::Relaxed);\n-            self.shared().tasks_left[s].store(pieces, Ordering::Relaxed);\n-            // Sound: no task of this slot is in flight (it was open), so its\n-            // description is the owner's to write before the dispatch below.\n-            unsafe {\n-                *self.shared().multi[s].get() = MultiDesc {\n-                    input: bytes.as_ptr(),\n-                    total_len: count,\n-                    piece_level: 0,\n-                    pieces,\n-                    batch: Some((msg_len, slot_len, per_part)),\n-                    digests: digests_ptr,\n-                    loan_epoch: 0,\n-                }\n-            };\n-            let s32 = u32::try_from(s).expect(\"slot fits u32\");\n-            for p in 0..pieces {\n-                let first = p.saturating_mul(per_part);\n-                let piece_n = (count - first).min(per_part);\n-                let sme2 = piece_n.saturating_mul(work_slot) >= SME2_MIN_LEN;\n-                self.action_buf[p] = pack_arg(KIND_MULTI, s32, u32::try_from(p).expect(\"piece fits u32\"), sme2);\n-            }\n-            self.dispatch_many(pieces);\n-        }\n-        self.end_queue.push_back(u32::try_from(s).expect(\"slot fits u32\"));\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P> Pipeline<T, B, P> {\n     #[inline(always)]\n     fn shared(&self) -> &Shared {\n         // Sound: `shared` is this Pipeline's Shared (create), never freed.\n         unsafe { &*self.shared }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::batch",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1361
+        },
+        "start": {
+          "column": 5,
+          "line": 1282
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1296:9: replace Pipeline<T, B, P>::batch with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 76,
+        "line": 1360
+      },
+      "start": {
+        "column": 9,
+        "line": 1296
+      }
+    }
+  }
+]
