@@ -1,0 +1,224 @@
+
+*** src/pipeline.rs:1601:9: replace Pipeline<T, B>::end with ()
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace Pipeline<T, B>::end with ()
+@@ -1593,32 +1593,17 @@
+ 
+     /// Finish `message` and queue its [`Event::Hashed`] in end order.
+     ///
+     /// # Panics
+     ///
+     /// If `message` is another Pipeline's.
+     #[inline(always)]
+     pub fn end(&mut self, message: Message) {
+-        let (pid, s) = message.take();
+-        assert_eq!(pid, self.id, "Message belongs to a different Pipeline");
+-        self.open_messages -= 1;
+-
+-        match self.slots[s].kind {
+-            SlotKind::OpenShort { room: room_idx, offset, len } => {
+-                // Sound: the offset is within the room (commit checked
+-                // `written` against what was left).
+-                let ptr = unsafe { self.shared().storage.rooms.room_ptr(room_idx as usize).add(offset as usize) };
+-                let out = self.shared().hashes[s].get() as *mut u8;
+-                let (group, epoch) = self.push_member(ptr, len as usize, out, room_idx, None);
+-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group, epoch };
+-                self.end_queue.push_back(u32::try_from(s).expect("slot fits u32"));
+-            }
+-            _ => self.end_slow(s),
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(never)]
+     fn end_slow(&mut self, s: usize) {
+         match self.slots[s].kind {
+             SlotKind::OpenEmpty => {
+                 let empty_hash = self.shared().tree().hash(&[]);
+                 // Sound: no task runs for an empty message, so the slot's hash
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-4/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4/version)
+   Compiling blake3-servil v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4/threads)
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4)
+warning: unused variable: `message`
+    --> src/pipeline.rs:1600:27
+     |
+1600 |     pub fn end(&mut self, message: Message) {
+     |                           ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_message`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `WaitRoomMulti` is never constructed
+   --> src/pipeline.rs:874:5
+    |
+867 | enum SlotKind {
+    |      -------- variant in this enum
+...
+874 |     WaitRoomMulti,
+    |     ^^^^^^^^^^^^^
+    |
+    = note: `SlotKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `end_slow` is never used
+    --> src/pipeline.rs:1605:8
+     |
+1180 | impl<T, B> Pipeline<T, B> {
+     | ------------------------- method in this implementation
+...
+1605 |     fn end_slow(&mut self, s: usize) {
+     |        ^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 3 warnings (run `cargo fix --lib -p blake3-servil` to apply 1 suggestion)
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1692:27
+     |
+1692 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `WaitRoomMulti` is never constructed
+   --> src/pipeline.rs:874:5
+    |
+867 | enum SlotKind {
+    |      -------- variant in this enum
+...
+874 |     WaitRoomMulti,
+    |     ^^^^^^^^^^^^^
+    |
+    = note: `SlotKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: `blake3-servil` (lib test) generated 4 warnings (2 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:27:1
+   |
+27 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 8.08s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev --lib --tests
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-4/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: unused variable: `message`
+    --> src/pipeline.rs:1600:27
+     |
+1600 |     pub fn end(&mut self, message: Message) {
+     |                           ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_message`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `WaitRoomMulti` is never constructed
+   --> src/pipeline.rs:874:5
+    |
+867 | enum SlotKind {
+    |      -------- variant in this enum
+...
+874 |     WaitRoomMulti,
+    |     ^^^^^^^^^^^^^
+    |
+    = note: `SlotKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `end_slow` is never used
+    --> src/pipeline.rs:1605:8
+     |
+1180 | impl<T, B> Pipeline<T, B> {
+     | ------------------------- method in this implementation
+...
+1605 |     fn end_slow(&mut self, s: usize) {
+     |        ^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 3 warnings (run `cargo fix --lib -p blake3-servil` to apply 1 suggestion)
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1692:27
+     |
+1692 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: variant `WaitRoomMulti` is never constructed
+   --> src/pipeline.rs:874:5
+    |
+867 | enum SlotKind {
+    |      -------- variant in this enum
+...
+874 |     WaitRoomMulti,
+    |     ^^^^^^^^^^^^^
+    |
+    = note: `SlotKind` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: `blake3-servil` (lib test) generated 4 warnings (2 duplicates)
+warning: unused dependency `cc`
+  --> Cargo.toml:27:1
+   |
+27 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.03s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID 95d4ce22-4dbb-4512-9a16-b4f6eadd6213 with nextest profile: mutants
+    Starting 152 tests across 15 binaries (1 binary skipped via profile.mutants.default-filter)
+       START [         ] (  1/152) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact finish::tests::a_spurious_wake_is_slept_through --nocapture
+       START [         ] (  1/152) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact finish::tests::every_atomic_in_the_handshake_files_is_seqcst --nocapture
+        PASS [   0.030s] (  1/152) blake3-servil finish::tests::every_atomic_in_the_handshake_files_is_seqcst
+       START [         ] (  2/152) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece --nocapture
+        PASS [   0.026s] (  2/152) blake3-servil finish::tests::finished_unparks_only_a_sleeper_on_the_last_piece
+       START [         ] (  3/152) blake3-servil finish::tests::wait_rejects_target_reaching_sleeping_bit
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact finish::tests::wait_rejects_target_reaching_sleeping_bit --nocapture
+        PASS [   0.060s] (  3/152) blake3-servil finish::tests::a_spurious_wake_is_slept_through
+       START [         ] (  4/152) blake3-servil forms_test::a_short_output_slice_is_refused_above_the_split
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact forms_test::a_short_output_slice_is_refused_above_the_split --nocapture
+        PASS [   0.019s] (  4/152) blake3-servil forms_test::a_short_output_slice_is_refused_above_the_split
+       START [         ] (  5/152) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact forms_test::packed_messages_hash_multithreaded_as_each_message_alone --nocapture
+        PASS [   0.026s] (  5/152) blake3-servil finish::tests::wait_rejects_target_reaching_sleeping_bit
+       START [         ] (  6/152) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/run-4/mutants/build/blake3-servil/ed780da838bc2fac/out/blake3_servil-ed780da838bc2fac --exact forms_test::test_every_multithreaded_call_inside_guard_pages --nocapture
+     SIGABRT [   0.034s] (  6/152) blake3-servil forms_test::test_every_multithreaded_call_inside_guard_pages
+  stdout ───
+
+    running 1 test
+  stderr ───
+
+    thread 'forms_test::test_every_multithreaded_call_inside_guard_pages' (27100271) panicked at src/pipeline.rs:241:13:
+    blake3-servil: a Pipeline Message was dropped without end, abort, owned, lent, or batch
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+    blake3-servil: a Pipeline Lent guard was dropped before its message finished hashing
+
+    (test aborted with signal 6: SIGABRT)
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+        PASS [   0.135s] (  7/152) blake3-servil forms_test::packed_messages_hash_multithreaded_as_each_message_alone
+────────────
+     Summary [   0.215s] 7/152 tests run: 6 passed, 1 failed, 0 skipped
+warning: 145/152 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
