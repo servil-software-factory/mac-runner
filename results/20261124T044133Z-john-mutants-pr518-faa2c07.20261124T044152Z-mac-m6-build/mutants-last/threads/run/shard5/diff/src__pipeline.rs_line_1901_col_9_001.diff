@@ -1,0 +1,41 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B>::acquire_free_group -> u32 with 1
+@@ -1893,37 +1893,17 @@
+                 self.slots[s].kind = SlotKind::OpenShortDispatched { group, epoch };
+             }
+         }
+     }
+ 
+     /// Next free `MemberGroup` in FIFO ring order (`0, 1, ..., group_count - 1, 0, ...`),
+     /// so a group completed on one worker CPU is not overwritten until a full lap later.
+     fn acquire_free_group(&mut self) -> u32 {
+-        let count = self.group_count;
+-        loop {
+-            for _ in 0..count {
+-                let g = self.group_cursor;
+-                self.group_cursor = (g + 1) % count;
+-                let assigned = self.assigned_group_epoch[g];
+-                if assigned == 0 {
+-                    return u32::try_from(g).expect("group fits u32");
+-                }
+-                if self.seen_group_epoch[g] < assigned {
+-                    self.seen_group_epoch[g] = self.shared().storage.groups[g].completed_epoch.load(Ordering::Acquire);
+-                }
+-                if self.seen_group_epoch[g] >= assigned {
+-                    self.assigned_group_epoch[g] = 0;
+-                    return u32::try_from(g).expect("group fits u32");
+-                }
+-            }
+-            if !self.shared().storage.source.run_waiting_action() {
+-                core::hint::spin_loop();
+-            }
+-        }
++        1 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn push_member(&mut self, input: *const u8, len: usize, out: *mut u8, room: u32, batch: Option<usize>) -> (u32, u64) {
+         if self.open_group.is_some() && self.local_batch != batch {
+             self.publish_open();
+         }
+         let (g, epoch) = match self.open_group {
