@@ -1,0 +1,64 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::owned with ()
+@@ -1226,60 +1226,17 @@
+     /// [`Event::Hashed`].
+     ///
+     /// # Panics
+     ///
+     /// If `message` is another Pipeline's, or has had a commit from a
+     /// Room already, even one of no bytes: a message's bytes come one way.
+     #[inline]
+     pub fn owned(&mut self, message: Message, owner: B) {
+-        assert_eq!(message.pipeline_id, self.id, "Message belongs to a different Pipeline");
+-        let (_, s) = message.take();
+-        self.require_uncommitted(s);
+-
+-        // Sound: the slot is open and has no owner yet (require_uncommitted);
+-        // the owner stays in the move-insensitive raw slot, where its bytes
+-        // cannot move or be retagged by moving `Pipeline`, until the slot's
+-        // event reads it out or the Pipeline's drop drops it.
+-        let slot: *mut B = unsafe { (*self.owners.slot(s)).write(owner) };
+-        let pipe: *mut Self = self;
+-        // `as_ref` is the program's code. Until the slice is submitted
+-        // nothing records that the slot holds an owner, so if `as_ref`
+-        // unwinds, drop the owner in place and abort slot `s` cleanly so
+-        // `open_messages` stays exact and the Pipeline remains usable (#465).
+-        // The pointer fields (`pipe`, `slot`) are raw pointers: an owner may
+-        // hold its bytes inside itself (`[u8; 8]`), and forgetting a guard
+-        // holding `&mut` would retag it after the bytes' pointer was taken
+-        // (Miri, November 20).
+-        struct Unrecorded<T, B, P> {
+-            pipe: *mut Pipeline<T, B, P>,
+-            slot: *mut B,
+-            s: usize,
+-        }
+-        impl<T, B, P> Drop for Unrecorded<T, B, P> {
+-            fn drop(&mut self) {
+-                // Sound: the owner was written just above and nothing else
+-                // holds or records it; `self.pipe` points to this live
+-                // Pipeline; this runs only while `as_ref` unwinds (the guard
+-                // is forgotten once `as_ref` returns).
+-                unsafe {
+-                    core::ptr::drop_in_place(self.slot);
+-                    (*self.pipe).abort_slot(self.s);
+-                }
+-            }
+-        }
+-        let unrecorded = Unrecorded { pipe, slot, s };
+-        // Sound: the owner just written, in its slot, read through a
+-        // shared borrow; nothing else names it.
+-        let bytes: &[u8] = unsafe { &*slot }.as_ref();
+-        let (ptr, len) = (bytes.as_ptr(), bytes.len());
+-        core::mem::forget(unrecorded);
+-        self.open_messages -= 1;
+-        self.submit_slice(s, ptr, len, true);
+-        self.end_queue.push_back(u32::try_from(s).expect("slot fits u32"));
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<T, B, P: Prepared + 'static> Pipeline<T, B, P> {
+     /// Hash `batch` into `digests` and return both in [`Event::Batch`].
+     ///
+     /// Accepts any owned [`Prepared`] batch type `P` chosen when the pipeline
+     /// was constructed ([`Batch<'static>`] by default, or

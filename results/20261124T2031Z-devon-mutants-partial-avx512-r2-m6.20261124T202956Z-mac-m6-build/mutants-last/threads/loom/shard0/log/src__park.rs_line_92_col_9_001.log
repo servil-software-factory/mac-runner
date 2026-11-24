@@ -1,0 +1,337 @@
+
+*** src/park.rs:92:9: replace Park::place -> (&AtomicU64, u64) with (Box::leak(Box::new(Default::default())), 1)
+
+*** mutation diff:
+--- src/park.rs
++++ replace Park::place -> (&AtomicU64, u64) with (Box::leak(Box::new(Default::default())), 1)
+@@ -84,17 +84,17 @@
+ 
+     /// Worker `me` records its thread, once, as it starts.
+     pub(crate) fn register(&self, me: usize) {
+         assert!(self.handles[me].set(thread::current()).is_ok(), "each worker sets its thread once");
+     }
+ 
+     /// Worker `me`'s word and its bit in it.
+     fn place(&self, me: usize) -> (&AtomicU64, u64) {
+-        (&self.parked[me / 64], 1u64.wrapping_shl(u32::from(me.to_le_bytes()[0])))
++        (Box::leak(Box::new(Default::default())), 1) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// How many workers are parked.
+     pub(crate) fn parked_count(&self) -> usize {
+         self.parked.iter().map(|w| w.load(Ordering::SeqCst).count_ones() as usize).sum()
+     }
+ 
+     /// Wake one parked worker, if any: whether one was. With none parked,
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/loom-0/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/loom-0/version)
+   Compiling blake3-servil v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/loom-0/threads)
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/loom-0)
+warning: unused variable: `me`
+  --> src/park.rs:91:21
+   |
+91 |     fn place(&self, me: usize) -> (&AtomicU64, u64) {
+   |                     ^^ help: if this is intentional, prefix it with an underscore: `_me`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fail_worker_start_for_test` is never used
+   --> src/lanes.rs:573:15
+    |
+573 | pub(crate) fn fail_worker_start_for_test() {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `fill_stderr_for_test` is never used
+   --> src/lanes.rs:581:15
+    |
+581 | pub(crate) fn fill_stderr_for_test() {
+    |               ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `drop_abort_on_unwind_for_test` is never used
+   --> src/lanes.rs:621:15
+    |
+621 | pub(crate) fn drop_abort_on_unwind_for_test() {
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `pipe` is never used
+   --> src/lanes.rs:583:12
+    |
+583 |         fn pipe(ends: *mut i32) -> i32;
+    |            ^^^^
+
+warning: function `dup2` is never used
+   --> src/lanes.rs:584:12
+    |
+584 |         fn dup2(from: i32, to: i32) -> i32;
+    |            ^^^^
+
+warning: function `fcntl` is never used
+   --> src/lanes.rs:585:12
+    |
+585 |         fn fcntl(fd: i32, command: i32, ...) -> i32;
+    |            ^^^^^
+
+warning: function `write` is never used
+   --> src/lanes.rs:586:12
+    |
+586 |         fn write(fd: i32, bytes: *const core::ffi::c_void, len: usize) -> isize;
+    |            ^^^^^
+
+warning: static `PRETENDED` is never used
+    --> src/lanes.rs:1692:27
+     |
+1692 |         pub(crate) static PRETENDED: OnceLock<Vec<Cpu>> = OnceLock::new();
+     |                           ^^^^^^^^^
+
+warning: methods `wake_all` and `set_places` are never used
+   --> src/park.rs:119:19
+    |
+ 73 | impl Park {
+    | --------- methods in this implementation
+...
+119 |     pub(crate) fn wake_all(&self) -> usize {
+    |                   ^^^^^^^^
+...
+147 |     pub(crate) fn set_places(&self, places: Box<[Box<[u64]>]>, beside: Box<[Box<[u64]>]>, here: fn() -> usize) {
+    |                   ^^^^^^^^^^
+
+warning: method `spend_all_but` is never used
+   --> src/pipeline.rs:572:8
+    |
+569 | impl Room {
+    | --------- method in this implementation
+...
+572 |     fn spend_all_but(&mut self, left: u32) {
+    |        ^^^^^^^^^^^^^
+
+warning: `blake3-servil` (lib) generated 1 warning (run `cargo fix --lib -p blake3-servil` to apply 1 suggestion)
+warning: unused variable: `me`
+  --> tests/../src/park.rs:91:21
+   |
+91 |     fn place(&self, me: usize) -> (&AtomicU64, u64) {
+   |                     ^^ help: if this is intentional, prefix it with an underscore: `_me`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (test "shuttle_park") generated 1 warning (run `cargo fix --test "shuttle_park" -p blake3-servil` to apply 1 suggestion)
+warning: `blake3-servil` (lib test) generated 11 warnings (1 duplicate)
+warning: unused dependency `cc`
+  --> Cargo.toml:27:1
+   |
+27 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.98s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev --test shuttle_finish --test shuttle_park --test shuttle_waker
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/loom-0/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: unused variable: `me`
+  --> src/park.rs:91:21
+   |
+91 |     fn place(&self, me: usize) -> (&AtomicU64, u64) {
+   |                     ^^ help: if this is intentional, prefix it with an underscore: `_me`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (lib) generated 1 warning (run `cargo fix --lib -p blake3-servil` to apply 1 suggestion)
+warning: unused variable: `me`
+  --> tests/../src/park.rs:91:21
+   |
+91 |     fn place(&self, me: usize) -> (&AtomicU64, u64) {
+   |                     ^^ help: if this is intentional, prefix it with an underscore: `_me`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil` (test "shuttle_park") generated 1 warning (run `cargo fix --test "shuttle_park" -p blake3-servil` to apply 1 suggestion)
+warning: unused dependency `cc`
+  --> Cargo.toml:27:1
+   |
+27 | cc = "1.1.12"
+   | ^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `cc`
+warning: `blake3-servil` (manifest) generated 1 warning
+    Finished `mutants` profile [optimized] target(s) in 0.01s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID 645462d9-9f85-45d7-acaf-06326819392e with nextest profile: mutants
+    Starting 13 tests across 3 binaries
+       START [         ] ( 1/13) blake3-servil::shuttle_park coincident_publishers_and_payers_keep_fresh_fanout
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/4b972ca18516b21a/out/shuttle_park-4b972ca18516b21a --exact coincident_publishers_and_payers_keep_fresh_fanout --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_finish a_caller_sleeping_at_once_is_woken_by_the_last_piece
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/c834adfec2e80562/out/shuttle_finish-c834adfec2e80562 --exact a_caller_sleeping_at_once_is_woken_by_the_last_piece --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_finish a_caller_polling_once_then_sleeping_is_woken
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/c834adfec2e80562/out/shuttle_finish-c834adfec2e80562 --exact a_caller_polling_once_then_sleeping_is_woken --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_finish one_piece_one_worker
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/c834adfec2e80562/out/shuttle_finish-c834adfec2e80562 --exact one_piece_one_worker --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_park two_wakers_wake_two_workers
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/4b972ca18516b21a/out/shuttle_park-4b972ca18516b21a --exact two_wakers_wake_two_workers --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_park one_worker_one_publisher
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/4b972ca18516b21a/out/shuttle_park-4b972ca18516b21a --exact one_worker_one_publisher --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_park owed_wakes_cascade
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/4b972ca18516b21a/out/shuttle_park-4b972ca18516b21a --exact owed_wakes_cascade --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_waker overwrite_and_clear_drop_wakers_and_prevent_spurious_wakes
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/78c5c739e6f2ff8e/out/shuttle_waker-78c5c739e6f2ff8e --exact overwrite_and_clear_drop_wakers_and_prevent_spurious_wakes --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_park park::test::a_waker_wakes_at_most_its_fanout_and_owes_the_rest
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/4b972ca18516b21a/out/shuttle_park-4b972ca18516b21a --exact park::test::a_waker_wakes_at_most_its_fanout_and_owes_the_rest --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_park two_workers_one_publisher
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/4b972ca18516b21a/out/shuttle_park-4b972ca18516b21a --exact two_workers_one_publisher --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_park wakes_fan_out_no_waker_makes_more_than_its_share
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/4b972ca18516b21a/out/shuttle_park-4b972ca18516b21a --exact wakes_fan_out_no_waker_makes_more_than_its_share --nocapture
+       START [         ] ( 1/13) blake3-servil::shuttle_park two_workers_two_publishers
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/threads/target/mutants/loom-0/mutants/build/blake3-servil/4b972ca18516b21a/out/shuttle_park-4b972ca18516b21a --exact two_workers_two_publishers --nocapture
+        FAIL [   0.013s] ( 1/13) blake3-servil::shuttle_park two_workers_two_publishers
+  stdout ───
+
+    running 1 test
+    test two_workers_two_publishers ... FAILED
+
+    failures:
+
+    failures:
+        two_workers_two_publishers
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'two_workers_two_publishers' (27130476) panicked at /Users/benchrunner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shuttle-0.8.1/src/runtime/execution.rs:203:17:
+    deadlock! blocked tasks: [main-thread (task main-thread(0)), <unknown> (task main-thread(1)), <unknown> (task main-thread(2))]
+    failing schedule:
+    "
+    910345c6c7e8e19aaf97b1960100002022222222222222222244444444444444444464666666
+    66666688888888888808
+    "
+    pass that string to `shuttle::replay` to replay the failure
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: immediately terminating 11 tests still running
+        FAIL [   0.013s] ( 2/13) blake3-servil::shuttle_park owed_wakes_cascade
+  stdout ───
+
+    running 1 test
+    test owed_wakes_cascade ... FAILED
+
+    failures:
+
+    failures:
+        owed_wakes_cascade
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'owed_wakes_cascade' (27130478) panicked at /Users/benchrunner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shuttle-0.8.1/src/runtime/execution.rs:203:17:
+    deadlock! blocked tasks: [main-thread (task main-thread(0)), <unknown> (task main-thread(1)), <unknown> (task main-thread(2)), <unknown> (task main-thread(3))]
+    failing schedule:
+    "
+    910325b999a1c7f5a68fb81200002022222222444444446466666666888808
+    "
+    pass that string to `shuttle::replay` to replay the failure
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+     SIGTERM [   0.013s] ( 3/13) blake3-servil::shuttle_finish a_caller_polling_once_then_sleeping_is_woken
+        FAIL [   0.013s] ( 4/13) blake3-servil::shuttle_park two_wakers_wake_two_workers
+  stdout ───
+
+    running 1 test
+    test two_wakers_wake_two_workers ... FAILED
+
+    failures:
+
+    failures:
+        two_wakers_wake_two_workers
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'two_wakers_wake_two_workers' (27130477) panicked at /Users/benchrunner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shuttle-0.8.1/src/runtime/execution.rs:203:17:
+    deadlock! blocked tasks: [main-thread (task main-thread(0)), <unknown> (task main-thread(1)), <unknown> (task main-thread(2))]
+    failing schedule:
+    "
+    91033affd1f8e5d8cd9fdfb70100002022222222444444446466666666888888888828224464
+    66666666
+    "
+    pass that string to `shuttle::replay` to replay the failure
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+     SIGTERM [   0.014s] ( 5/13) blake3-servil::shuttle_finish a_caller_sleeping_at_once_is_woken_by_the_last_piece
+     SIGTERM [   0.013s] ( 6/13) blake3-servil::shuttle_waker overwrite_and_clear_drop_wakers_and_prevent_spurious_wakes
+        FAIL [   0.013s] ( 7/13) blake3-servil::shuttle_park one_worker_one_publisher
+  stdout ───
+
+    running 1 test
+    test one_worker_one_publisher ... FAILED
+
+    failures:
+
+    failures:
+        one_worker_one_publisher
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'one_worker_one_publisher' (27130479) panicked at /Users/benchrunner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shuttle-0.8.1/src/runtime/execution.rs:203:17:
+    deadlock! blocked tasks: [main-thread (task main-thread(0)), <unknown> (task main-thread(1))]
+    failing schedule:
+    "
+    910223c2f982d6dab3efb3420024499224499224912449922401
+    "
+    pass that string to `shuttle::replay` to replay the failure
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+     SIGTERM [   0.014s] ( 8/13) blake3-servil::shuttle_park coincident_publishers_and_payers_keep_fresh_fanout
+        FAIL [   0.014s] ( 9/13) blake3-servil::shuttle_park two_workers_one_publisher
+  stdout ───
+
+    running 1 test
+    test two_workers_one_publisher ... FAILED
+
+    failures:
+
+    failures:
+        two_workers_one_publisher
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'two_workers_one_publisher' (27130480) panicked at /Users/benchrunner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shuttle-0.8.1/src/runtime/execution.rs:203:17:
+    deadlock! blocked tasks: [main-thread (task main-thread(0)), <unknown> (task main-thread(1)), <unknown> (task main-thread(2))]
+    failing schedule:
+    "
+    91023d93e398b9c4f6acddd901002049922449922489244992244992a46ddbb66ddbb66d
+    "
+    pass that string to `shuttle::replay` to replay the failure
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+     SIGTERM [   0.014s] (10/13) blake3-servil::shuttle_park wakes_fan_out_no_waker_makes_more_than_its_share
+     SIGTERM [   0.014s] (11/13) blake3-servil::shuttle_finish one_piece_one_worker
+     SIGTERM [   0.014s] (12/13) blake3-servil::shuttle_park park::test::a_waker_wakes_at_most_its_fanout_and_owes_the_rest
+────────────
+     Summary [   0.014s] 12/13 tests run: 0 passed, 12 failed, 0 skipped
+warning: 1/13 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
