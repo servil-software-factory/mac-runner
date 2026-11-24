@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_multi_piece with ()\n@@ -778,76 +778,17 @@\n             pnode.done.swap(true, Ordering::SeqCst);\n         });\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) {\n         // Sound: the owner wrote the description before dispatching the slot's\n         // tasks (batch, submit_multi_slice), and writes it again only after\n         // `slot_done`.\n-        let desc = unsafe { *self.multi[slot].get() };\n-        assert!(piece_idx < desc.pieces, \"the action names a piece of its submission\");\n-        if let Some((message_len, slot_len, per_part)) = desc.batch {\n-            let first = piece_idx * per_part;\n-            let count = (desc.total_len - first).min(per_part);\n-            // Sound: the batch and its digests stay in the slot (`batches[s]`)\n-            // until the slot's event, which waits for `slot_done`; this task's\n-            // messages and digests are its own range of them (`first`,\n-            // `count`).\n-            let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };\n-            let digests = unsafe { core::slice::from_raw_parts_mut(desc.digests.add(first), count) };\n-            // Sound: `desc.batch` came from a validated `Prepared` batch\n-            // (including zero-length messages padded to `BLOCK_LEN`) held alive\n-            // in `Pipeline::batches[slot]` until `slot_done`.\n-            let part = unsafe { crate::throughput::Part::from_checked_slots(bytes, message_len, slot_len) };\n-            self.slot_tree(slot).hash_many_on(platform, &part, digests);\n-            let storage = self.storage;\n-            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-                finished(storage, || {\n-                    self.slot_done[slot].swap(true, Ordering::SeqCst);\n-                });\n-            }\n-            return;\n-        }\n-\n-        // Sound: the owner, or the Lent guard, keeps all the message's\n-        // bytes in place until the slot is done. The chunks of this slice\n-        // are the same partition the submitter put in the action list.\n-        let input = unsafe { core::slice::from_raw_parts(desc.input, desc.total_len) };\n-        let level = desc.piece_level;\n-        let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect(\"a piece within its message\");\n-        let values = self.cvs[slot].get();\n-        let tree = self.slot_tree(slot);\n-        if piece_idx + 1 == desc.pieces {\n-            let value = tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);\n-            // Sound: only the last piece writes this field.\n-            unsafe { (*values).last = Some(value) };\n-        } else {\n-            let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);\n-            // Sound: a separate slot for each index (submit_multi_slice\n-            // limits the count); form no borrow of other workers' slots.\n-            unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n-        }\n-\n-        let storage = self.storage;\n-        if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-            // Sound: this is the slot's last task (`tasks_left` reached zero),\n-            // so every piece's value is written and no one else reads or\n-            // writes the slot's values or hash until `slot_done` below.\n-            let values = unsafe { &mut *values };\n-            let last = values.last.take().expect(\"the last piece supplied its value\");\n-            let hash = fold_multi_cvs(tree, &values.whole[..desc.pieces - 1], last, desc.total_len as u64);\n-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };\n-            if desc.loan_epoch != 0 {\n-                self.storage.loan_completed[slot].0.store(desc.loan_epoch, Ordering::Release);\n-            }\n-            finished(storage, || {\n-                self.slot_done[slot].swap(true, Ordering::SeqCst);\n-            });\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     let merges = used.saturating_sub(count.count_ones() as usize);\n     for _ in 0..merges {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 846
+        },
+        "start": {
+          "column": 5,
+          "line": 782
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:786:9: replace Shared::run_multi_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 845
+      },
+      "start": {
+        "column": 9,
+        "line": 786
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::push_member -> (u32, u64) with (0, 1)\n@@ -2024,40 +2024,17 @@\n             if !self.shared().storage.source.run_waiting_action() {\n                 core::hint::spin_loop();\n             }\n         }\n     }\n \n     #[inline(always)]\n     fn push_member(&mut self, slot: usize, input: *const u8, len: usize, out: *mut u8, room: u32, batch: Option<(usize, usize)>) -> (u32, u64) {\n-        let slot_mode = self.slots[slot].mode;\n-        if self.open_group.is_some() && (self.local_batch != batch || slot_mode == SlotMode::Custom || self.local_group_mode != slot_mode) {\n-            self.publish_open();\n-        }\n-        let (g, epoch) = match self.open_group {\n-            Some(pair) => pair,\n-            None => self.open_new_group(slot, batch),\n-        };\n-        let idx = self.local_count;\n-        self.local_members[idx] = Member { input, len, out };\n-        self.local_rooms[idx] = room;\n-        let after = idx + 1;\n-        let work_len = match batch {\n-            Some((_, slot)) => (len / slot).saturating_mul(slot.max(crate::BLOCK_LEN)),\n-            None => len,\n-        };\n-        let bytes = self.local_bytes.saturating_add(work_len);\n-        self.local_count = after;\n-        self.local_bytes = bytes;\n-        let byte_limit = if batch.is_some() { TASK_LEN } else { TASK_LEN / 4 };\n-        if slot_mode == SlotMode::Custom || after == MEMBERS || bytes >= byte_limit {\n-            self.publish_open();\n-        }\n-        (g, epoch)\n+        (0, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(never)]\n     fn open_new_group(&mut self, slot: usize, batch: Option<(usize, usize)>) -> (u32, u64) {\n         let g = self.acquire_free_group();\n         let epoch = self.next_group_epoch;\n         self.next_group_epoch = epoch.checked_add(1).expect(\"Pipeline group epoch counter exhausted\");\n         self.local_count = 0;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::push_member",
+      "return_type": "-> (u32, u64)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2056
+        },
+        "start": {
+          "column": 5,
+          "line": 2030
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2032:9: replace Pipeline<T, B, P>::push_member -> (u32, u64) with (0, 1)",
+    "package": "blake3-servil",
+    "replacement": "(0, 1)",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 2055
+      },
+      "start": {
+        "column": 9,
+        "line": 2032
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::push_member -> (u32, u64) with (1, 1)\n@@ -2024,40 +2024,17 @@\n             if !self.shared().storage.source.run_waiting_action() {\n                 core::hint::spin_loop();\n             }\n         }\n     }\n \n     #[inline(always)]\n     fn push_member(&mut self, slot: usize, input: *const u8, len: usize, out: *mut u8, room: u32, batch: Option<(usize, usize)>) -> (u32, u64) {\n-        let slot_mode = self.slots[slot].mode;\n-        if self.open_group.is_some() && (self.local_batch != batch || slot_mode == SlotMode::Custom || self.local_group_mode != slot_mode) {\n-            self.publish_open();\n-        }\n-        let (g, epoch) = match self.open_group {\n-            Some(pair) => pair,\n-            None => self.open_new_group(slot, batch),\n-        };\n-        let idx = self.local_count;\n-        self.local_members[idx] = Member { input, len, out };\n-        self.local_rooms[idx] = room;\n-        let after = idx + 1;\n-        let work_len = match batch {\n-            Some((_, slot)) => (len / slot).saturating_mul(slot.max(crate::BLOCK_LEN)),\n-            None => len,\n-        };\n-        let bytes = self.local_bytes.saturating_add(work_len);\n-        self.local_count = after;\n-        self.local_bytes = bytes;\n-        let byte_limit = if batch.is_some() { TASK_LEN } else { TASK_LEN / 4 };\n-        if slot_mode == SlotMode::Custom || after == MEMBERS || bytes >= byte_limit {\n-            self.publish_open();\n-        }\n-        (g, epoch)\n+        (1, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(never)]\n     fn open_new_group(&mut self, slot: usize, batch: Option<(usize, usize)>) -> (u32, u64) {\n         let g = self.acquire_free_group();\n         let epoch = self.next_group_epoch;\n         self.next_group_epoch = epoch.checked_add(1).expect(\"Pipeline group epoch counter exhausted\");\n         self.local_count = 0;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::push_member",
+      "return_type": "-> (u32, u64)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2056
+        },
+        "start": {
+          "column": 5,
+          "line": 2030
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2032:9: replace Pipeline<T, B, P>::push_member -> (u32, u64) with (1, 1)",
+    "package": "blake3-servil",
+    "replacement": "(1, 1)",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 2055
+      },
+      "start": {
+        "column": 9,
+        "line": 2032
+      }
+    }
+  }
+]
