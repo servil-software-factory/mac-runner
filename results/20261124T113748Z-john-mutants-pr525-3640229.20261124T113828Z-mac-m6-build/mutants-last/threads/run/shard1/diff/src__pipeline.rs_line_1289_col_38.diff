@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace / with % in Pipeline<T, B, P>::batch
+@@ -1281,17 +1281,17 @@
+         if count == 0 {
+             self.shared().slot_done[s].store(true, Ordering::Relaxed);
+             self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };
+         } else if work_bytes < TASK_LEN {
+             let (group, epoch) = self.push_member(s, bytes.as_ptr(), bytes.len(), digests_ptr as *mut u8, NONE, Some((msg_len, slot_len)));
+             self.slots[s].kind = SlotKind::WaitBatch { group, epoch };
+         } else {
+             self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };
+-            let per_part = (TASK_LEN / work_slot).max(1).max(count.div_ceil(MAX_SLOT_PIECES));
++            let per_part = (TASK_LEN % /* ~ changed by cargo-mutants ~ */ work_slot).max(1).max(count.div_ceil(MAX_SLOT_PIECES));
+             let pieces = count.div_ceil(per_part);
+             debug_assert!((1..=MAX_SLOT_PIECES).contains(&pieces));
+             self.shared().slot_done[s].store(false, Ordering::Relaxed);
+             self.shared().tasks_left[s].store(pieces, Ordering::Relaxed);
+             // Sound: no task of this slot is in flight (it was open), so its
+             // description is the owner's to write before the dispatch below.
+             unsafe {
+                 *self.shared().multi[s].get() = MultiDesc {

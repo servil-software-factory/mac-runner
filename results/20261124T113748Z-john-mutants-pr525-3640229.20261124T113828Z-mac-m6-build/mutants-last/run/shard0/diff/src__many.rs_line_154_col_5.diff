@@ -1,0 +1,34 @@
+--- src/many.rs
++++ replace hash_packed with ()
+@@ -146,30 +146,17 @@
+ /// groups run directly on the zero-padding-free packed kernels in
+ /// `ffi_packed` (#501) across SME2, AVX-512, AVX2, and NEON `8+3`; any
+ /// short remainder (or SSE4.1 fallback) expands up to 16 messages at a
+ /// time into a 1 KiB zero-padded stack buffer.
+ #[inline(never)]
+ fn hash_packed(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+     // Packed's three lengths, in every build: a block-length message sent
+     // here would hash right and slow (a mutant of `packed` did).
+-    assert!(matches!(len, 16 | 32 | 48), "packed messages are 16, 32, or 48 bytes, not {len}");
+-    let done = crate::ffi_packed::hash_packed_groups(input, len, key, flags, outputs, platform);
+-    if done == outputs.len() {
+-        return;
+-    }
+-    let plans = neon_plans();
+-    let mut blocks = [crate::block::Block::ZERO; 16];
+-    for (messages, digests) in input[done * len..].chunks(len * 16).zip(outputs[done..].chunks_mut(16)) {
+-        let bytes = crate::block::Block::bytes_mut(&mut blocks);
+-        for (i, message) in messages.chunks_exact(len).enumerate() {
+-            bytes[i * BLOCK_LEN..][..len].copy_from_slice(message);
+-        }
+-        hash_run_short::<{ BLOCK_LEN }>(&bytes[..digests.len() * BLOCK_LEN], key, flags, digests, platform, plans, len);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The whole groups of `digests.len()` one-block messages (each `len`
+ /// bytes of a 64-byte slot in `bytes`, zero past them: a batch's padding,
+ /// or the block `hash_packed` writes each packed message into) that run on
+ /// the independent-compression kernel side by side: how many messages they
+ /// took.
+ #[cfg(all(feature = "std", blake3_avx512_ffi, target_os = "linux"))]
