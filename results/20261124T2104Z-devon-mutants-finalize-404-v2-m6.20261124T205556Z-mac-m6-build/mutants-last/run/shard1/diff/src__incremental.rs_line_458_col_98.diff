@@ -1,0 +1,21 @@
+--- src/incremental.rs
++++ replace && with || in Hasher::gather_part
+@@ -450,17 +450,17 @@
+             // Whole groups skip the stage. So does a fresh keyed/derived hasher's
+             // first chunk in a turn of many hashers (`hold`) on x86-64, where
+             // `finalize_each` finishes its final block side by side via
+             // `ffi_output::input`. Everywhere else (including plain mode in
+             // `update_each` on x86-64 and all modes on AArch64) the first chunk
+             // is staged so `finalize_each` hashes all blocks of short plain
+             // messages side by side in SIMD (`hash_many_rounded` / `hash_by_blocks`)
+             // and longer messages keep exact 16 KiB group boundaries (#404).
+-            let first_chunk_to_core = hold && !cfg!(blake3_neon) && !self.core.domain.is_plain() && self.core.count() + input.len() as u64 <= CHUNK_LEN as u64;
++            let first_chunk_to_core = hold && !cfg!(blake3_neon) && !self.core.domain.is_plain() || /* ~ changed by cargo-mutants ~ */ self.core.count() + input.len() as u64 <= CHUNK_LEN as u64;
+             if self.stage.is_empty() && first_chunk_to_core {
+                 self.core.update_pooled(input, pooled);
+                 return &[];
+             }
+             let at = self.count() % STAGE_LEN as u64;
+             // On a 16 KiB boundary with nothing staged, the input's whole
+             // groups go to the core as they lie; what follows them is
+             // staged below, so the next groups start on a boundary too
