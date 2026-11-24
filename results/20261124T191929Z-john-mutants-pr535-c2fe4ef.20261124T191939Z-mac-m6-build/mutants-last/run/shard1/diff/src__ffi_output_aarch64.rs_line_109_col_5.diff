@@ -1,0 +1,130 @@
+--- src/ffi_output_aarch64.rs
++++ replace held_groups_in with ()
+@@ -101,126 +101,17 @@
+         for chunk in held.chunks(16) {
+             held_groups_in::<16, 128>(hashers, chunk, platform);
+         }
+     }
+ }
+ 
+ #[inline(never)]
+ fn held_groups_in<const S: usize, const MAX_PARENTS: usize>(hashers: &mut [Hasher], held: &[usize], platform: Platform) {
+-    const PER: usize = crate::STAGE_LEN / CHUNK_LEN;
+-    const { assert!(PER == 16 && MAX_PARENTS == S * (PER / 2)) };
+-    let n = held.len();
+-    let mut work = crate::each::HeldWorkspace::<S>::new();
+-    let (mut level, mut next) = work.buffers(n);
+-
+-    // 1. Leaf chunks: on SME2, one multi-group kernel entry hashes all `n`
+-    //    keyed/mixed stages together with zero key comparisons; on NEON (or if
+-    //    SME2 is busy / declined on nonzero TPIDR2_EL0 reserved bytes), each
+-    //    stage runs at full 16-chunk NEON width.
+-    #[cfg(blake3_sme2)]
+-    let leaves_done = {
+-        let turn = crate::platform::Sme2Turn::take(platform, true);
+-        if matches!(turn.platform(), Platform::SME2) {
+-            let mut chunks = crate::stack_vec::StackVec::<[*const u8; PER], S>::new();
+-            let mut counters = crate::stack_vec::StackVec::<u64, S>::new();
+-            let mut keys = crate::stack_vec::StackVec::<[u32; 8], S>::new();
+-            let mut flags = crate::stack_vec::StackVec::<u8, S>::new();
+-            for &i in held {
+-                let h = &hashers[i];
+-                let (counter, bytes) = h.held_group().expect("a held group");
+-                let domain = h.domain();
+-                chunks.push(core::array::from_fn(|j| bytes[j * CHUNK_LEN..].as_ptr()));
+-                counters.push(counter);
+-                keys.push(*domain.key());
+-                flags.push(domain.flags());
+-            }
+-            // Sound: `Platform::SME2` verified SME2 support; `chunks` holds
+-            // `16 * n` pointers to readable 1024-byte chunks, `counters`/`keys`/
+-            // `flags` have length `n`, and `level` has room for `16 * n` CVs.
+-            let svl = unsafe {
+-                blake3_servil_sme2_chunks_keyed(
+-                    chunks.as_slice().as_flattened().as_ptr(),
+-                    counters.as_slice().as_ptr(),
+-                    keys.as_slice().as_ptr(),
+-                    flags.as_slice().as_ptr(),
+-                    level.as_flattened_mut().as_mut_ptr(),
+-                    n as u64,
+-                )
+-            };
+-            if svl == 16 {
+-                crate::ran_kernel(blake3_servil_sme2_chunks_keyed as *const ());
+-                true
+-            } else {
+-                false
+-            }
+-        } else {
+-            false
+-        }
+-    };
+-    #[cfg(not(blake3_sme2))]
+-    let leaves_done = {
+-        let _ = platform;
+-        false
+-    };
+-    if !leaves_done {
+-        for (k, &i) in held.iter().enumerate() {
+-            let h = &hashers[i];
+-            let (counter, bytes) = h.held_group().expect("a held group");
+-            let refs: [&[u8; CHUNK_LEN]; PER] = core::array::from_fn(|j| bytes[j * CHUNK_LEN..(j + 1) * CHUNK_LEN].try_into().unwrap());
+-            let domain = h.domain();
+-            Platform::NEON.hash_many(
+-                &refs,
+-                domain.key(),
+-                counter,
+-                crate::IncrementCounter::Yes,
+-                domain.flags(),
+-                CHUNK_START,
+-                CHUNK_END,
+-                level[k * PER..(k + 1) * PER].as_flattened_mut(),
+-            );
+-        }
+-    }
+-
+-    // 2. Four parent levels across all `n` stages (<= 128 parents per level) on NEON output8.
+-    for depth in 0..4 {
+-        let per_message = PER >> (depth + 1);
+-        let count = n * per_message;
+-        let mut inputs = crate::stack_vec::StackVec::<Input<'_>, MAX_PARENTS>::new();
+-        for j in 0..count {
+-            let h = &hashers[held[j / per_message]];
+-            let domain = h.domain();
+-            inputs.push(Input {
+-                block: level.as_flattened()[j * BLOCK_LEN..(j + 1) * BLOCK_LEN].try_into().unwrap(),
+-                cv: domain.key(),
+-                len: u8::try_from(BLOCK_LEN).unwrap(),
+-                flags: domain.flags() + crate::PARENT,
+-            });
+-        }
+-        let done = hash_groups_arm(inputs.as_slice(), &mut next[..count]);
+-        for j in done..count {
+-            let inp = inputs.as_slice()[j];
+-            let mut cv = *inp.cv;
+-            Platform::NEON.compress_in_place(&mut cv, inp.block, inp.len, 0, inp.flags);
+-            next[j] = crate::hasher::le_bytes(&cv);
+-        }
+-        core::mem::swap(&mut level, &mut next);
+-    }
+-
+-    for (k, &i) in held.iter().enumerate() {
+-        let (counter, _) = hashers[i].held_group().unwrap();
+-        let mut result = [0u8; BLOCK_LEN];
+-        if counter == 0 {
+-            // Four swaps leave each final parent's two children in next.
+-            result.copy_from_slice(next[2 * k..2 * k + 2].as_flattened());
+-        } else {
+-            result[..OUT_LEN].copy_from_slice(&level[k]);
+-        }
+-        hashers[i].take_held(&result);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ const SELF_TEST_EXPECTED: u64 = 0x153e0dfbeac2bb44;
+ #[cfg(blake3_sme2)]
+ const CHUNKS_KEYED_SELF_TEST_EXPECTED: u64 = 0x199d_615f_c41e_830b;
+ 
+ /// Planted corruption selector for subprocess fail-stop tests:
+ /// 1 = corrupt last output byte of NEON `output8`,

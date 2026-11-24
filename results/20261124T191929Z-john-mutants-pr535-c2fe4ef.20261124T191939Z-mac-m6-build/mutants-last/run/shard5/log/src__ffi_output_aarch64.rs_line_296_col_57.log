@@ -1,0 +1,62 @@
+
+*** src/ffi_output_aarch64.rs:296:57: replace - with + in self_test
+
+*** mutation diff:
+--- src/ffi_output_aarch64.rs
++++ replace - with + in self_test
+@@ -288,17 +288,17 @@
+         let chunks_answer = chunks_keyed_self_test_shape(|chunks, counters, keys, flags, out| {
+             let ptrs: [*const u8; 32] = core::array::from_fn(|i| chunks[i].as_ptr());
+             // Sound: `Platform::SME2` verified SME2; 32 readable chunks, 2 groups, exact output room.
+             let svl = unsafe { blake3_servil_sme2_chunks_keyed(ptrs.as_ptr(), counters.as_ptr(), keys.as_ptr(), flags.as_ptr(), out.as_mut_ptr().cast(), 2) };
+             assert_eq!(svl, 16, "SME2 chunks_keyed self-test declined");
+             crate::ran_kernel(blake3_servil_sme2_chunks_keyed as *const ());
+             #[cfg(test)]
+             if PLANTED_WRONG_OUTPUT.load(core::sync::atomic::Ordering::Relaxed) == 2 {
+-                out[31][OUT_LEN - 1] = !out[31][OUT_LEN - 1];
++                out[31][OUT_LEN - 1] = !out[31][OUT_LEN + /* ~ changed by cargo-mutants ~ */ 1];
+             }
+         });
+         if chunks_answer != CHUNKS_KEYED_SELF_TEST_EXPECTED {
+             crate::self_test::fail(format_args!("blake3-servil startup self-test failed: SME2 keyed chunks"));
+         }
+         return 2;
+     }
+     #[cfg(not(blake3_sme2))]
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.10.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[25810]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[67090]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5)
+error: this operation will panic at runtime
+   --> src/ffi_output_aarch64.rs:296:41
+    |
+296 |                 out[31][OUT_LEN - 1] = !out[31][OUT_LEN + /* ~ changed by cargo-mutants ~ */ 1];
+    |                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ index out of bounds: the length is 32 but the index is 33
+    |
+    = note: `#[deny(unconditional_panic)]` on by default
+
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.10.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

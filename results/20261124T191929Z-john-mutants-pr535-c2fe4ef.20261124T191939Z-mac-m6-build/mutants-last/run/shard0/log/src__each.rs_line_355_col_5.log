@@ -1,0 +1,339 @@
+
+*** src/each.rs:355:5: replace independent_lanes -> bool with true
+
+*** mutation diff:
+--- src/each.rs
++++ replace independent_lanes -> bool with true
+@@ -347,31 +347,17 @@
+ /// On x86-64 Linux and AArch64, hash the held stages with an independent key
+ /// per parent lane (and on SME2, one multi-group keyed leaf entry), when any
+ /// of them is keyed and there are enough of them, and say so. The mode, the
+ /// count and the platform, all public, choose; key values never determine
+ /// grouping, allocation or dispatch. Every other target compiles `hash_held`
+ /// as it was.
+ #[cfg(all(feature = "std", any(all(blake3_avx512_ffi, target_os = "linux"), blake3_neon)))]
+ fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {
+-    let Some(&first) = held.first() else { return false };
+-    let platform = hashers[first].platform();
+-    #[cfg(all(blake3_avx512_ffi, target_os = "linux"))]
+-    if !matches!(platform, Platform::AVX2 | Platform::AVX512) {
+-        return false;
+-    }
+-    // Public plain mode fixes every key to the IV: those share one pass.
+-    if held.len() < INDEPENDENT_MIN || held.iter().all(|&i| hashers[i].is_plain()) {
+-        return false;
+-    }
+-    crate::ffi_output::held_groups(hashers, held, platform);
+-    #[cfg(test)]
+-    let _ = HELD_GROUPS.try_with(|groups| groups.borrow_mut().push(held.to_vec()));
+-    crate::counted(crate::Counted::HeldPass);
+-    true
++    true /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(all(test, feature = "std"))]
+ std::thread_local! {
+     /// Most recent `hash_cohort::<N>` workspace tier used on this thread.
+     static LAST_COHORT_TIER: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+ }
+ 
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.10.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[25735]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[66990]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+warning: unused variable: `hashers`
+   --> src/each.rs:354:22
+    |
+354 | fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {
+    |                      ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hashers`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `held`
+   --> src/each.rs:354:46
+    |
+354 | fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {
+    |                                              ^^^^ help: if this is intentional, prefix it with an underscore: `_held`
+
+warning: constant `INDEPENDENT_MIN` is never used
+   --> src/each.rs:329:7
+    |
+329 | const INDEPENDENT_MIN: usize = 3;
+    |       ^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `held_groups` is never used
+  --> src/ffi_output_aarch64.rs:97:15
+   |
+97 | pub(crate) fn held_groups(hashers: &mut [Hasher], held: &[usize], platform: Platform) {
+   |               ^^^^^^^^^^^
+
+warning: function `held_groups_in` is never used
+   --> src/ffi_output_aarch64.rs:108:4
+    |
+108 | fn held_groups_in<const S: usize, const MAX_PARENTS: usize>(hashers: &mut [Hasher], held: &[usize], platform: Platform) {
+    |    ^^^^^^^^^^^^^^
+
+warning: function `held_groups` is never used
+  --> src/ffi_output_aarch64.rs:97:15
+   |
+97 | pub(crate) fn held_groups(hashers: &mut [Hasher], held: &[usize], platform: Platform) {
+   |               ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `blake3-servil-core` (lib) generated 5 warnings (run `cargo fix --lib -p blake3-servil-core` to apply 2 suggestions)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[79516]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "initialize_contract") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[79517]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "after_initialize") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[79526]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "self_test_init") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[79544]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "lifecycle") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[79545]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "tree_shape") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[79568]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "build_version") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[79573]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "batch_equals_single") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[79595]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "guard_alloc") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[80145]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (lib test) generated 5 warnings (3 duplicates)
+    Finished `mutants` profile [optimized] target(s) in 5.09s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.10.0+dev --lib --tests
+warning: failed to connect to jobserver from environment variable `CARGO_MAKEFLAGS="-j --jobserver-fds=10,12 --jobserver-auth=10,12"`: cannot open file descriptor 10 from the jobserver environment variable value: Bad file descriptor (os error 9)
+warning: failed to connect to jobserver from environment variable `CARGO_MAKEFLAGS="-j --jobserver-fds=10,12 --jobserver-auth=10,12"`: cannot open file descriptor 10 from the jobserver environment variable value: Bad file descriptor (os error 9)
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[25735]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[66990]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+warning: unused variable: `hashers`
+   --> src/each.rs:354:22
+    |
+354 | fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {
+    |                      ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hashers`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `held`
+   --> src/each.rs:354:46
+    |
+354 | fn independent_lanes(hashers: &mut [Hasher], held: &[usize]) -> bool {
+    |                                              ^^^^ help: if this is intentional, prefix it with an underscore: `_held`
+
+warning: function `held_groups` is never used
+  --> src/ffi_output_aarch64.rs:97:15
+   |
+97 | pub(crate) fn held_groups(hashers: &mut [Hasher], held: &[usize], platform: Platform) {
+   |               ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `held_groups_in` is never used
+   --> src/ffi_output_aarch64.rs:108:4
+    |
+108 | fn held_groups_in<const S: usize, const MAX_PARENTS: usize>(hashers: &mut [Hasher], held: &[usize], platform: Platform) {
+    |    ^^^^^^^^^^^^^^
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[80145]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (lib test) generated 5 warnings (run `cargo fix --lib -p blake3-servil-core --tests` to apply 2 suggestions)
+    Finished `mutants` profile [optimized] target(s) in 0.01s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID 4d262206-d88d-4ed0-bd4c-3fd98623cdf7 with nextest profile: mutants
+    Starting 215 tests across 1 binary
+       START [         ] (  1/215) blake3-servil-core block::packed_test::packed_capacity_rejects_wrapping_message_counts
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::packed_test::packed_capacity_rejects_wrapping_message_counts --nocapture
+       START [         ] (  1/215) blake3-servil-core block::packed_test::borrowed_array_slices_hash_as_packed
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::packed_test::borrowed_array_slices_hash_as_packed --nocapture
+        PASS [   0.031s] (  1/215) blake3-servil-core block::packed_test::packed_capacity_rejects_wrapping_message_counts
+       START [         ] (  2/215) blake3-servil-core block::packed_test::packed_messages_hash_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::packed_test::packed_messages_hash_as_each_message_alone --nocapture
+        PASS [   0.032s] (  2/215) blake3-servil-core block::packed_test::borrowed_array_slices_hash_as_packed
+       START [         ] (  3/215) blake3-servil-core block::packed_test::packed_storage_is_aligned_and_chains_into_a_tree
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::packed_test::packed_storage_is_aligned_and_chains_into_a_tree --nocapture
+        PASS [   0.017s] (  3/215) blake3-servil-core block::packed_test::packed_storage_is_aligned_and_chains_into_a_tree
+       START [         ] (  4/215) blake3-servil-core block::test::a_batch_of_no_messages_needs_a_message_length_that_fits
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::a_batch_of_no_messages_needs_a_message_length_that_fits --nocapture
+        PASS [   0.022s] (  4/215) blake3-servil-core block::test::a_batch_of_no_messages_needs_a_message_length_that_fits
+       START [         ] (  5/215) blake3-servil-core block::test::batch_capacity_rejects_wrapping_block_counts
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::batch_capacity_rejects_wrapping_block_counts --nocapture
+        PASS [   0.058s] (  5/215) blake3-servil-core block::packed_test::packed_messages_hash_as_each_message_alone
+       START [         ] (  6/215) blake3-servil-core block::test::message_mut_refuses_an_index_whose_blocks_wrap
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::message_mut_refuses_an_index_whose_blocks_wrap --nocapture
+        PASS [   0.024s] (  6/215) blake3-servil-core block::test::batch_capacity_rejects_wrapping_block_counts
+       START [         ] (  7/215) blake3-servil-core block::test::test_a_batch_describes_itself
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::test_a_batch_describes_itself --nocapture
+        PASS [   0.020s] (  7/215) blake3-servil-core block::test::test_a_batch_describes_itself
+       START [         ] (  8/215) blake3-servil-core block::test::test_a_batch_keeps_the_bytes_past_its_messages_zero
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::test_a_batch_keeps_the_bytes_past_its_messages_zero --nocapture
+        PASS [   0.025s] (  8/215) blake3-servil-core block::test::message_mut_refuses_an_index_whose_blocks_wrap
+       START [         ] (  9/215) blake3-servil-core block::test::test_a_merkle_layer_lands_in_the_next_layers_blocks
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::test_a_merkle_layer_lands_in_the_next_layers_blocks --nocapture
+        PASS [   0.027s] (  9/215) blake3-servil-core block::test::test_a_merkle_layer_lands_in_the_next_layers_blocks
+       START [         ] ( 10/215) blake3-servil-core block::test::test_blocks_mut_refuses_messages_with_padding
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::test_blocks_mut_refuses_messages_with_padding --nocapture
+        PASS [   0.027s] ( 10/215) blake3-servil-core block::test::test_a_batch_keeps_the_bytes_past_its_messages_zero
+       START [         ] ( 11/215) blake3-servil-core block::test::test_blocks_mut_writes_the_messages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::test_blocks_mut_writes_the_messages --nocapture
+        PASS [   0.044s] ( 11/215) blake3-servil-core block::test::test_blocks_mut_refuses_messages_with_padding
+       START [         ] ( 12/215) blake3-servil-core block::test::test_digests_mut_takes_64_byte_messages
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::test_digests_mut_takes_64_byte_messages --nocapture
+        PASS [   0.046s] ( 12/215) blake3-servil-core block::test::test_blocks_mut_writes_the_messages
+       START [         ] ( 13/215) blake3-servil-core block::test::test_from_blocks_borrows_messages_that_fill_their_blocks
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::test_from_blocks_borrows_messages_that_fill_their_blocks --nocapture
+        PASS [   0.028s] ( 13/215) blake3-servil-core block::test::test_from_blocks_borrows_messages_that_fill_their_blocks
+       START [         ] ( 14/215) blake3-servil-core block::test::test_from_bytes_takes_aligned_whole_blocks_only
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::test_from_bytes_takes_aligned_whole_blocks_only --nocapture
+        PASS [   0.034s] ( 14/215) blake3-servil-core block::test::test_digests_mut_takes_64_byte_messages
+       START [         ] ( 15/215) blake3-servil-core block::test::test_messages_mut_refills_all_sizes_and_preserves_padding
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact block::test::test_messages_mut_refills_all_sizes_and_preserves_padding --nocapture
+        PASS [   0.029s] ( 15/215) blake3-servil-core block::test::test_from_bytes_takes_aligned_whole_blocks_only
+       START [         ] ( 16/215) blake3-servil-core ct::test::eq_32_does_not_cancel_multi_word_differences
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact ct::test::eq_32_does_not_cancel_multi_word_differences --nocapture
+        PASS [   0.032s] ( 16/215) blake3-servil-core block::test::test_messages_mut_refills_all_sizes_and_preserves_padding
+       START [         ] ( 17/215) blake3-servil-core ct::test::eq_32_handles_unaligned_buffers_and_aliasing
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact ct::test::eq_32_handles_unaligned_buffers_and_aliasing --nocapture
+        PASS [   0.032s] ( 17/215) blake3-servil-core ct::test::eq_32_does_not_cancel_multi_word_differences
+       START [         ] ( 18/215) blake3-servil-core ct::test::eq_32_matches_every_single_bit_flip
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact ct::test::eq_32_matches_every_single_bit_flip --nocapture
+        PASS [   0.025s] ( 18/215) blake3-servil-core ct::test::eq_32_handles_unaligned_buffers_and_aliasing
+       START [         ] ( 19/215) blake3-servil-core ct::test::eq_slice_32_rejects_other_lengths
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact ct::test::eq_slice_32_rejects_other_lengths --nocapture
+        PASS [   0.019s] ( 19/215) blake3-servil-core ct::test::eq_32_matches_every_single_bit_flip
+       START [         ] ( 20/215) blake3-servil-core each::test::a_finish_takes_the_staged_first_chunks_from_among_the_others
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact each::test::a_finish_takes_the_staged_first_chunks_from_among_the_others --nocapture
+        PASS [   0.023s] ( 20/215) blake3-servil-core ct::test::eq_slice_32_rejects_other_lengths
+       START [         ] ( 21/215) blake3-servil-core each::test::a_plain_cohort_keeps_iv_beside_keyed_hashers
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact each::test::a_plain_cohort_keeps_iv_beside_keyed_hashers --nocapture
+        PASS [   0.023s] ( 21/215) blake3-servil-core each::test::a_finish_takes_the_staged_first_chunks_from_among_the_others
+       START [         ] ( 22/215) blake3-servil-core each::test::a_refused_finalize_each_leaves_no_hasher_marked
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-0/mutants/build/blake3-servil-core/f33f00a369a7f6ae/out/blake3_servil_core-f33f00a369a7f6ae --exact each::test::a_refused_finalize_each_leaves_no_hasher_marked --nocapture
+        FAIL [   0.032s] ( 22/215) blake3-servil-core each::test::a_plain_cohort_keeps_iv_beside_keyed_hashers
+  stdout ───
+
+    running 1 test
+    test each::test::a_plain_cohort_keeps_iv_beside_keyed_hashers ... FAILED
+
+    failures:
+
+    failures:
+        each::test::a_plain_cohort_keeps_iv_beside_keyed_hashers
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 214 filtered out; finished in 0.01s
+
+  stderr ───
+
+    thread 'each::test::a_plain_cohort_keeps_iv_beside_keyed_hashers' (32433391) panicked at src/each.rs:318:9:
+    drain made no progress
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGTERM [   0.059s] ( 23/215) blake3-servil-core each::test::a_refused_finalize_each_leaves_no_hasher_marked
+────────────
+     Summary [   0.381s] 23/215 tests run: 21 passed, 2 failed, 0 skipped
+warning: 192/215 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
