@@ -1,0 +1,21 @@
+--- src/ffi_output_aarch64.rs
++++ replace / with % in hash_groups_arm
+@@ -90,17 +90,17 @@
+ /// in one `smstart`/`smstop` entry) and remaining 8-lane NEON groups of
+ /// independent counter-zero compressions on AArch64, returning the number of
+ /// digests written to `out`.
+ pub(crate) fn hash_groups_arm(inputs: &[Input<'_>], out: &mut [[u8; OUT_LEN]], platform: Platform) -> usize {
+     assert_eq!(inputs.len(), out.len(), "one output per descriptor");
+     let mut done = 0usize;
+     #[cfg(blake3_sme2)]
+     if matches!(platform, Platform::SME2) && inputs.len() >= SME2_OUTPUT16_MIN {
+-        let groups = inputs.len() / 16;
++        let groups = inputs.len() % /* ~ changed by cargo-mutants ~ */ 16;
+         crate::ran_kernel(blake3_servil_sme2_output16 as *const ());
+         // Sound: `Platform::SME2` verified SME2 support; `inputs` holds
+         // `16 * groups` valid descriptors borrowing 64-byte blocks and
+         // 32-byte CVs, and `out` has room for `16 * groups` digests.
+         let svl = unsafe { blake3_servil_sme2_output16(inputs.as_ptr(), out.as_mut_ptr().cast(), groups as u64) };
+         if svl == 16 {
+             done += groups * 16;
+         }

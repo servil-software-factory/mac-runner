@@ -1,0 +1,21 @@
+--- src/each.rs
++++ replace && with || in finalize_each
+@@ -152,17 +152,17 @@
+     // batch through the per-lane-key `output16` (SME2) and `output8` (NEON)
+     // kernels (#336) whenever at least 8 qualify; key values never select
+     // grouping or dispatch.
+     #[cfg(blake3_neon)]
+     {
+         let whole_in_stage = |h: &Hasher| h.is_plain_single_chunk_staged();
+         let plain_count = which.iter().filter(|&&i| whole_in_stage(&hashers[i])).count();
+         let has_plain_batch = plain_count >= 2;
+-        if plain_count == which.len() && has_plain_batch {
++        if plain_count == which.len() || /* ~ changed by cargo-mutants ~ */ has_plain_batch {
+             // Fast path for all-plain single-chunk staged batches: no second
+             // scan and no per-hasher fallback check during reset.
+             let platform = Platform::detect();
+             for (w_chunk, o_chunk) in which.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {
+                 let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> = w_chunk.iter().map(|&i| hashers[i].staged_bytes()).collect();
+                 hash_by_blocks(&bytes, crate::IV, 0, o_chunk, platform);
+                 for &i in w_chunk {
+                     hashers[i].reset();

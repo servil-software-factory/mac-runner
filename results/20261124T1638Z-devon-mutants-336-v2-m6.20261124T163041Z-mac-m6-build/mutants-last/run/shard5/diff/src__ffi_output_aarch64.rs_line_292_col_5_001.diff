@@ -1,0 +1,53 @@
+--- src/ffi_output_aarch64.rs
++++ replace self_test -> usize with 1
+@@ -284,49 +284,17 @@
+ 
+ pub(crate) fn check_self_test(answer: u64) {
+     if !check_self_test_value(answer) {
+         crate::self_test::fail(format_args!("blake3-servil startup self-test failed: independent counter-zero compressions"));
+     }
+ }
+ 
+ pub(crate) fn self_test(platform: Platform) -> usize {
+-    let mut checked = 0usize;
+-    let neon_answer = self_test_shape(|inputs, out| {
+-        crate::ran_kernel(blake3_servil_neon_output8 as *const ());
+-        // Sound: `blake3_neon` guarantees AArch64 NEON; `inputs` and `out` hold 16 entries (2 groups of 8).
+-        unsafe { blake3_servil_neon_output8(inputs.as_ptr(), out.as_mut_ptr().cast(), 2) };
+-    });
+-    check_self_test(neon_answer);
+-    checked += 1;
+-
+-    #[cfg(blake3_sme2)]
+-    if matches!(platform, Platform::SME2) {
+-        let sme2_answer = self_test_shape(|inputs, out| {
+-            crate::ran_kernel(blake3_servil_sme2_output16 as *const ());
+-            // Sound: `Platform::SME2` verified SME2; `inputs` and `out` hold 16 entries.
+-            let svl = unsafe { blake3_servil_sme2_output16(inputs.as_ptr(), out.as_mut_ptr().cast(), 1) };
+-            assert_eq!(svl, 16, "SME2 output16 self-test declined");
+-        });
+-        check_self_test(sme2_answer);
+-        checked += 1;
+-
+-        let chunks_answer = chunks_keyed_self_test_shape(|chunks, counters, keys, flags, out| {
+-            let ptrs: [*const u8; 32] = core::array::from_fn(|i| chunks[i].as_ptr());
+-            crate::ran_kernel(blake3_servil_sme2_chunks_keyed as *const ());
+-            // Sound: `Platform::SME2` verified SME2; 32 readable chunks, 2 groups, exact output room.
+-            let svl = unsafe { blake3_servil_sme2_chunks_keyed(ptrs.as_ptr(), counters.as_ptr(), keys.as_ptr(), flags.as_ptr(), out.as_mut_ptr().cast(), 2) };
+-            assert_eq!(svl, 16, "SME2 chunks_keyed self-test declined");
+-        });
+-        if chunks_answer != CHUNKS_KEYED_SELF_TEST_EXPECTED {
+-            crate::self_test::fail(format_args!("blake3-servil startup self-test failed: SME2 keyed chunks"));
+-        }
+-        checked += 1;
+-    }
+-    checked
++    1 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ pub(crate) fn entry() -> *const () {
+     #[cfg(blake3_sme2)]
+     {
+         blake3_servil_sme2_output16 as *const ()
+     }

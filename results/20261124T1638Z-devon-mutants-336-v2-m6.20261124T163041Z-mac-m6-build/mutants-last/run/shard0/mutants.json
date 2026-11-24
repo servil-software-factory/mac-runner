@@ -1,0 +1,674 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace finalize_each with ()\n@@ -101,158 +101,17 @@\n /// messages of up to 1024 bytes fed by [`update_each`].\n ///\n /// # Key-dependent timing\n ///\n /// Selected hashers may use different secret keys. Key values and key equality\n /// select neither the finalization path nor its amount of work.\n /// See the [key-independence contract](crate#key-dependent-timing).\n pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n-    assert_eq!(which.len(), out.len(), \"one digest per message named\");\n-    let mut marked = Marked { hashers, which, count: 0, active: true };\n-    for &i in which {\n-        assert!(i < marked.hashers.len(), \"finalize_each names hasher {i} of {}\", marked.hashers.len());\n-        assert!(!marked.hashers[i].mark_finishing(), \"each finalized index is distinct\");\n-        marked.count += 1;\n-    }\n-    let hashers = &mut *marked.hashers;\n-    #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n-    if which.len() >= 16 && matches!(Platform::detect(), Platform::AVX512) {\n-        #[cfg(all(test, feature = \"std\"))]\n-        crate::counted(crate::Counted::OutputGroupTurn);\n-        for (which, out) in which.chunks(16).zip(out.chunks_mut(16)) {\n-            if which.len() == 16 {\n-                let hashed = {\n-                    let inputs: Option<crate::stack_vec::StackVec<_, 16>> = which.iter().map(|&i| crate::ffi_output::input(&hashers[i])).collect();\n-                    match inputs {\n-                        Some(inputs) => {\n-                            // Sound: the detected platform supplies AVX-512F+VL;\n-                            // borrowed descriptors keep every block/CV readable.\n-                            unsafe { crate::ffi_output::hash_group::<16>(inputs.as_slice().try_into().unwrap(), out) };\n-                            true\n-                        }\n-                        None => false,\n-                    }\n-                };\n-                if hashed {\n-                    for &i in which {\n-                        hashers[i].reset();\n-                    }\n-                    continue;\n-                }\n-            }\n-            finish_each(hashers, which, out);\n-        }\n-        marked.active = false;\n-        return;\n-    }\n-    // AArch64: plain messages of up to a chunk that a turn left whole in\n-    // their stages (`Hasher::gather_part`) hash side by side by their blocks\n-    // (`hash_by_blocks`: NEON lanes, or one SME2 call for a table of equal\n-    // whole blocks). Remaining counter-zero single-chunk hashers (keyed,\n-    // key-derivation, or mixed-mode `<= 64 B` staged / ChunkState-resident)\n-    // batch through the per-lane-key `output16` (SME2) and `output8` (NEON)\n-    // kernels (#336) whenever at least 8 qualify; key values never select\n-    // grouping or dispatch.\n-    #[cfg(blake3_neon)]\n-    {\n-        let whole_in_stage = |h: &Hasher| h.is_plain_single_chunk_staged();\n-        let plain_count = which.iter().filter(|&&i| whole_in_stage(&hashers[i])).count();\n-        let has_plain_batch = plain_count >= 2;\n-        if plain_count == which.len() && has_plain_batch {\n-            // Fast path for all-plain single-chunk staged batches: no second\n-            // scan and no per-hasher fallback check during reset.\n-            let platform = Platform::detect();\n-            for (w_chunk, o_chunk) in which.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {\n-                let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> = w_chunk.iter().map(|&i| hashers[i].staged_bytes()).collect();\n-                hash_by_blocks(&bytes, crate::IV, 0, o_chunk, platform);\n-                for &i in w_chunk {\n-                    hashers[i].reset();\n-                }\n-            }\n-            marked.active = false;\n-            return;\n-        }\n-        let has_keyed_batch = which.len() - plain_count >= 8\n-            && which.iter().filter(|&&i| !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n-        if has_plain_batch || has_keyed_batch {\n-            let platform = Platform::detect();\n-            if has_plain_batch {\n-                // BY_BLOCKS_AT_ONCE of them at a time, their places on the\n-                // stack: a finish allocates nothing.\n-                let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();\n-                while small.peek().is_some() {\n-                    let part: crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();\n-                    let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> = part.iter().map(|&k| hashers[which[k]].staged_bytes()).collect();\n-                    let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];\n-                    hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n-                    for (&k, digest) in part.iter().zip(&digests) {\n-                        out[k] = *digest;\n-                    }\n-                }\n-            }\n-            if has_keyed_batch {\n-                const OUT_BATCH: usize = 128;\n-                let mut idx_pos = 0usize;\n-                while idx_pos < which.len() {\n-                    let mut part = crate::stack_vec::StackVec::<usize, OUT_BATCH>::new();\n-                    while idx_pos < which.len() && part.len() < OUT_BATCH {\n-                        let i = which[idx_pos];\n-                        if !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n-                            part.push(idx_pos);\n-                        }\n-                        idx_pos += 1;\n-                    }\n-                    if part.is_empty() {\n-                        continue;\n-                    }\n-                    let done = if part.len() >= 8 {\n-                        let mut inputs = crate::stack_vec::StackVec::<crate::ffi_output::Input<'_>, OUT_BATCH>::new();\n-                        for &k in part.as_slice() {\n-                            inputs.push(crate::ffi_output::input(&hashers[which[k]]).unwrap());\n-                        }\n-                        let mut digests = [[0u8; OUT_LEN]; OUT_BATCH];\n-                        let done = {\n-                            #[cfg(blake3_sme2)]\n-                            let want_sme2 = part.len() >= crate::ffi_output::SME2_OUTPUT16_MIN;\n-                            #[cfg(not(blake3_sme2))]\n-                            let want_sme2 = false;\n-                            if want_sme2 {\n-                                let turn = crate::platform::Sme2Turn::take(platform, true);\n-                                crate::ffi_output::hash_groups_arm(inputs.as_slice(), &mut digests[..part.len()], turn.platform())\n-                            } else {\n-                                crate::ffi_output::hash_groups_arm(inputs.as_slice(), &mut digests[..part.len()], Platform::NEON)\n-                            }\n-                        };\n-                        for (&k, digest) in part.as_slice()[..done].iter().zip(&digests[..done]) {\n-                            out[k] = *digest;\n-                        }\n-                        done\n-                    } else {\n-                        0\n-                    };\n-                    for &k in &part.as_slice()[done..] {\n-                        out[k] = *hashers[which[k]].take_root_hash().as_bytes();\n-                    }\n-                }\n-            }\n-            for (&i, out) in which.iter().zip(out.iter_mut()) {\n-                let done_plain = has_plain_batch && whole_in_stage(&hashers[i]);\n-                let done_keyed = has_keyed_batch && !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some();\n-                if !done_plain && !done_keyed {\n-                    *out = *hashers[i].take_root_hash().as_bytes();\n-                }\n-                hashers[i].reset();\n-            }\n-            marked.active = false;\n-            return;\n-        }\n-    }\n-    finish_each(hashers, which, out);\n-    marked.active = false;\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Each hasher `which` names finished in place and reset, its digest into\n /// `out`: the path every message takes but a sixteen-lane group.\n fn finish_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n     for (&i, out) in which.iter().zip(out) {\n         *out = *hashers[i].take_root_hash().as_bytes();\n         hashers[i].reset();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:109:5: replace finalize_each with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 27,
+        "line": 250
+      },
+      "start": {
+        "column": 5,
+        "line": 109
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace >= with < in finalize_each\n@@ -151,17 +151,17 @@\n     // key-derivation, or mixed-mode `<= 64 B` staged / ChunkState-resident)\n     // batch through the per-lane-key `output16` (SME2) and `output8` (NEON)\n     // kernels (#336) whenever at least 8 qualify; key values never select\n     // grouping or dispatch.\n     #[cfg(blake3_neon)]\n     {\n         let whole_in_stage = |h: &Hasher| h.is_plain_single_chunk_staged();\n         let plain_count = which.iter().filter(|&&i| whole_in_stage(&hashers[i])).count();\n-        let has_plain_batch = plain_count >= 2;\n+        let has_plain_batch = plain_count < /* ~ changed by cargo-mutants ~ */ 2;\n         if plain_count == which.len() && has_plain_batch {\n             // Fast path for all-plain single-chunk staged batches: no second\n             // scan and no per-hasher fallback check during reset.\n             let platform = Platform::detect();\n             for (w_chunk, o_chunk) in which.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {\n                 let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> = w_chunk.iter().map(|&i| hashers[i].staged_bytes()).collect();\n                 hash_by_blocks(&bytes, crate::IV, 0, o_chunk, platform);\n                 for &i in w_chunk {\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:159:43: replace >= with < in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 45,
+        "line": 159
+      },
+      "start": {
+        "column": 43,
+        "line": 159
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace && with || in finalize_each\n@@ -152,17 +152,17 @@\n     // batch through the per-lane-key `output16` (SME2) and `output8` (NEON)\n     // kernels (#336) whenever at least 8 qualify; key values never select\n     // grouping or dispatch.\n     #[cfg(blake3_neon)]\n     {\n         let whole_in_stage = |h: &Hasher| h.is_plain_single_chunk_staged();\n         let plain_count = which.iter().filter(|&&i| whole_in_stage(&hashers[i])).count();\n         let has_plain_batch = plain_count >= 2;\n-        if plain_count == which.len() && has_plain_batch {\n+        if plain_count == which.len() || /* ~ changed by cargo-mutants ~ */ has_plain_batch {\n             // Fast path for all-plain single-chunk staged batches: no second\n             // scan and no per-hasher fallback check during reset.\n             let platform = Platform::detect();\n             for (w_chunk, o_chunk) in which.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {\n                 let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> = w_chunk.iter().map(|&i| hashers[i].staged_bytes()).collect();\n                 hash_by_blocks(&bytes, crate::IV, 0, o_chunk, platform);\n                 for &i in w_chunk {\n                     hashers[i].reset();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:160:39: replace && with || in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 160
+      },
+      "start": {
+        "column": 39,
+        "line": 160
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace && with || in finalize_each\n@@ -167,17 +167,17 @@\n                 for &i in w_chunk {\n                     hashers[i].reset();\n                 }\n             }\n             marked.active = false;\n             return;\n         }\n         let has_keyed_batch = which.len() - plain_count >= 8\n-            && which.iter().filter(|&&i| !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n+            || /* ~ changed by cargo-mutants ~ */ which.iter().filter(|&&i| !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n         if has_plain_batch || has_keyed_batch {\n             let platform = Platform::detect();\n             if has_plain_batch {\n                 // BY_BLOCKS_AT_ONCE of them at a time, their places on the\n                 // stack: a finish allocates nothing.\n                 let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();\n                 while small.peek().is_some() {\n                     let part: crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:175:13: replace && with || in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 15,
+        "line": 175
+      },
+      "start": {
+        "column": 13,
+        "line": 175
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace >= with < in finalize_each\n@@ -166,17 +166,17 @@\n                 hash_by_blocks(&bytes, crate::IV, 0, o_chunk, platform);\n                 for &i in w_chunk {\n                     hashers[i].reset();\n                 }\n             }\n             marked.active = false;\n             return;\n         }\n-        let has_keyed_batch = which.len() - plain_count >= 8\n+        let has_keyed_batch = which.len() - plain_count < /* ~ changed by cargo-mutants ~ */ 8\n             && which.iter().filter(|&&i| !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n         if has_plain_batch || has_keyed_batch {\n             let platform = Platform::detect();\n             if has_plain_batch {\n                 // BY_BLOCKS_AT_ONCE of them at a time, their places on the\n                 // stack: a finish allocates nothing.\n                 let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();\n                 while small.peek().is_some() {\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:174:57: replace >= with < in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 59,
+        "line": 174
+      },
+      "start": {
+        "column": 57,
+        "line": 174
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace - with + in finalize_each\n@@ -166,17 +166,17 @@\n                 hash_by_blocks(&bytes, crate::IV, 0, o_chunk, platform);\n                 for &i in w_chunk {\n                     hashers[i].reset();\n                 }\n             }\n             marked.active = false;\n             return;\n         }\n-        let has_keyed_batch = which.len() - plain_count >= 8\n+        let has_keyed_batch = which.len() + /* ~ changed by cargo-mutants ~ */ plain_count >= 8\n             && which.iter().filter(|&&i| !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n         if has_plain_batch || has_keyed_batch {\n             let platform = Platform::detect();\n             if has_plain_batch {\n                 // BY_BLOCKS_AT_ONCE of them at a time, their places on the\n                 // stack: a finish allocates nothing.\n                 let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();\n                 while small.peek().is_some() {\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:174:43: replace - with + in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 174
+      },
+      "start": {
+        "column": 43,
+        "line": 174
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace && with || in finalize_each\n@@ -167,17 +167,17 @@\n                 for &i in w_chunk {\n                     hashers[i].reset();\n                 }\n             }\n             marked.active = false;\n             return;\n         }\n         let has_keyed_batch = which.len() - plain_count >= 8\n-            && which.iter().filter(|&&i| !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n+            && which.iter().filter(|&&i| !whole_in_stage(&hashers[i]) || /* ~ changed by cargo-mutants ~ */ crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n         if has_plain_batch || has_keyed_batch {\n             let platform = Platform::detect();\n             if has_plain_batch {\n                 // BY_BLOCKS_AT_ONCE of them at a time, their places on the\n                 // stack: a finish allocates nothing.\n                 let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();\n                 while small.peek().is_some() {\n                     let part: crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:175:71: replace && with || in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 73,
+        "line": 175
+      },
+      "start": {
+        "column": 71,
+        "line": 175
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ delete ! in finalize_each\n@@ -167,17 +167,17 @@\n                 for &i in w_chunk {\n                     hashers[i].reset();\n                 }\n             }\n             marked.active = false;\n             return;\n         }\n         let has_keyed_batch = which.len() - plain_count >= 8\n-            && which.iter().filter(|&&i| !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n+            && which.iter().filter(|&&i|  /* ~ changed by cargo-mutants ~ */whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n         if has_plain_batch || has_keyed_batch {\n             let platform = Platform::detect();\n             if has_plain_batch {\n                 // BY_BLOCKS_AT_ONCE of them at a time, their places on the\n                 // stack: a finish allocates nothing.\n                 let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();\n                 while small.peek().is_some() {\n                     let part: crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/each.rs:175:42: delete ! in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 43,
+        "line": 175
+      },
+      "start": {
+        "column": 42,
+        "line": 175
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace || with && in finalize_each\n@@ -168,17 +168,17 @@\n                     hashers[i].reset();\n                 }\n             }\n             marked.active = false;\n             return;\n         }\n         let has_keyed_batch = which.len() - plain_count >= 8\n             && which.iter().filter(|&&i| !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some()).nth(7).is_some();\n-        if has_plain_batch || has_keyed_batch {\n+        if has_plain_batch && /* ~ changed by cargo-mutants ~ */ has_keyed_batch {\n             let platform = Platform::detect();\n             if has_plain_batch {\n                 // BY_BLOCKS_AT_ONCE of them at a time, their places on the\n                 // stack: a finish allocates nothing.\n                 let mut small = (0..which.len()).filter(|&k| whole_in_stage(&hashers[which[k]])).peekable();\n                 while small.peek().is_some() {\n                     let part: crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();\n                     let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> = part.iter().map(|&k| hashers[which[k]].staged_bytes()).collect();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:176:28: replace || with && in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 176
+      },
+      "start": {
+        "column": 28,
+        "line": 176
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace < with <= in finalize_each\n@@ -187,17 +187,17 @@\n                     for (&k, digest) in part.iter().zip(&digests) {\n                         out[k] = *digest;\n                     }\n                 }\n             }\n             if has_keyed_batch {\n                 const OUT_BATCH: usize = 128;\n                 let mut idx_pos = 0usize;\n-                while idx_pos < which.len() {\n+                while idx_pos <= /* ~ changed by cargo-mutants ~ */ which.len() {\n                     let mut part = crate::stack_vec::StackVec::<usize, OUT_BATCH>::new();\n                     while idx_pos < which.len() && part.len() < OUT_BATCH {\n                         let i = which[idx_pos];\n                         if !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n                             part.push(idx_pos);\n                         }\n                         idx_pos += 1;\n                     }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:195:31: replace < with <= in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 195
+      },
+      "start": {
+        "column": 31,
+        "line": 195
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace && with || in finalize_each\n@@ -189,17 +189,17 @@\n                     }\n                 }\n             }\n             if has_keyed_batch {\n                 const OUT_BATCH: usize = 128;\n                 let mut idx_pos = 0usize;\n                 while idx_pos < which.len() {\n                     let mut part = crate::stack_vec::StackVec::<usize, OUT_BATCH>::new();\n-                    while idx_pos < which.len() && part.len() < OUT_BATCH {\n+                    while idx_pos < which.len() || /* ~ changed by cargo-mutants ~ */ part.len() < OUT_BATCH {\n                         let i = which[idx_pos];\n                         if !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n                             part.push(idx_pos);\n                         }\n                         idx_pos += 1;\n                     }\n                     if part.is_empty() {\n                         continue;\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:197:49: replace && with || in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 51,
+        "line": 197
+      },
+      "start": {
+        "column": 49,
+        "line": 197
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace < with <= in finalize_each\n@@ -189,17 +189,17 @@\n                     }\n                 }\n             }\n             if has_keyed_batch {\n                 const OUT_BATCH: usize = 128;\n                 let mut idx_pos = 0usize;\n                 while idx_pos < which.len() {\n                     let mut part = crate::stack_vec::StackVec::<usize, OUT_BATCH>::new();\n-                    while idx_pos < which.len() && part.len() < OUT_BATCH {\n+                    while idx_pos <= /* ~ changed by cargo-mutants ~ */ which.len() && part.len() < OUT_BATCH {\n                         let i = which[idx_pos];\n                         if !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n                             part.push(idx_pos);\n                         }\n                         idx_pos += 1;\n                     }\n                     if part.is_empty() {\n                         continue;\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:197:35: replace < with <= in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 36,
+        "line": 197
+      },
+      "start": {
+        "column": 35,
+        "line": 197
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace < with <= in finalize_each\n@@ -189,17 +189,17 @@\n                     }\n                 }\n             }\n             if has_keyed_batch {\n                 const OUT_BATCH: usize = 128;\n                 let mut idx_pos = 0usize;\n                 while idx_pos < which.len() {\n                     let mut part = crate::stack_vec::StackVec::<usize, OUT_BATCH>::new();\n-                    while idx_pos < which.len() && part.len() < OUT_BATCH {\n+                    while idx_pos < which.len() && part.len() <= /* ~ changed by cargo-mutants ~ */ OUT_BATCH {\n                         let i = which[idx_pos];\n                         if !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n                             part.push(idx_pos);\n                         }\n                         idx_pos += 1;\n                     }\n                     if part.is_empty() {\n                         continue;\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:197:63: replace < with <= in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 64,
+        "line": 197
+      },
+      "start": {
+        "column": 63,
+        "line": 197
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace && with || in finalize_each\n@@ -191,17 +191,17 @@\n             }\n             if has_keyed_batch {\n                 const OUT_BATCH: usize = 128;\n                 let mut idx_pos = 0usize;\n                 while idx_pos < which.len() {\n                     let mut part = crate::stack_vec::StackVec::<usize, OUT_BATCH>::new();\n                     while idx_pos < which.len() && part.len() < OUT_BATCH {\n                         let i = which[idx_pos];\n-                        if !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n+                        if !whole_in_stage(&hashers[i]) || /* ~ changed by cargo-mutants ~ */ crate::ffi_output::input(&hashers[i]).is_some() {\n                             part.push(idx_pos);\n                         }\n                         idx_pos += 1;\n                     }\n                     if part.is_empty() {\n                         continue;\n                     }\n                     let done = if part.len() >= 8 {\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:199:57: replace && with || in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 59,
+        "line": 199
+      },
+      "start": {
+        "column": 57,
+        "line": 199
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ delete ! in finalize_each\n@@ -191,17 +191,17 @@\n             }\n             if has_keyed_batch {\n                 const OUT_BATCH: usize = 128;\n                 let mut idx_pos = 0usize;\n                 while idx_pos < which.len() {\n                     let mut part = crate::stack_vec::StackVec::<usize, OUT_BATCH>::new();\n                     while idx_pos < which.len() && part.len() < OUT_BATCH {\n                         let i = which[idx_pos];\n-                        if !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n+                        if  /* ~ changed by cargo-mutants ~ */whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n                             part.push(idx_pos);\n                         }\n                         idx_pos += 1;\n                     }\n                     if part.is_empty() {\n                         continue;\n                     }\n                     let done = if part.len() >= 8 {\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/each.rs:199:28: delete ! in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 199
+      },
+      "start": {
+        "column": 28,
+        "line": 199
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace += with -= in finalize_each\n@@ -194,17 +194,17 @@\n                 let mut idx_pos = 0usize;\n                 while idx_pos < which.len() {\n                     let mut part = crate::stack_vec::StackVec::<usize, OUT_BATCH>::new();\n                     while idx_pos < which.len() && part.len() < OUT_BATCH {\n                         let i = which[idx_pos];\n                         if !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n                             part.push(idx_pos);\n                         }\n-                        idx_pos += 1;\n+                        idx_pos -= /* ~ changed by cargo-mutants ~ */ 1;\n                     }\n                     if part.is_empty() {\n                         continue;\n                     }\n                     let done = if part.len() >= 8 {\n                         let mut inputs = crate::stack_vec::StackVec::<crate::ffi_output::Input<'_>, OUT_BATCH>::new();\n                         for &k in part.as_slice() {\n                             inputs.push(crate::ffi_output::input(&hashers[which[k]]).unwrap());\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:202:33: replace += with -= in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "-=",
+    "span": {
+      "end": {
+        "column": 35,
+        "line": 202
+      },
+      "start": {
+        "column": 33,
+        "line": 202
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace >= with < in finalize_each\n@@ -199,17 +199,17 @@\n                         if !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some() {\n                             part.push(idx_pos);\n                         }\n                         idx_pos += 1;\n                     }\n                     if part.is_empty() {\n                         continue;\n                     }\n-                    let done = if part.len() >= 8 {\n+                    let done = if part.len() < /* ~ changed by cargo-mutants ~ */ 8 {\n                         let mut inputs = crate::stack_vec::StackVec::<crate::ffi_output::Input<'_>, OUT_BATCH>::new();\n                         for &k in part.as_slice() {\n                             inputs.push(crate::ffi_output::input(&hashers[which[k]]).unwrap());\n                         }\n                         let mut digests = [[0u8; OUT_LEN]; OUT_BATCH];\n                         let done = {\n                             #[cfg(blake3_sme2)]\n                             let want_sme2 = part.len() >= crate::ffi_output::SME2_OUTPUT16_MIN;\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:207:46: replace >= with < in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 207
+      },
+      "start": {
+        "column": 46,
+        "line": 207
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace >= with < in finalize_each\n@@ -207,17 +207,17 @@\n                     let done = if part.len() >= 8 {\n                         let mut inputs = crate::stack_vec::StackVec::<crate::ffi_output::Input<'_>, OUT_BATCH>::new();\n                         for &k in part.as_slice() {\n                             inputs.push(crate::ffi_output::input(&hashers[which[k]]).unwrap());\n                         }\n                         let mut digests = [[0u8; OUT_LEN]; OUT_BATCH];\n                         let done = {\n                             #[cfg(blake3_sme2)]\n-                            let want_sme2 = part.len() >= crate::ffi_output::SME2_OUTPUT16_MIN;\n+                            let want_sme2 = part.len() < /* ~ changed by cargo-mutants ~ */ crate::ffi_output::SME2_OUTPUT16_MIN;\n                             #[cfg(not(blake3_sme2))]\n                             let want_sme2 = false;\n                             if want_sme2 {\n                                 let turn = crate::platform::Sme2Turn::take(platform, true);\n                                 crate::ffi_output::hash_groups_arm(inputs.as_slice(), &mut digests[..part.len()], turn.platform())\n                             } else {\n                                 crate::ffi_output::hash_groups_arm(inputs.as_slice(), &mut digests[..part.len()], Platform::NEON)\n                             }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:215:56: replace >= with < in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 58,
+        "line": 215
+      },
+      "start": {
+        "column": 56,
+        "line": 215
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace && with || in finalize_each\n@@ -230,17 +230,17 @@\n                         0\n                     };\n                     for &k in &part.as_slice()[done..] {\n                         out[k] = *hashers[which[k]].take_root_hash().as_bytes();\n                     }\n                 }\n             }\n             for (&i, out) in which.iter().zip(out.iter_mut()) {\n-                let done_plain = has_plain_batch && whole_in_stage(&hashers[i]);\n+                let done_plain = has_plain_batch || /* ~ changed by cargo-mutants ~ */ whole_in_stage(&hashers[i]);\n                 let done_keyed = has_keyed_batch && !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some();\n                 if !done_plain && !done_keyed {\n                     *out = *hashers[i].take_root_hash().as_bytes();\n                 }\n                 hashers[i].reset();\n             }\n             marked.active = false;\n             return;\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:238:50: replace && with || in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 52,
+        "line": 238
+      },
+      "start": {
+        "column": 50,
+        "line": 238
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace && with || in finalize_each\n@@ -231,17 +231,17 @@\n                     };\n                     for &k in &part.as_slice()[done..] {\n                         out[k] = *hashers[which[k]].take_root_hash().as_bytes();\n                     }\n                 }\n             }\n             for (&i, out) in which.iter().zip(out.iter_mut()) {\n                 let done_plain = has_plain_batch && whole_in_stage(&hashers[i]);\n-                let done_keyed = has_keyed_batch && !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some();\n+                let done_keyed = has_keyed_batch && !whole_in_stage(&hashers[i]) || /* ~ changed by cargo-mutants ~ */ crate::ffi_output::input(&hashers[i]).is_some();\n                 if !done_plain && !done_keyed {\n                     *out = *hashers[i].take_root_hash().as_bytes();\n                 }\n                 hashers[i].reset();\n             }\n             marked.active = false;\n             return;\n         }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:239:82: replace && with || in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 84,
+        "line": 239
+      },
+      "start": {
+        "column": 82,
+        "line": 239
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace && with || in finalize_each\n@@ -231,17 +231,17 @@\n                     };\n                     for &k in &part.as_slice()[done..] {\n                         out[k] = *hashers[which[k]].take_root_hash().as_bytes();\n                     }\n                 }\n             }\n             for (&i, out) in which.iter().zip(out.iter_mut()) {\n                 let done_plain = has_plain_batch && whole_in_stage(&hashers[i]);\n-                let done_keyed = has_keyed_batch && !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some();\n+                let done_keyed = has_keyed_batch || /* ~ changed by cargo-mutants ~ */ !whole_in_stage(&hashers[i]) && crate::ffi_output::input(&hashers[i]).is_some();\n                 if !done_plain && !done_keyed {\n                     *out = *hashers[i].take_root_hash().as_bytes();\n                 }\n                 hashers[i].reset();\n             }\n             marked.active = false;\n             return;\n         }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 251
+        },
+        "start": {
+          "column": 1,
+          "line": 93
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:239:50: replace && with || in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 52,
+        "line": 239
+      },
+      "start": {
+        "column": 50,
+        "line": 239
+      }
+    }
+  }
+]

@@ -1,0 +1,43 @@
+--- src/ffi_output_aarch64.rs
++++ replace hash_groups_arm -> usize with 1
+@@ -86,39 +86,17 @@
+ #[cfg(blake3_sme2)]
+ pub(crate) const SME2_OUTPUT16_MIN: usize = 80;
+ 
+ /// Hash all full 16-lane SME2 groups (when `inputs.len() >= SME2_OUTPUT16_MIN`,
+ /// in one `smstart`/`smstop` entry) and remaining 8-lane NEON groups of
+ /// independent counter-zero compressions on AArch64, returning the number of
+ /// digests written to `out`.
+ pub(crate) fn hash_groups_arm(inputs: &[Input<'_>], out: &mut [[u8; OUT_LEN]], platform: Platform) -> usize {
+-    assert_eq!(inputs.len(), out.len(), "one output per descriptor");
+-    let mut done = 0usize;
+-    #[cfg(blake3_sme2)]
+-    if matches!(platform, Platform::SME2) && inputs.len() >= SME2_OUTPUT16_MIN {
+-        let groups = inputs.len() / 16;
+-        crate::ran_kernel(blake3_servil_sme2_output16 as *const ());
+-        // Sound: `Platform::SME2` verified SME2 support; `inputs` holds
+-        // `16 * groups` valid descriptors borrowing 64-byte blocks and
+-        // 32-byte CVs, and `out` has room for `16 * groups` digests.
+-        let svl = unsafe { blake3_servil_sme2_output16(inputs.as_ptr(), out.as_mut_ptr().cast(), groups as u64) };
+-        if svl == 16 {
+-            done += groups * 16;
+-        }
+-    }
+-    let rem_groups = (inputs.len() - done) / 8;
+-    if rem_groups > 0 {
+-        crate::ran_kernel(blake3_servil_neon_output8 as *const ());
+-        // Sound: `blake3_neon` guarantees AArch64 NEON; `inputs[done..]` holds
+-        // `8 * rem_groups` valid descriptors and `out[done..]` has exact room.
+-        unsafe { blake3_servil_neon_output8(inputs[done..].as_ptr(), out[done..].as_mut_ptr().cast(), rem_groups as u64) };
+-        done += rem_groups * 8;
+-    }
+-    done
++    1 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Hash complete held stages without grouping by their keys.
+ ///
+ /// Processes in 16-stage blocks so `HeldWorkspace<16>` (12 KiB) stays hot in
+ /// L1D cache and avoids a 117 KiB stack frame. Sixteen stages (256 KiB of
+ /// leaves; 128/64/32/16 parents) is an exact multiple of both 16 (SME2) and
+ /// 8 (NEON) at every parent level.
