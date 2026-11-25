@@ -1,0 +1,30 @@
+--- src/waker.rs
++++ replace WakerSlot::take_slow -> Option<Waker> with Some(Default::default())
+@@ -115,26 +115,17 @@
+     #[inline(always)]
+     pub(crate) fn take_after_seqcst(&self) -> Option<Waker> {
+         if self.state.0.load(Ordering::SeqCst) == REGISTERED { self.take_slow() } else { None }
+     }
+ 
+     #[cold]
+     #[inline(never)]
+     fn take_slow(&self) -> Option<Waker> {
+-        if self.state.0.compare_exchange(REGISTERED, WAKING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+-            // Sound: this thread's compare-and-swap made the state
+-            // WAKING, which keeps `register` and `clear` out of the cell
+-            // (they spin) until the store below.
+-            let waker = unsafe { with_mut(&self.waker, Option::take) };
+-            self.state.0.store(IDLE, Ordering::SeqCst);
+-            waker
+-        } else {
+-            None
+-        }
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     pub(crate) fn notify_after_seqcst(&self) {
+         if let Some(w) = self.take_after_seqcst() {
+             wake_or_abort(w);
+         }
+     }
