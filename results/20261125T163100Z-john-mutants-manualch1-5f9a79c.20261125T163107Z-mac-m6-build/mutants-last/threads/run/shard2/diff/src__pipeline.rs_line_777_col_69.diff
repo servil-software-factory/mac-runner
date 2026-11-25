@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace == with != in PipeStorage::run_multi_piece
+@@ -769,17 +769,17 @@
+             // `count`).
+             let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };
+             let digests = unsafe { core::slice::from_raw_parts_mut(desc.digests.add(first), count) };
+             // Sound: `desc.batch` came from a validated `Prepared` batch
+             // (including zero-length messages padded to `BLOCK_LEN`) held alive
+             // in `Pipeline::batches[slot]` until `slot_done`.
+             let part = unsafe { crate::throughput::Part::from_checked_slots(bytes, message_len, slot_len) };
+             self.slot_tree(slot).hash_many_on(platform, &part, digests);
+-            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {
++            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) != /* ~ changed by cargo-mutants ~ */ 1 {
+                 finished(self, || {
+                     self.slot_done[slot].swap(true, Ordering::SeqCst);
+                 });
+             }
+             return;
+         }
+ 
+         // Sound: the owner, or the Lent guard, keeps all the message's

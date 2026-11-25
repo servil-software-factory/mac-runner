@@ -1,0 +1,47 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::poll_room -> Poll<Room> with Poll::from_iter([Default::default()])
+@@ -1535,43 +1535,17 @@
+                     self.local_free_rooms.push_back(u32::try_from(i).expect("room index fits u32"));
+                 }
+             }
+         }
+         self.pop_cached_room()
+     }
+ 
+     fn poll_room(&mut self, cx: &mut Context<'_>) -> Poll<Room> {
+-        if let Some(r) = self.try_take_room() {
+-            return Poll::Ready(r);
+-        }
+-        self.reap();
+-        self.flush_sealed_short_rooms();
+-        self.publish_open();
+-        if let Some(r) = self.try_take_room() {
+-            return Poll::Ready(r);
+-        }
+-        self.assert_room_can_progress();
+-        if in_block_on() {
+-            while self.storage().source.run_waiting_action() {
+-                if let Some(r) = self.try_take_room() {
+-                    return Poll::Ready(r);
+-                }
+-            }
+-        }
+-        self.storage().waker.register(cx);
+-        if let Some(r) = self.try_take_room() {
+-            self.storage().waker.clear();
+-            return Poll::Ready(r);
+-        }
+-        self.assert_room_can_progress();
+-        if self.source_slot.is_some() {
+-            self.storage().source.wake_for_waiting();
+-        }
+-        Poll::Pending
++        Poll::from_iter([Default::default()]) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn make_room(&self, index: u32) -> Room {
+         let storage = self.storage();
+         storage.holders.fetch_add(1, Ordering::Relaxed);
+         Room { pipeline_id: self.id, index, offset: 0, commits: 0, ptr: storage.rooms.room_ptr(index as usize), storage: self.storage }
+     }
