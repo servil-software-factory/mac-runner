@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace && with || in <impl Drop for Room>::drop
+@@ -644,17 +644,17 @@
+         let r = &storage.rooms.refs[self.index as usize];
+         // Fast path: while workers still hold piece credits (`next != 0`) and
+         // `Pipeline::drop` has not stamped `ROOM_CLOSING_BIT`
+         // (`next < ROOM_CLOSING_BIT`), a single `SeqCst` CAS drops our unused
+         // credits while leaving `refs[i] > 0`, paying zero `holders` atomics
+         // and touching nothing on `storage` afterwards (#494).
+         let cur = r.load(Ordering::Relaxed);
+         let next = cur.wrapping_sub(unused);
+-        if next != 0 && next < ROOM_CLOSING_BIT && r.compare_exchange(cur, next, Ordering::SeqCst, Ordering::Relaxed).is_ok() {
++        if next != 0 || /* ~ changed by cargo-mutants ~ */ next < ROOM_CLOSING_BIT && r.compare_exchange(cur, next, Ordering::SeqCst, Ordering::Relaxed).is_ok() {
+             return;
+         }
+         // Slow path (room becoming free, `ROOM_CLOSING_BIT` stamped, or CAS
+         // contention): reserve a temporary hold BEFORE subtracting `unused` so
+         // `Pipeline::drop` cannot observe `refs[i] == 0` and free `storage`
+         // while `waker.notify_after_seqcst()` is still using it.
+         storage.holders.fetch_add(1, Ordering::Relaxed);
+         let prev = r.fetch_sub(unused, Ordering::SeqCst);

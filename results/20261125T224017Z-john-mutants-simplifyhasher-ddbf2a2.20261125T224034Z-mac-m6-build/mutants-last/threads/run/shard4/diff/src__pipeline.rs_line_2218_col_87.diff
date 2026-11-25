@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace || with && in Pipeline<T, B, P>::drain_pieces
+@@ -2210,17 +2210,17 @@
+         // Sound: as `storage()`.
+         let storage = unsafe { &*self.storage };
+         let tree = storage.slot_tree(s);
+         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);
+         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });
+ 
+         loop {
+             let head = self.room_streams[s].head_piece;
+-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !storage.pieces[head as usize].done.load(Ordering::Acquire) {
++            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) && /* ~ changed by cargo-mutants ~ */ !storage.pieces[head as usize].done.load(Ordering::Acquire) {
+                 return;
+             }
+             // Sound: the piece is done (checked above), so its `next` and
+             // `out` are the owner's again.
+             let next = unsafe { *storage.pieces[head as usize].next.get() };
+             let out = unsafe { *storage.pieces[head as usize].out.0.get() };
+             self.free_pieces.push_back(head);
+ 

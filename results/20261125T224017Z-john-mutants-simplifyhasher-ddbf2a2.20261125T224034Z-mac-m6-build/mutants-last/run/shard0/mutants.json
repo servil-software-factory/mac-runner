@@ -1,0 +1,232 @@
+[
+  {
+    "diff": "--- src/hasher.rs\n+++ replace / with %\n@@ -10,17 +10,17 @@\n /// same on every target (the C header gives a hasher's size as one\n /// number); kernels that cut wider (the SME2 unit's) make no rows.\n pub const ROW: usize = 32;\n /// The rows a stack holds at once (the sizes from a group of 16 chunks up\n /// to 2 MiB); a row past them is condensed to its one value.\n const ROWS: usize = 8;\n /// The most values a stack's rows hold after their first layer of parents:\n /// half of `ROWS * ROW` (4 KiB).\n-const HALF_RUN: usize = ROWS * ROW / 2;\n+const HALF_RUN: usize = ROWS * ROW % /* ~ changed by cargo-mutants ~ */ 2;\n /// The most children `CvStack::condense` passes to `Hooks::parents` in one\n /// call: at most `2 * ROW` (64 children, 2 KiB of scratch) and within what the\n /// target's kernels take (`2 * MAX_SIMD_DEGREE`: 64 on x86-64 Linux and SME2\n /// targets, 32 on AArch64 without the SME2 unit).\n const TILE: usize = if MAX_SIMD_DEGREE == 16 { 32 } else { 64 };\n // Exact compile-time bounds for HALF_RUN and TILE (also stops equivalent\n // mutants on their arithmetic).\n const _: () = assert!(ROW / 8 == 4);\n",
+    "file": "src/hasher.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:18:36: replace / with %",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 18
+      },
+      "start": {
+        "column": 36,
+        "line": 18
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace * with +\n@@ -10,17 +10,17 @@\n /// same on every target (the C header gives a hasher's size as one\n /// number); kernels that cut wider (the SME2 unit's) make no rows.\n pub const ROW: usize = 32;\n /// The rows a stack holds at once (the sizes from a group of 16 chunks up\n /// to 2 MiB); a row past them is condensed to its one value.\n const ROWS: usize = 8;\n /// The most values a stack's rows hold after their first layer of parents:\n /// half of `ROWS * ROW` (4 KiB).\n-const HALF_RUN: usize = ROWS * ROW / 2;\n+const HALF_RUN: usize = ROWS + /* ~ changed by cargo-mutants ~ */ ROW / 2;\n /// The most children `CvStack::condense` passes to `Hooks::parents` in one\n /// call: at most `2 * ROW` (64 children, 2 KiB of scratch) and within what the\n /// target's kernels take (`2 * MAX_SIMD_DEGREE`: 64 on x86-64 Linux and SME2\n /// targets, 32 on AArch64 without the SME2 unit).\n const TILE: usize = if MAX_SIMD_DEGREE == 16 { 32 } else { 64 };\n // Exact compile-time bounds for HALF_RUN and TILE (also stops equivalent\n // mutants on their arithmetic).\n const _: () = assert!(ROW / 8 == 4);\n",
+    "file": "src/hasher.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:18:30: replace * with +",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 18
+      },
+      "start": {
+        "column": 30,
+        "line": 18
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::get -> Cv with Default::default()\n@@ -121,33 +121,17 @@\n         self.widths[slot] = row.len().to_le_bytes()[0];\n         self.wide |= 1 << i;\n     }\n \n     /// Value `i`, below the length: a single entry's own, a row's\n     /// condensed a layer of parents at a time down to its two halves,\n     /// then their parent.\n     pub fn get<H: Hooks>(&self, k: &Kernels<'_, H>, i: usize) -> Cv {\n-        assert!(i < self.len, \"a value below the stack's length\");\n-        if !self.is_row(i) {\n-            // Sound: a single entry below the length was written (push, merge, narrow).\n-            return unsafe { *(self.cvs.as_ptr() as *const Cv).add(i) };\n-        }\n-        let mut a = [[0u8; 32]; ROW];\n-        let mut b = [[0u8; 32]; ROW];\n-        let row = self.row(i);\n-        let mut n = row.len();\n-        assert!(n >= 4, \"a row is 4 wide or more\");\n-        a[..n].copy_from_slice(row);\n-        for _ in 0..n.trailing_zeros() - 1 {\n-            n = k.parents(&a[..n], &mut b);\n-            a[..n].copy_from_slice(&b[..n]);\n-        }\n-        assert_eq!(n, 2, \"a row's two halves\");\n-        k.parent(&a[0], &a[1])\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Every row's one value, entry i's at `i % ROWS` (a place without a\n     /// row holds zeros): what [`CvStack::get`] gives for each row,\n     /// computed for all of them together ([`CvStack::condense`]).\n     ///\n     /// A stack with no live rows skips `condense`; a stack with one live\n     /// row folds it directly through [`CvStack::get`] (2 KiB frame, no\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::get",
+      "return_type": "-> Cv",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 146
+        },
+        "start": {
+          "column": 5,
+          "line": 125
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:129:9: replace CvStack::get -> Cv with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 145
+      },
+      "start": {
+        "column": 9,
+        "line": 129
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace - with + in CvStack::get\n@@ -132,17 +132,17 @@\n             return unsafe { *(self.cvs.as_ptr() as *const Cv).add(i) };\n         }\n         let mut a = [[0u8; 32]; ROW];\n         let mut b = [[0u8; 32]; ROW];\n         let row = self.row(i);\n         let mut n = row.len();\n         assert!(n >= 4, \"a row is 4 wide or more\");\n         a[..n].copy_from_slice(row);\n-        for _ in 0..n.trailing_zeros() - 1 {\n+        for _ in 0..n.trailing_zeros() + /* ~ changed by cargo-mutants ~ */ 1 {\n             n = k.parents(&a[..n], &mut b);\n             a[..n].copy_from_slice(&b[..n]);\n         }\n         assert_eq!(n, 2, \"a row's two halves\");\n         k.parent(&a[0], &a[1])\n     }\n \n     /// Every row's one value, entry i's at `i % ROWS` (a place without a\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::get",
+      "return_type": "-> Cv",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 146
+        },
+        "start": {
+          "column": 5,
+          "line": 125
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:140:40: replace - with + in CvStack::get",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 140
+      },
+      "start": {
+        "column": 40,
+        "line": 140
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::rows_values -> [Cv; ROWS] with [Default::default(); ROWS]\n@@ -150,28 +150,17 @@\n     /// computed for all of them together ([`CvStack::condense`]).\n     ///\n     /// A stack with no live rows skips `condense`; a stack with one live\n     /// row folds it directly through [`CvStack::get`] (2 KiB frame, no\n     /// cross-row batching to gain). With two or more live rows, `condense`\n     /// folds them together using 6 KiB of stack scratch (4 KiB + 2 KiB),\n     /// rather than calling `get` row by row.\n     pub fn rows_values<H: Hooks>(&self, k: &Kernels<'_, H>) -> [Cv; ROWS] {\n-        let mut values = [[0u8; 32]; ROWS];\n-        // (A bit at the length or above is left from an entry merged away.)\n-        let live = self.wide & ((1 << self.len) - 1);\n-        if live != 0 {\n-            if live.count_ones() == 1 {\n-                let i = live.trailing_zeros() as usize;\n-                values[i % ROWS] = self.get(k, i);\n-            } else {\n-                self.condense(k, live, &mut values);\n-            }\n-        }\n-        values\n+        [Default::default(); ROWS] /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Two or more live rows at `live`'s bits, condensed together into\n     /// `values` at each row's place (`i % ROWS`).\n     ///\n     /// Layer 1 reads the rows straight from `self.rows` in descending width\n     /// order (`ROW`, `ROW/2`, `ROW/4`, `ROW/8`) into a 2 KiB tile (`b`, up\n     /// to `TILE` children) and writes their parents into `a` (4 KiB, at\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::rows_values",
+      "return_type": "-> [Cv; ROWS]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 170
+        },
+        "start": {
+          "column": 5,
+          "line": 148
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:158:9: replace CvStack::rows_values -> [Cv; ROWS] with [Default::default(); ROWS]",
+    "package": "blake3-servil-core",
+    "replacement": "[Default::default(); ROWS]",
+    "span": {
+      "end": {
+        "column": 15,
+        "line": 169
+      },
+      "start": {
+        "column": 9,
+        "line": 158
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace % with + in CvStack::rows_values\n@@ -156,17 +156,17 @@\n     /// rather than calling `get` row by row.\n     pub fn rows_values<H: Hooks>(&self, k: &Kernels<'_, H>) -> [Cv; ROWS] {\n         let mut values = [[0u8; 32]; ROWS];\n         // (A bit at the length or above is left from an entry merged away.)\n         let live = self.wide & ((1 << self.len) - 1);\n         if live != 0 {\n             if live.count_ones() == 1 {\n                 let i = live.trailing_zeros() as usize;\n-                values[i % ROWS] = self.get(k, i);\n+                values[i + /* ~ changed by cargo-mutants ~ */ ROWS] = self.get(k, i);\n             } else {\n                 self.condense(k, live, &mut values);\n             }\n         }\n         values\n     }\n \n     /// Two or more live rows at `live`'s bits, condensed together into\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::rows_values",
+      "return_type": "-> [Cv; ROWS]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 170
+        },
+        "start": {
+          "column": 5,
+          "line": 148
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:164:26: replace % with + in CvStack::rows_values",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 27,
+        "line": 164
+      },
+      "start": {
+        "column": 26,
+        "line": 164
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::condense with ()\n@@ -179,81 +179,17 @@\n     /// two dividing `TILE` and rows are packed widest first, the running\n     /// tile fill is always a multiple of the next row's width, so no row\n     /// ever straddles a tile boundary. Layers 2..=5 then ping-pong between\n     /// `a` and `b` (`b` holds at most `HALF_RUN / 2 = 2 * ROW` parents),\n     /// popping rows that reach one value from the narrowest end. Total\n     /// scratch: 6 KiB (down from 16 KiB).\n     #[inline(never)]\n     fn condense<H: Hooks>(&self, k: &Kernels<'_, H>, live: u64, values: &mut [Cv; ROWS]) {\n-        let mut a = [const { core::mem::MaybeUninit::<Cv>::uninit() }; HALF_RUN];\n-        let mut b = [const { core::mem::MaybeUninit::<Cv>::uninit() }; 2 * ROW];\n-        let mut order = [0usize; ROWS];\n-        let (mut rows, mut fill, mut len) = (0, 0, 0);\n-        let mut flush = |b: &[core::mem::MaybeUninit<Cv>; 2 * ROW], fill: usize| {\n-            // Sound: `b[..fill]` holds `fill` written values from whole rows.\n-            let children = unsafe { core::slice::from_raw_parts(b.as_ptr() as *const Cv, fill) };\n-            let out = a[len..len + fill / 2].write_copy_of_slice(&children[..fill / 2]);\n-            let places = out.len();\n-            let made = k.parents(children, out);\n-            assert_eq!((2 * made, places), (fill, made), \"a parent for every two children, each in its place\");\n-            len += made;\n-        };\n-        for width in [ROW, ROW / 2, ROW / 4, ROW / 8] {\n-            let mut left = live;\n-            for _ in 0..live.count_ones() {\n-                let i = left.trailing_zeros() as usize;\n-                left &= left - 1;\n-                let row = self.row(i);\n-                if row.len() == width {\n-                    b[fill..fill + width].write_copy_of_slice(row);\n-                    fill += width;\n-                    order[rows] = i;\n-                    rows += 1;\n-                    if fill == TILE {\n-                        flush(&b, fill);\n-                        fill = 0;\n-                    }\n-                }\n-            }\n-        }\n-        assert_eq!(rows, live.count_ones() as usize, \"every live row was collected\");\n-        assert!(rows >= 2, \"condense is entered only for two or more live rows\");\n-        if fill > 0 {\n-            flush(&b, fill);\n-        }\n-        // Sound: Layer 1 wrote `a[..len]`, one parent per two children of every row.\n-        let mut from = unsafe { core::slice::from_raw_parts_mut(a.as_mut_ptr() as *mut Cv, len) };\n-        // Layer 2 writes at most `len / 2 <= 2 * ROW` parents into `b`; copy\n-        // `from[..len / 2]` so `to` holds initialized values before the kernels write.\n-        let mut to = b[..len / 2].write_copy_of_slice(&from[..len / 2]);\n-        // Layers 2 through log2(ROW): every row started at width >= 4, so\n-        // none reached one value in Layer 1.\n-        for layer in 2..=ROW.trailing_zeros() {\n-            for start in (0..len).step_by(TILE) {\n-                let n = (len - start).min(TILE);\n-                let out = &mut to[start / 2..(start + n) / 2];\n-                let places = out.len();\n-                let made = k.parents(&from[start..start + n], out);\n-                assert_eq!((2 * made, places), (n, made), \"a parent for every two children, each in its place\");\n-            }\n-            len /= 2;\n-            // The rows that were two wide are one value each now: the\n-            // narrowest, so the run's last.\n-            let limit = rows;\n-            for _ in 0..limit {\n-                if self.row(order[rows - 1]).len() == 1 << layer {\n-                    rows -= 1;\n-                    len -= 1;\n-                    values[order[rows] % ROWS] = to[len];\n-                }\n-            }\n-            core::mem::swap(&mut from, &mut to);\n-        }\n-        assert_eq!((rows, len), (0, 0), \"every row condensed to its one value\");\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Entry `i`'s one value, below the length: a single entry's own, a\n     /// row's from `rows` ([`CvStack::rows_values`]).\n     pub fn value(&self, rows: &[Cv; ROWS], i: usize) -> Cv {\n         assert!(i < self.len, \"a value below the stack's length\");\n         if self.is_row(i) {\n             return rows[i % ROWS];\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::condense",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 252
+        },
+        "start": {
+          "column": 5,
+          "line": 172
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:187:9: replace CvStack::condense with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 81,
+        "line": 251
+      },
+      "start": {
+        "column": 9,
+        "line": 187
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace + with - in CvStack::condense\n@@ -227,17 +227,17 @@\n         let mut to = b[..len / 2].write_copy_of_slice(&from[..len / 2]);\n         // Layers 2 through log2(ROW): every row started at width >= 4, so\n         // none reached one value in Layer 1.\n         for layer in 2..=ROW.trailing_zeros() {\n             for start in (0..len).step_by(TILE) {\n                 let n = (len - start).min(TILE);\n                 let out = &mut to[start / 2..(start + n) / 2];\n                 let places = out.len();\n-                let made = k.parents(&from[start..start + n], out);\n+                let made = k.parents(&from[start..start - /* ~ changed by cargo-mutants ~ */ n], out);\n                 assert_eq!((2 * made, places), (n, made), \"a parent for every two children, each in its place\");\n             }\n             len /= 2;\n             // The rows that were two wide are one value each now: the\n             // narrowest, so the run's last.\n             let limit = rows;\n             for _ in 0..limit {\n                 if self.row(order[rows - 1]).len() == 1 << layer {\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::condense",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 252
+        },
+        "start": {
+          "column": 5,
+          "line": 172
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:235:57: replace + with - in CvStack::condense",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 58,
+        "line": 235
+      },
+      "start": {
+        "column": 57,
+        "line": 235
+      }
+    }
+  }
+]
