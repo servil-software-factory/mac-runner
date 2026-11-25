@@ -1,0 +1,46 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::has_in_flight_work -> bool with true
+@@ -2446,42 +2446,17 @@
+     fn reap(&mut self) {
+         while self.events.len() < self.limits.messages {
+             let Some(ev) = self.try_reap_one() else { break };
+             self.events.push_back(ev);
+         }
+     }
+ 
+     fn has_in_flight_work(&self) -> bool {
+-        let shared = self.shared();
+-        for g in 0..self.group_count {
+-            let assigned = self.assigned_group_epoch[g];
+-            if assigned != 0 && shared.storage.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {
+-                return true;
+-            }
+-        }
+-        // Scan only this Pipeline's active piece prefix (`0..p_cap`), never
+-        // inactive tail nodes of a larger reused PipeStorage (#465).
+-        let p_cap = room_piece_cap(self.limits.rooms, self.limits.messages);
+-        for p in &shared.storage.pieces[..p_cap] {
+-            if !p.done.load(Ordering::Acquire) {
+-                return true;
+-            }
+-        }
+-        for s in 0..self.slots.len() {
+-            match self.slots[s].kind {
+-                SlotKind::WaitMulti { .. } | SlotKind::WaitBatch { group: NONE, .. } => {
+-                    if !shared.slot_done[s].load(Ordering::Acquire) {
+-                        return true;
+-                    }
+-                }
+-                _ => {}
+-            }
+-        }
+-        false
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<T, B, P> Drop for Pipeline<T, B, P> {
+     fn drop(&mut self) {
+         if self.has_in_flight_work() {
+             stop_process("blake3-servil: Pipeline dropped while worker tasks are still in flight\n");
+         }

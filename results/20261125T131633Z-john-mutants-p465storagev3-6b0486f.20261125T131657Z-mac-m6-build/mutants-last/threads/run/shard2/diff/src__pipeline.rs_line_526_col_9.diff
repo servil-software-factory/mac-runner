@@ -1,0 +1,92 @@
+--- src/pipeline.rs
++++ replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))
+@@ -518,88 +518,17 @@
+         }
+     }
+ 
+     fn release(st: &'static PipeStorage) {
+         Self::release_n(st, 1);
+     }
+ 
+     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize) -> &'static PipeStorage {
+-        let alloc_rooms = room_storage_class(rooms);
+-        // Reuse a larger free storage only up to 2x the requested room class
+-        // (for `rooms == 0`, `max_rooms == 0` keeps zero-room storages
+-        // isolated), preventing a small Pipeline or surviving Room from
+-        // repeatedly pinning much larger slabs (#465).
+-        let max_rooms = alloc_rooms.saturating_mul(2);
+-        let min_key = (alloc_rooms, actions, messages);
+-        let max_key = (max_rooms, usize::MAX, usize::MAX);
+-        let chosen = {
+-            let mut free = FREE_STORAGES.lock().unwrap();
+-            let found_key = free
+-                .range(min_key..=max_key)
+-                .find(|(k, bucket)| {
+-                    #[cfg(all(test, not(shuttle)))]
+-                    ACQUIRE_SCANS.fetch_add(1, Ordering::Relaxed);
+-                    let (_, a, m) = **k;
+-                    !bucket.is_empty() && a >= actions && m >= messages
+-                })
+-                .map(|(&k, _)| k);
+-            found_key.and_then(|k| free.get_mut(&k).and_then(Vec::pop))
+-        };
+-        if let Some(st) = chosen {
+-            assert!(st.groups.len() >= groups, "a storage of as many messages has as many groups");
+-            st.holders.store(1, Ordering::Release);
+-            return st;
+-        }
+-        // Reserve actions for the allocated room class (`alloc_rooms`), not just
+-        // the unrounded `rooms`, so ascending room sweeps above the 1,024-action
+-        // floor reuse each allocated class instead of missing on every step (#465).
+-        let alloc_actions = actions.saturating_add(alloc_rooms - rooms).max(1024);
+-        let alloc_messages = messages.max(64);
+-        let alloc_groups = groups.max(64);
+-        let alloc_pieces = room_piece_cap(alloc_rooms, alloc_messages);
+-        let dummy = GroupMemberMeta { room: NONE };
+-        #[cfg(any(test, shuttle))]
+-        STORAGES_MADE.fetch_add(1, Ordering::Relaxed);
+-        let raw = Box::into_raw(Box::new(PipeStorage {
+-            source: Source::with_actions(alloc_actions),
+-            waker: WakerSlot::new(),
+-            rooms: Rooms::new(alloc_rooms),
+-            pieces: (0..alloc_pieces)
+-                .map(|_| PieceNode {
+-                    slot: UnsafeCell::new(0),
+-                    room: UnsafeCell::new(0),
+-                    offset: UnsafeCell::new(0),
+-                    len: UnsafeCell::new(0),
+-                    index: UnsafeCell::new(0),
+-                    out: OwnLine(UnsafeCell::new(RoomValue::Whole(Cv::unset()))),
+-                    done: OwnLine(AtomicBool::new(true)),
+-                    next: UnsafeCell::new(NONE),
+-                })
+-                .collect(),
+-            groups: (0..alloc_groups)
+-                .map(|_| MemberGroup {
+-                    task: UnsafeCell::new(Task::members(None)),
+-                    metas: UnsafeCell::new([dummy; MEMBERS]),
+-                    custom_tree: UnsafeCell::new(None),
+-                    epoch: UnsafeCell::new(0),
+-                    completed_epoch: OwnLine(AtomicU64::new(0)),
+-                })
+-                .collect(),
+-            loan_completed: (0..alloc_messages).map(|_| OwnLine(AtomicU64::new(0))).collect(),
+-            saved_loan_epoch: UnsafeCell::new(1),
+-            saved_group_epoch: UnsafeCell::new(1),
+-            shared: UnsafeCell::new(core::ptr::null_mut()),
+-            holders: OwnLine(AtomicUsize::new(1)),
+-        }));
+-        #[cfg(shuttle)]
+-        MODEL_OWNED_STORAGES.lock().unwrap().push(OwnedStoragePtr(raw));
+-        // Sound: `raw` is a valid leaked allocation (freed only after all
+-        // Shuttle workers join in `model_storages::free_storages_for_model`).
+-        unsafe { &*raw }
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.
+ ///
+ /// # Trait implementations
+ ///
+ /// - `Drop` returns the unused credits; workers retain access to committed
