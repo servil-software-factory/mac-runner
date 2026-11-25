@@ -1,0 +1,51 @@
+--- src/pipeline.rs
++++ replace <impl Drop for Room>::drop with ()
+@@ -632,47 +632,17 @@
+         self.storage().rooms.release_n(self.index, spent as usize);
+         self.commits += spent;
+     }
+ }
+ 
+ impl Drop for Room {
+     #[inline]
+     fn drop(&mut self) {
+-        let unused = ROOM_CREDITS - (self.commits as usize);
+-        let storage = self.storage();
+-        #[cfg(shuttle)]
+-        assert!(!storage.retired.load(Ordering::Acquire), "PipeStorage used after release");
+-        let r = &storage.rooms.refs[self.index as usize];
+-        // Fast path: while workers still hold piece credits (`next != 0`) and
+-        // `Pipeline::drop` has not stamped `ROOM_CLOSING_BIT`
+-        // (`next < ROOM_CLOSING_BIT`), a single `SeqCst` CAS drops our unused
+-        // credits while leaving `refs[i] > 0`, paying zero `holders` atomics
+-        // and touching nothing on `storage` afterwards (#494).
+-        let cur = r.load(Ordering::Relaxed);
+-        let next = cur.wrapping_sub(unused);
+-        if next != 0 && next < ROOM_CLOSING_BIT && r.compare_exchange(cur, next, Ordering::SeqCst, Ordering::Relaxed).is_ok() {
+-            return;
+-        }
+-        // Slow path (room becoming free, `ROOM_CLOSING_BIT` stamped, or CAS
+-        // contention): reserve a temporary hold BEFORE subtracting `unused` so
+-        // `Pipeline::drop` cannot observe `refs[i] == 0` and free `storage`
+-        // while `waker.notify_after_seqcst()` is still using it.
+-        storage.holders.fetch_add(1, Ordering::Relaxed);
+-        let prev = r.fetch_sub(unused, Ordering::SeqCst);
+-        if prev & ROOM_CLOSING_BIT != 0 {
+-            assert_eq!(prev & !ROOM_CLOSING_BIT, unused, "surviving room ref count");
+-            r.store(0, Ordering::Release);
+-            PipeStorage::release_n(self.storage, 2);
+-        } else {
+-            if prev == unused {
+-                storage.waker.notify_after_seqcst();
+-            }
+-            PipeStorage::release(self.storage);
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ struct PieceNode {
+     slot: UnsafeCell<u32>,
+     room: UnsafeCell<u32>,
+     offset: UnsafeCell<u32>,
+     len: UnsafeCell<u32>,

@@ -1,0 +1,21 @@
+--- src/lanes.rs
++++ replace && with || in sme2_serve
+@@ -4691,17 +4691,17 @@
+     // Prepare the flat-walk scratch before reporting parked, so the
+     // first task on this worker allocates nothing.
+     #[cfg(blake3_sme2)]
+     blake3_servil_core::thread_support::prepare_sme2_scratch();
+     let pool = pool();
+     let mut token = crate::registry::ReaderToken::new(&pool.readers[pool.workers()]);
+     loop {
+         if sources::any_active()
+-            && serve_burst(&mut token, |guard, waker| {
++            || /* ~ changed by cargo-mutants ~ */ serve_burst(&mut token, |guard, waker| {
+                 sources::run_stream_item_guarded(
+                     guard,
+                     |item| match item {
+                         sources::Item::Action { run, context, arg } => {
+                             // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.
+                             let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };
+                             if arg & sources::ACTION_SME2 == 0 {
+                                 unsafe { f(context as *const (), arg, pool_platform()) }

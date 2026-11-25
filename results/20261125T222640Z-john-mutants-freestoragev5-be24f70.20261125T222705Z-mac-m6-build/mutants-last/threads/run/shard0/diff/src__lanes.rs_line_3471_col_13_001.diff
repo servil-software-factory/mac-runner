@@ -1,0 +1,32 @@
+--- src/lanes.rs
++++ replace sources::Source::run_waiting_action -> bool with false
+@@ -3463,28 +3463,17 @@
+             let c = self.claimed.load(Ordering::Acquire);
+             let p = self.finish.published.load(Ordering::Acquire);
+             c < p && self.actions[c % self.actions.len()].near.load(Ordering::Relaxed)
+         }
+ 
+         /// Run one unclaimed action from this source on the calling thread,
+         /// if any remains.
+         pub(crate) fn run_waiting_action(&self) -> bool {
+-            match self.take() {
+-                Some(Item::Action { run, context, arg }) => {
+-                    // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.
+-                    let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };
+-                    if let Some(waker) = unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) } {
+-                        crate::waker::wake_or_abort(waker);
+-                    }
+-                    true
+-                }
+-                Some(_) => unreachable!("an action source carries actions"),
+-                None => false,
+-            }
++            false /* ~ changed by cargo-mutants ~ */
+         }
+ 
+         #[cfg(test)]
+         pub(super) fn own_for_test(&self) {
+             self.finish.own();
+         }
+ 
+         /// Make `job` the caller's current job, its pieces `0..own` the

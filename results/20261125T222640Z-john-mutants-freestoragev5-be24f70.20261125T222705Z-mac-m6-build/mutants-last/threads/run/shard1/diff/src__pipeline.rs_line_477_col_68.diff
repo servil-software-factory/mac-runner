@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace == with != in PipeStorage::release_n
+@@ -469,17 +469,17 @@
+         // Sound: under Shuttle, logically retired storages stay quarantined
+         // until all threads join so this assertion fires cleanly on an
+         // early-release fault without use-after-free UB.
+         assert!(!unsafe { (*st).retired.load(Ordering::Acquire) }, "PipeStorage used after release");
+         // Sound: the caller holds `n` references in `holders`, keeping `*st`
+         // live until this `fetch_sub`. When `fetch_sub(n, AcqRel)` returns `n`,
+         // `Pipeline::drop` has already run `Source::unregister_and_drain` and
+         // no `Room`, `Lent`, or pool worker retains any pointer to `*st`.
+-        if unsafe { (*st).holders.fetch_sub(n, Ordering::AcqRel) } == n {
++        if unsafe { (*st).holders.fetch_sub(n, Ordering::AcqRel) } != /* ~ changed by cargo-mutants ~ */ n {
+             #[cfg(shuttle)]
+             {
+                 let st_ref = unsafe { &*st };
+                 assert!(!st_ref.retired.swap(true, Ordering::AcqRel), "PipeStorage double free");
+                 LIVE_STORAGES.fetch_sub(1, Ordering::Relaxed);
+             }
+             crate::pipeline_sync::retire_storage!(st);
+         }

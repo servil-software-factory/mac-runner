@@ -1,0 +1,1250 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace prepare_thread with ()\n@@ -340,29 +340,17 @@\n }\n \n /// This thread's storage for its pool calls, made now: its scratch for\n /// [`PREPARED_PIECES`] pieces, its job source (`sources::job_source`,\n /// 640 bytes), and its storage for a collection's range\n /// (`each::prepare_thread`). After this, its calls on inputs the scratch\n /// holds allocate nothing.\n pub(crate) fn prepare_thread() {\n-    let _ = SCRATCH.try_with(|s| {\n-        let mut s = s.borrow_mut();\n-        s.pieces.clear();\n-        s.cvs.clear();\n-        s.pieces.reserve(PREPARED_PIECES);\n-        s.cvs.reserve(PREPARED_PIECES);\n-    });\n-    sources::try_prepare_job_source();\n-    crate::prepare_collection_thread();\n-    #[cfg(blake3_sme2)]\n-    if matches!(Platform::detect(), Platform::SME2 { .. }) {\n-        blake3_servil_core::thread_support::prepare_sme2_scratch();\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// `cut` fills this thread's scratch with a job's pieces; `job` runs with\n /// what `cut` returned, the pieces, and as many chaining values, unset.\n fn with_scratch<C, T>(cut: impl FnOnce(&mut Vec<Piece>) -> C, job: impl FnOnce(C, &[Piece], &mut [ChainingValue]) -> T) -> T {\n     SCRATCH.with(|s| {\n         let mut s = s.try_borrow_mut().expect(\"one pool call at a time on a thread\");\n         let Scratch { pieces, cvs } = &mut *s;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "prepare_thread",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 361
+        },
+        "start": {
+          "column": 1,
+          "line": 342
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:348:5: replace prepare_thread with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 360
+      },
+      "start": {
+        "column": 5,
+        "line": 348
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace initialize -> usize with 0\n@@ -961,84 +961,17 @@\n     readers: Box<[crate::registry::ReaderCell]>,\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n-    #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n-    let threads = requested.map_or_else(\n-        || {\n-            let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n-            #[cfg(target_os = \"linux\")]\n-            let available = places::cap_default_threads(available, node.as_ref(), places::allowed_cpu_count);\n-            available\n-        },\n-        |n| n.get(),\n-    );\n-    // With one thread, none beside the caller: no SME2 thread either.\n-    let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n-    let workers = Pool::workers_of(threads);\n-    let readers = (0..workers + usize::from(sme2)).map(|_| crate::registry::ReaderCell::new()).collect();\n-    let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(workers, crate::park::FANOUT), readers };\n-    if threads > 1 {\n-        // Before any thread starts: a child forked from here on has none\n-        // of them, and its multithreaded calls stop at `pool` (FORKED).\n-        // Before the pool is published, too: a refusal here is a panic\n-        // that leaves no pool behind.\n-        unsafe extern \"C\" {\n-            fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n-        }\n-        // Sound: the handler only stores to an atomic, which a forked\n-        // child may do.\n-        assert_eq!(unsafe { pthread_atfork(None, None, Some(mark_forked)) }, 0, \"registering the fork handler\");\n-    }\n-    assert!(POOL.set(pool).is_ok(), \"initialize_multithreaded creates the pool once\");\n-    if threads == 1 {\n-        return threads;\n-    }\n-    // The pool is published and says it has workers: from here a thread\n-    // that cannot start ends the process (`started`). A panic would leave\n-    // that pool to a caller that caught it, and to every other thread.\n-    if sme2 {\n-        #[cfg(target_os = \"linux\")]\n-        let sme2_node = node.clone();\n-        started(std::thread::Builder::new().name(\"blake3-sme2\".into()).spawn(move || {\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = sme2_node {\n-                node.bind();\n-            }\n-            sme2_main();\n-        }));\n-    }\n-    started(std::thread::Builder::new().name(\"blake3-worker-1\".into()).spawn(move || {\n-        // Bind before starting the other workers, which inherit this\n-        // mask. The caller keeps its own affinity.\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(node) = node {\n-            node.bind();\n-        }\n-        // The pool is published, and calls may already wait on these\n-        // workers: a failure from here on ends the process, as a\n-        // worker's own panic does (worker_main).\n-        let _starting = AbortOnUnwind;\n-        for worker in 2..threads {\n-            started(std::thread::Builder::new().name(format!(\"blake3-worker-{worker}\")).spawn(move || worker_main(worker - 1)));\n-        }\n-        // After the workers have started, never before: reading the\n-        // machine's caches takes 2 ms on a machine of 96 CPUs, and\n-        // b3sum has hashed a 16 MiB file by then (read first, it made\n-        // b3sum's warm 16 MiB 1.4 ms slower on two servers).\n-        places::settle(Pool::workers_of(threads));\n-        worker_main(0)\n-    }));\n-    threads\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The workers' places. On a machine with more than one last-level cache\n /// (several sockets, or an EPYC's cores in groups of six or eight), each\n /// worker runs on the CPUs under one of them, its place, and a waker wakes\n /// the workers of its own place first, then its socket's, then any.\n ///\n /// Work a caller has just written is in its cache, and a worker under\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1037
+        },
+        "start": {
+          "column": 1,
+          "line": 964
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:969:5: replace initialize -> usize with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 1036
+      },
+      "start": {
+        "column": 5,
+        "line": 969
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace initialize -> usize with 1\n@@ -961,84 +961,17 @@\n     readers: Box<[crate::registry::ReaderCell]>,\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n-    #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n-    let threads = requested.map_or_else(\n-        || {\n-            let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n-            #[cfg(target_os = \"linux\")]\n-            let available = places::cap_default_threads(available, node.as_ref(), places::allowed_cpu_count);\n-            available\n-        },\n-        |n| n.get(),\n-    );\n-    // With one thread, none beside the caller: no SME2 thread either.\n-    let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n-    let workers = Pool::workers_of(threads);\n-    let readers = (0..workers + usize::from(sme2)).map(|_| crate::registry::ReaderCell::new()).collect();\n-    let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(workers, crate::park::FANOUT), readers };\n-    if threads > 1 {\n-        // Before any thread starts: a child forked from here on has none\n-        // of them, and its multithreaded calls stop at `pool` (FORKED).\n-        // Before the pool is published, too: a refusal here is a panic\n-        // that leaves no pool behind.\n-        unsafe extern \"C\" {\n-            fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n-        }\n-        // Sound: the handler only stores to an atomic, which a forked\n-        // child may do.\n-        assert_eq!(unsafe { pthread_atfork(None, None, Some(mark_forked)) }, 0, \"registering the fork handler\");\n-    }\n-    assert!(POOL.set(pool).is_ok(), \"initialize_multithreaded creates the pool once\");\n-    if threads == 1 {\n-        return threads;\n-    }\n-    // The pool is published and says it has workers: from here a thread\n-    // that cannot start ends the process (`started`). A panic would leave\n-    // that pool to a caller that caught it, and to every other thread.\n-    if sme2 {\n-        #[cfg(target_os = \"linux\")]\n-        let sme2_node = node.clone();\n-        started(std::thread::Builder::new().name(\"blake3-sme2\".into()).spawn(move || {\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = sme2_node {\n-                node.bind();\n-            }\n-            sme2_main();\n-        }));\n-    }\n-    started(std::thread::Builder::new().name(\"blake3-worker-1\".into()).spawn(move || {\n-        // Bind before starting the other workers, which inherit this\n-        // mask. The caller keeps its own affinity.\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(node) = node {\n-            node.bind();\n-        }\n-        // The pool is published, and calls may already wait on these\n-        // workers: a failure from here on ends the process, as a\n-        // worker's own panic does (worker_main).\n-        let _starting = AbortOnUnwind;\n-        for worker in 2..threads {\n-            started(std::thread::Builder::new().name(format!(\"blake3-worker-{worker}\")).spawn(move || worker_main(worker - 1)));\n-        }\n-        // After the workers have started, never before: reading the\n-        // machine's caches takes 2 ms on a machine of 96 CPUs, and\n-        // b3sum has hashed a 16 MiB file by then (read first, it made\n-        // b3sum's warm 16 MiB 1.4 ms slower on two servers).\n-        places::settle(Pool::workers_of(threads));\n-        worker_main(0)\n-    }));\n-    threads\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The workers' places. On a machine with more than one last-level cache\n /// (several sockets, or an EPYC's cores in groups of six or eight), each\n /// worker runs on the CPUs under one of them, its place, and a waker wakes\n /// the workers of its own place first, then its socket's, then any.\n ///\n /// Work a caller has just written is in its cache, and a worker under\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1037
+        },
+        "start": {
+          "column": 1,
+          "line": 964
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:969:5: replace initialize -> usize with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 1036
+      },
+      "start": {
+        "column": 5,
+        "line": 969
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace + with - in initialize\n@@ -975,17 +975,17 @@\n             let available = places::cap_default_threads(available, node.as_ref(), places::allowed_cpu_count);\n             available\n         },\n         |n| n.get(),\n     );\n     // With one thread, none beside the caller: no SME2 thread either.\n     let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n     let workers = Pool::workers_of(threads);\n-    let readers = (0..workers + usize::from(sme2)).map(|_| crate::registry::ReaderCell::new()).collect();\n+    let readers = (0..workers - /* ~ changed by cargo-mutants ~ */ usize::from(sme2)).map(|_| crate::registry::ReaderCell::new()).collect();\n     let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(workers, crate::park::FANOUT), readers };\n     if threads > 1 {\n         // Before any thread starts: a child forked from here on has none\n         // of them, and its multithreaded calls stop at `pool` (FORKED).\n         // Before the pool is published, too: a refusal here is a panic\n         // that leaves no pool behind.\n         unsafe extern \"C\" {\n             fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1037
+        },
+        "start": {
+          "column": 1,
+          "line": 964
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:983:31: replace + with - in initialize",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 983
+      },
+      "start": {
+        "column": 31,
+        "line": 983
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace Pool::run_job with ()\n@@ -3046,68 +3046,17 @@\n impl Pool {\n     /// Publish `work` of `pieces` pieces as this thread's job source, take\n     /// pieces on this thread until none remain, and return once every\n     /// piece is finished, on whichever thread took it. The caller first\n     /// hashes pieces `0..own` on the kernels its turn gave it, back to back (the SME2\n     /// thread's prefix; the workers' pieces start after it). A caller that\n     /// finds no source slot free hashes every piece itself.\n     fn run_job(&self, work: Work, pieces: usize, own: usize, threads: usize, near: bool) {\n-        crate::ran(crate::Ran::Pool);\n-        #[cfg(test)]\n-        WAKES_WANTED.with(|w| w.set(None));\n-        let job = Job { work };\n-        sources::with_job_source(|source| {\n-            // Sound: `source` stays pinned in this thread's `MINE` TLS until\n-            // thread exit, where `Held::drop` runs `drain_readers()` before\n-            // freeing it.\n-            let slot = unsafe { source.register_until_drained() };\n-            // Sound: the caller's frame outlives every access: it waits below,\n-            // and should it unwind before that (a bug in this crate), the\n-            // process ends rather than leaving workers reading a gone frame and\n-            // the next call waiting forever (the guard is forgotten once the\n-            // wait is over: nothing runs on the normal path).\n-            let ptr = &job as *const Job as *mut Job<'static>;\n-            let published = AbortOnUnwind;\n-            // Sound: `job` stays alive on this stack until `source.wait(target)`\n-            // returns (guaranteed even on unwind by `end_on_unwind`), and `source`\n-            // is this thread's exclusive one-shot job source.\n-            let target = unsafe { source.publish_job(ptr, pieces, own, near) };\n-            if slot.is_some() {\n-                // A worker for each piece past the caller's first (none for a\n-                // job of one past its own: a wake for none is nothing); for a\n-                // tree, within the wide kernel's thread budget.\n-                let wanted = (pieces - own - 1).min(threads.saturating_sub(1));\n-                #[cfg(test)]\n-                WAKES_WANTED.with(|w| w.set(Some(wanted)));\n-                if near {\n-                    // The first few; each worker that takes a piece wakes the next.\n-                    let _ = (0..wanted.min(crate::park::FANOUT)).take_while(|_| self.park.wake_one_near()).count();\n-                } else {\n-                    self.wake_for(wanted);\n-                }\n-            }\n-            for index in 0..own {\n-                // Sound: the workers' pieces start past these.\n-                unsafe { job.hash_piece(index, true) };\n-            }\n-            source.finished(own);\n-            while let Some(sources::Item::Pieces(_, index, n)) = source.take() {\n-                // Sound: this thread took these, so it alone writes their slots.\n-                for i in index..index + n {\n-                    unsafe { job.hash_piece(i, false) };\n-                }\n-                source.finished(n);\n-            }\n-            source.wait(target);\n-            core::mem::forget(published);\n-            if let Some(slot) = slot {\n-                sources::Source::unregister(slot);\n-            }\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// How a job of `len` bytes of `kind` runs: the threads it is cut\n     /// for and wakes, its caller among them. Where the workers have places\n     /// that is every thread or the caller's place's alone, whichever this\n     /// thread has found faster for such jobs (`places::Learned`).\n     fn plan(&self, kind: places::Kind, len: usize) -> places::Plan {\n         places::Plan::new(kind, len, self.threads)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Pool::run_job",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3106
+        },
+        "start": {
+          "column": 5,
+          "line": 3047
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3054:9: replace Pool::run_job with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 3105
+      },
+      "start": {
+        "column": 9,
+        "line": 3054
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace + with - in Pool::run_job\n@@ -3087,17 +3087,17 @@\n             }\n             for index in 0..own {\n                 // Sound: the workers' pieces start past these.\n                 unsafe { job.hash_piece(index, true) };\n             }\n             source.finished(own);\n             while let Some(sources::Item::Pieces(_, index, n)) = source.take() {\n                 // Sound: this thread took these, so it alone writes their slots.\n-                for i in index..index + n {\n+                for i in index..index - /* ~ changed by cargo-mutants ~ */ n {\n                     unsafe { job.hash_piece(i, false) };\n                 }\n                 source.finished(n);\n             }\n             source.wait(target);\n             core::mem::forget(published);\n             if let Some(slot) = slot {\n                 sources::Source::unregister(slot);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Pool::run_job",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3106
+        },
+        "start": {
+          "column": 5,
+          "line": 3047
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3095:39: replace + with - in Pool::run_job",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 3095
+      },
+      "start": {
+        "column": 39,
+        "line": 3095
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in Pool::serve\n@@ -3130,17 +3130,17 @@\n     /// Worker `me`'s loop: the sources' tasks and pieces; spinning a while\n     /// when a stream is open (more is coming), else parked, whenever it\n     /// finds nothing.\n     fn serve(&self, me: usize) -> ! {\n         let mut placed = false;\n         let mut turn = sources::Turn::default();\n         let mut token = crate::registry::ReaderToken::new(&self.readers[me]);\n         loop {\n-            if sources::any_active() && serve_burst(&mut token, |guard, waker| sources::run_one_guarded(guard, &mut turn, waker)) {\n+            if sources::any_active() || /* ~ changed by cargo-mutants ~ */ serve_burst(&mut token, |guard, waker| sources::run_one_guarded(guard, &mut turn, waker)) {\n                 continue;\n             }\n             if sources::open() && spin_for_work(&mut token) {\n                 continue;\n             }\n             // With nothing to do, and once: the worker moves to its place,\n             // if the first worker has settled the places by now.\n             if !placed {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Pool::serve",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3159
+        },
+        "start": {
+          "column": 5,
+          "line": 3130
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3138:38: replace && with || in Pool::serve",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 3138
+      },
+      "start": {
+        "column": 38,
+        "line": 3138
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in Pool::serve\n@@ -3133,17 +3133,17 @@\n     fn serve(&self, me: usize) -> ! {\n         let mut placed = false;\n         let mut turn = sources::Turn::default();\n         let mut token = crate::registry::ReaderToken::new(&self.readers[me]);\n         loop {\n             if sources::any_active() && serve_burst(&mut token, |guard, waker| sources::run_one_guarded(guard, &mut turn, waker)) {\n                 continue;\n             }\n-            if sources::open() && spin_for_work(&mut token) {\n+            if sources::open() || /* ~ changed by cargo-mutants ~ */ spin_for_work(&mut token) {\n                 continue;\n             }\n             // With nothing to do, and once: the worker moves to its place,\n             // if the first worker has settled the places by now.\n             if !placed {\n                 placed = places::take(me);\n             }\n             // Park unless work shows (crate::park's handshake); woken, pay\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Pool::serve",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3159
+        },
+        "start": {
+          "column": 5,
+          "line": 3130
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3141:32: replace && with || in Pool::serve",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 34,
+        "line": 3141
+      },
+      "start": {
+        "column": 32,
+        "line": 3141
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace serve_burst -> bool with true\n@@ -3165,36 +3165,17 @@\n /// re-enter with a fresh epoch (a full burst ran or a deferred waker was\n /// dispatched), and `false` once no work remained. Shared by `Pool::serve` and\n /// `sme2_serve`.\n #[inline(always)]\n fn serve_burst(\n     token: &mut crate::registry::ReaderToken<'_>,\n     mut run_one: impl FnMut(&crate::registry::ReaderGuard<'_>, &mut Option<core::task::Waker>) -> bool,\n ) -> bool {\n-    let mut pending_waker = None;\n-    let mut again = false;\n-    {\n-        let guard = token.enter();\n-        for _ in 0..sources::READER_BURST {\n-            if run_one(&guard, &mut pending_waker) {\n-                again = true;\n-                if pending_waker.is_some() {\n-                    break;\n-                }\n-            } else {\n-                again = false;\n-                break;\n-            }\n-        }\n-    }\n-    if let Some(waker) = pending_waker {\n-        wake_pending(waker);\n-    }\n-    again\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /// Out-of-line user waker dispatch so cold waker/abort landing pads stay out\n /// of `Pool::serve`'s hot instruction cache lines.\n #[cold]\n #[inline(never)]\n fn wake_pending(waker: core::task::Waker) {\n     crate::waker::wake_or_abort(waker);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "serve_burst",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3193
+        },
+        "start": {
+          "column": 1,
+          "line": 3162
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3173:5: replace serve_burst -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3192
+      },
+      "start": {
+        "column": 5,
+        "line": 3173
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace serve_burst -> bool with false\n@@ -3165,36 +3165,17 @@\n /// re-enter with a fresh epoch (a full burst ran or a deferred waker was\n /// dispatched), and `false` once no work remained. Shared by `Pool::serve` and\n /// `sme2_serve`.\n #[inline(always)]\n fn serve_burst(\n     token: &mut crate::registry::ReaderToken<'_>,\n     mut run_one: impl FnMut(&crate::registry::ReaderGuard<'_>, &mut Option<core::task::Waker>) -> bool,\n ) -> bool {\n-    let mut pending_waker = None;\n-    let mut again = false;\n-    {\n-        let guard = token.enter();\n-        for _ in 0..sources::READER_BURST {\n-            if run_one(&guard, &mut pending_waker) {\n-                again = true;\n-                if pending_waker.is_some() {\n-                    break;\n-                }\n-            } else {\n-                again = false;\n-                break;\n-            }\n-        }\n-    }\n-    if let Some(waker) = pending_waker {\n-        wake_pending(waker);\n-    }\n-    again\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// Out-of-line user waker dispatch so cold waker/abort landing pads stay out\n /// of `Pool::serve`'s hot instruction cache lines.\n #[cold]\n #[inline(never)]\n fn wake_pending(waker: core::task::Waker) {\n     crate::waker::wake_or_abort(waker);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "serve_burst",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3193
+        },
+        "start": {
+          "column": 1,
+          "line": 3162
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3173:5: replace serve_burst -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3192
+      },
+      "start": {
+        "column": 5,
+        "line": 3173
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace wake_pending with ()\n@@ -3192,17 +3192,17 @@\n     again\n }\n \n /// Out-of-line user waker dispatch so cold waker/abort landing pads stay out\n /// of `Pool::serve`'s hot instruction cache lines.\n #[cold]\n #[inline(never)]\n fn wake_pending(waker: core::task::Waker) {\n-    crate::waker::wake_or_abort(waker);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(token: &mut crate::registry::ReaderToken<'_>, placed: bool) -> bool {\n     (sources::any_active() && {\n         let guard = token.enter();\n         sources::visible(&guard, false)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "wake_pending",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3201
+        },
+        "start": {
+          "column": 1,
+          "line": 3195
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3200:5: replace wake_pending with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 3200
+      },
+      "start": {
+        "column": 5,
+        "line": 3200
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace stays -> bool with true\n@@ -3198,20 +3198,17 @@\n #[inline(never)]\n fn wake_pending(waker: core::task::Waker) {\n     crate::waker::wake_or_abort(waker);\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(token: &mut crate::registry::ReaderToken<'_>, placed: bool) -> bool {\n-    (sources::any_active() && {\n-        let guard = token.enter();\n-        sources::visible(&guard, false)\n-    }) || (!placed && places::settled())\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3210
+        },
+        "start": {
+          "column": 1,
+          "line": 3203
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3206:5: replace stays -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 3209
+      },
+      "start": {
+        "column": 5,
+        "line": 3206
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace stays -> bool with false\n@@ -3198,20 +3198,17 @@\n #[inline(never)]\n fn wake_pending(waker: core::task::Waker) {\n     crate::waker::wake_or_abort(waker);\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(token: &mut crate::registry::ReaderToken<'_>, placed: bool) -> bool {\n-    (sources::any_active() && {\n-        let guard = token.enter();\n-        sources::visible(&guard, false)\n-    }) || (!placed && places::settled())\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3210
+        },
+        "start": {
+          "column": 1,
+          "line": 3203
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3206:5: replace stays -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 3209
+      },
+      "start": {
+        "column": 5,
+        "line": 3206
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace || with && in stays\n@@ -3201,17 +3201,17 @@\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(token: &mut crate::registry::ReaderToken<'_>, placed: bool) -> bool {\n     (sources::any_active() && {\n         let guard = token.enter();\n         sources::visible(&guard, false)\n-    }) || (!placed && places::settled())\n+    }) && /* ~ changed by cargo-mutants ~ */ (!placed && places::settled())\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3210
+        },
+        "start": {
+          "column": 1,
+          "line": 3203
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3209:8: replace || with && in stays",
+    "package": "blake3-servil",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3209
+      },
+      "start": {
+        "column": 8,
+        "line": 3209
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in stays\n@@ -3198,17 +3198,17 @@\n #[inline(never)]\n fn wake_pending(waker: core::task::Waker) {\n     crate::waker::wake_or_abort(waker);\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(token: &mut crate::registry::ReaderToken<'_>, placed: bool) -> bool {\n-    (sources::any_active() && {\n+    (sources::any_active() || /* ~ changed by cargo-mutants ~ */ {\n         let guard = token.enter();\n         sources::visible(&guard, false)\n     }) || (!placed && places::settled())\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3210
+        },
+        "start": {
+          "column": 1,
+          "line": 3203
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3206:28: replace && with || in stays",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 3206
+      },
+      "start": {
+        "column": 28,
+        "line": 3206
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in stays\n@@ -3201,17 +3201,17 @@\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(token: &mut crate::registry::ReaderToken<'_>, placed: bool) -> bool {\n     (sources::any_active() && {\n         let guard = token.enter();\n         sources::visible(&guard, false)\n-    }) || (!placed && places::settled())\n+    }) || (!placed || /* ~ changed by cargo-mutants ~ */ places::settled())\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3210
+        },
+        "start": {
+          "column": 1,
+          "line": 3203
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3209:20: replace && with || in stays",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 3209
+      },
+      "start": {
+        "column": 20,
+        "line": 3209
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in stays\n@@ -3201,17 +3201,17 @@\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(token: &mut crate::registry::ReaderToken<'_>, placed: bool) -> bool {\n     (sources::any_active() && {\n         let guard = token.enter();\n         sources::visible(&guard, false)\n-    }) || (!placed && places::settled())\n+    }) || ( /* ~ changed by cargo-mutants ~ */placed && places::settled())\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3210
+        },
+        "start": {
+          "column": 1,
+          "line": 3203
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:3209:12: delete ! in stays",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 3209
+      },
+      "start": {
+        "column": 12,
+        "line": 3209
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace spin_for_work -> bool with true\n@@ -3215,31 +3215,17 @@\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n \n /// Look for work for up to SPIN: whether some appeared. Holds one\n /// [`crate::registry::ReaderGuard`] across each 16-poll batch, dropping it\n /// between batches so any concurrent `unregister_and_drain` completes promptly.\n fn spin_for_work(token: &mut crate::registry::ReaderToken<'_>) -> bool {\n-    let started = now();\n-    loop {\n-        let guard = token.enter();\n-        for _ in 0..16 {\n-            noted(Noted::Poll);\n-            if sources::visible(&guard, false) {\n-                return true;\n-            }\n-            core::hint::spin_loop();\n-        }\n-        drop(guard);\n-        if spin_ends(now() - started, sources::open) {\n-            return false;\n-        }\n-    }\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /// Whether a worker's look for work ends, `elapsed` into it: once SPIN has\n /// passed, or when no stream is open (asked only before SPIN, as the\n /// look's own code would). Its own function so a test holds it\n /// whatever the machine's load (#202: with `>=` turned to `<`, a worker\n /// preempted past SPIN before its first look spun while the stream stayed\n /// open, and the mutant timed out only under load).\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "spin_for_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3238
+        },
+        "start": {
+          "column": 1,
+          "line": 3219
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3223:5: replace spin_for_work -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 3237
+      },
+      "start": {
+        "column": 5,
+        "line": 3223
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace spin_for_work -> bool with false\n@@ -3215,31 +3215,17 @@\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n \n /// Look for work for up to SPIN: whether some appeared. Holds one\n /// [`crate::registry::ReaderGuard`] across each 16-poll batch, dropping it\n /// between batches so any concurrent `unregister_and_drain` completes promptly.\n fn spin_for_work(token: &mut crate::registry::ReaderToken<'_>) -> bool {\n-    let started = now();\n-    loop {\n-        let guard = token.enter();\n-        for _ in 0..16 {\n-            noted(Noted::Poll);\n-            if sources::visible(&guard, false) {\n-                return true;\n-            }\n-            core::hint::spin_loop();\n-        }\n-        drop(guard);\n-        if spin_ends(now() - started, sources::open) {\n-            return false;\n-        }\n-    }\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// Whether a worker's look for work ends, `elapsed` into it: once SPIN has\n /// passed, or when no stream is open (asked only before SPIN, as the\n /// look's own code would). Its own function so a test holds it\n /// whatever the machine's load (#202: with `>=` turned to `<`, a worker\n /// preempted past SPIN before its first look spun while the stream stayed\n /// open, and the mutant timed out only under load).\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "spin_for_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3238
+        },
+        "start": {
+          "column": 1,
+          "line": 3219
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3223:5: replace spin_for_work -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 3237
+      },
+      "start": {
+        "column": 5,
+        "line": 3223
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::any_active -> bool with true\n@@ -3280,17 +3280,17 @@\n \n     #[cfg(not(shuttle))]\n     static REGISTRY: EpochRegistry<Source, SLOTS> = EpochRegistry::new();\n     #[cfg(shuttle)]\n     static REGISTRY: std::sync::LazyLock<EpochRegistry<Source, SLOTS>> = std::sync::LazyLock::new(EpochRegistry::new);\n \n     #[inline(always)]\n     pub(crate) fn any_active() -> bool {\n-        REGISTRY.any_active()\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn live_readers() -> Option<&'static [crate::registry::ReaderCell]> {\n         if FORKED.load(Ordering::Relaxed) { None } else { POOL.get().map(|pool| &pool.readers[..]) }\n     }\n \n     /// Wait for every active pool worker to finish its current [`ReaderGuard`]\n     /// epoch before freeing a previously unregistered `Source`.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::any_active",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3289
+        },
+        "start": {
+          "column": 5,
+          "line": 3286
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3288:9: replace sources::any_active -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 3288
+      },
+      "start": {
+        "column": 9,
+        "line": 3288
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::any_active -> bool with false\n@@ -3280,17 +3280,17 @@\n \n     #[cfg(not(shuttle))]\n     static REGISTRY: EpochRegistry<Source, SLOTS> = EpochRegistry::new();\n     #[cfg(shuttle)]\n     static REGISTRY: std::sync::LazyLock<EpochRegistry<Source, SLOTS>> = std::sync::LazyLock::new(EpochRegistry::new);\n \n     #[inline(always)]\n     pub(crate) fn any_active() -> bool {\n-        REGISTRY.any_active()\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn live_readers() -> Option<&'static [crate::registry::ReaderCell]> {\n         if FORKED.load(Ordering::Relaxed) { None } else { POOL.get().map(|pool| &pool.readers[..]) }\n     }\n \n     /// Wait for every active pool worker to finish its current [`ReaderGuard`]\n     /// epoch before freeing a previously unregistered `Source`.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::any_active",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3289
+        },
+        "start": {
+          "column": 5,
+          "line": 3286
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3288:9: replace sources::any_active -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 30,
+        "line": 3288
+      },
+      "start": {
+        "column": 9,
+        "line": 3288
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::live_readers -> Option<&'static[crate::registry::ReaderCell]> with None\n@@ -3284,17 +3284,17 @@\n     static REGISTRY: std::sync::LazyLock<EpochRegistry<Source, SLOTS>> = std::sync::LazyLock::new(EpochRegistry::new);\n \n     #[inline(always)]\n     pub(crate) fn any_active() -> bool {\n         REGISTRY.any_active()\n     }\n \n     fn live_readers() -> Option<&'static [crate::registry::ReaderCell]> {\n-        if FORKED.load(Ordering::Relaxed) { None } else { POOL.get().map(|pool| &pool.readers[..]) }\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Wait for every active pool worker to finish its current [`ReaderGuard`]\n     /// epoch before freeing a previously unregistered `Source`.\n     pub(crate) fn drain_readers() {\n         if let Some(readers) = live_readers() {\n             EpochRegistry::<Source, SLOTS>::drain_readers(readers);\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::live_readers",
+      "return_type": "-> Option<&'static[crate::registry::ReaderCell]>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3293
+        },
+        "start": {
+          "column": 5,
+          "line": 3291
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3292:9: replace sources::live_readers -> Option<&'static[crate::registry::ReaderCell]> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 101,
+        "line": 3292
+      },
+      "start": {
+        "column": 9,
+        "line": 3292
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::live_readers -> Option<&'static[crate::registry::ReaderCell]> with Some(Vec::leak(Vec::new()))\n@@ -3284,17 +3284,17 @@\n     static REGISTRY: std::sync::LazyLock<EpochRegistry<Source, SLOTS>> = std::sync::LazyLock::new(EpochRegistry::new);\n \n     #[inline(always)]\n     pub(crate) fn any_active() -> bool {\n         REGISTRY.any_active()\n     }\n \n     fn live_readers() -> Option<&'static [crate::registry::ReaderCell]> {\n-        if FORKED.load(Ordering::Relaxed) { None } else { POOL.get().map(|pool| &pool.readers[..]) }\n+        Some(Vec::leak(Vec::new())) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Wait for every active pool worker to finish its current [`ReaderGuard`]\n     /// epoch before freeing a previously unregistered `Source`.\n     pub(crate) fn drain_readers() {\n         if let Some(readers) = live_readers() {\n             EpochRegistry::<Source, SLOTS>::drain_readers(readers);\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::live_readers",
+      "return_type": "-> Option<&'static[crate::registry::ReaderCell]>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3293
+        },
+        "start": {
+          "column": 5,
+          "line": 3291
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3292:9: replace sources::live_readers -> Option<&'static[crate::registry::ReaderCell]> with Some(Vec::leak(Vec::new()))",
+    "package": "blake3-servil",
+    "replacement": "Some(Vec::leak(Vec::new()))",
+    "span": {
+      "end": {
+        "column": 101,
+        "line": 3292
+      },
+      "start": {
+        "column": 9,
+        "line": 3292
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::live_readers -> Option<&'static[crate::registry::ReaderCell]> with Some(Vec::leak(vec![Default::default()]))\n@@ -3284,17 +3284,17 @@\n     static REGISTRY: std::sync::LazyLock<EpochRegistry<Source, SLOTS>> = std::sync::LazyLock::new(EpochRegistry::new);\n \n     #[inline(always)]\n     pub(crate) fn any_active() -> bool {\n         REGISTRY.any_active()\n     }\n \n     fn live_readers() -> Option<&'static [crate::registry::ReaderCell]> {\n-        if FORKED.load(Ordering::Relaxed) { None } else { POOL.get().map(|pool| &pool.readers[..]) }\n+        Some(Vec::leak(vec![Default::default()])) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Wait for every active pool worker to finish its current [`ReaderGuard`]\n     /// epoch before freeing a previously unregistered `Source`.\n     pub(crate) fn drain_readers() {\n         if let Some(readers) = live_readers() {\n             EpochRegistry::<Source, SLOTS>::drain_readers(readers);\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::live_readers",
+      "return_type": "-> Option<&'static[crate::registry::ReaderCell]>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3293
+        },
+        "start": {
+          "column": 5,
+          "line": 3291
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3292:9: replace sources::live_readers -> Option<&'static[crate::registry::ReaderCell]> with Some(Vec::leak(vec![Default::default()]))",
+    "package": "blake3-servil",
+    "replacement": "Some(Vec::leak(vec![Default::default()]))",
+    "span": {
+      "end": {
+        "column": 101,
+        "line": 3292
+      },
+      "start": {
+        "column": 9,
+        "line": 3292
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::drain_readers with ()\n@@ -3290,19 +3290,17 @@\n \n     fn live_readers() -> Option<&'static [crate::registry::ReaderCell]> {\n         if FORKED.load(Ordering::Relaxed) { None } else { POOL.get().map(|pool| &pool.readers[..]) }\n     }\n \n     /// Wait for every active pool worker to finish its current [`ReaderGuard`]\n     /// epoch before freeing a previously unregistered `Source`.\n     pub(crate) fn drain_readers() {\n-        if let Some(readers) = live_readers() {\n-            EpochRegistry::<Source, SLOTS>::drain_readers(readers);\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Bit 63 of an action's `arg`: whether the SME2 thread runs it under\n     /// the SME2 turn (a subtree of 16 KiB or more) rather than on NEON.\n     pub(crate) const ACTION_SME2: u64 = 1 << 63;\n \n     /// A pipeline's item in a source: atomic fields read before the claimer's\n     /// CAS (`take`) and rewritten only after `claimed` has passed it\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::drain_readers",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3301
+        },
+        "start": {
+          "column": 5,
+          "line": 3295
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3298:9: replace sources::drain_readers with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3300
+      },
+      "start": {
+        "column": 9,
+        "line": 3298
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::unregister_and_drain with ()\n@@ -3410,17 +3410,17 @@\n         }\n \n         /// Unregister `slot` and wait until every pool worker that could have\n         /// observed `slot` before `DRAINING` was published has dropped that\n         /// [`ReaderGuard`], so the caller can soundly free the `Source` and its\n         /// enclosing `PipeStorage`. In a forked child (`FORKED`), no pool\n         /// worker threads exist, so draining skips the wait.\n         pub(crate) fn unregister_and_drain(slot: usize) {\n-            REGISTRY.unregister_and_drain(slot, live_readers());\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Publish one or more pipeline actions in order with one Release\n         /// store and one fence, then wake parked workers only where awake\n         /// workers fall short of the items waiting.\n         ///\n         /// # Safety\n         ///\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::unregister_and_drain",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3419
+        },
+        "start": {
+          "column": 9,
+          "line": 3412
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3418:13: replace sources::Source::unregister_and_drain with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 3418
+      },
+      "start": {
+        "column": 13,
+        "line": 3418
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::run_waiting_action -> bool with true\n@@ -3463,28 +3463,17 @@\n             let c = self.claimed.load(Ordering::Acquire);\n             let p = self.finish.published.load(Ordering::Acquire);\n             c < p && self.actions[c % self.actions.len()].near.load(Ordering::Relaxed)\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n-            match self.take() {\n-                Some(Item::Action { run, context, arg }) => {\n-                    // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.\n-                    let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };\n-                    if let Some(waker) = unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) } {\n-                        crate::waker::wake_or_abort(waker);\n-                    }\n-                    true\n-                }\n-                Some(_) => unreachable!(\"an action source carries actions\"),\n-                None => false,\n-            }\n+            true /* ~ changed by cargo-mutants ~ */\n         }\n \n         #[cfg(test)]\n         pub(super) fn own_for_test(&self) {\n             self.finish.own();\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3483
+        },
+        "start": {
+          "column": 9,
+          "line": 3468
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3471:13: replace sources::Source::run_waiting_action -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3482
+      },
+      "start": {
+        "column": 13,
+        "line": 3471
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::run_waiting_action -> bool with false\n@@ -3463,28 +3463,17 @@\n             let c = self.claimed.load(Ordering::Acquire);\n             let p = self.finish.published.load(Ordering::Acquire);\n             c < p && self.actions[c % self.actions.len()].near.load(Ordering::Relaxed)\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n-            match self.take() {\n-                Some(Item::Action { run, context, arg }) => {\n-                    // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.\n-                    let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };\n-                    if let Some(waker) = unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) } {\n-                        crate::waker::wake_or_abort(waker);\n-                    }\n-                    true\n-                }\n-                Some(_) => unreachable!(\"an action source carries actions\"),\n-                None => false,\n-            }\n+            false /* ~ changed by cargo-mutants ~ */\n         }\n \n         #[cfg(test)]\n         pub(super) fn own_for_test(&self) {\n             self.finish.own();\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3483
+        },
+        "start": {
+          "column": 9,
+          "line": 3468
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3471:13: replace sources::Source::run_waiting_action -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3482
+      },
+      "start": {
+        "column": 13,
+        "line": 3471
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace & with | in sources::Source::run_waiting_action\n@@ -3467,17 +3467,17 @@\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n             match self.take() {\n                 Some(Item::Action { run, context, arg }) => {\n                     // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.\n                     let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };\n-                    if let Some(waker) = unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) } {\n+                    if let Some(waker) = unsafe { f(context as *const (), arg | /* ~ changed by cargo-mutants ~ */ !ACTION_SME2, pool_platform()) } {\n                         crate::waker::wake_or_abort(waker);\n                     }\n                     true\n                 }\n                 Some(_) => unreachable!(\"an action source carries actions\"),\n                 None => false,\n             }\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3483
+        },
+        "start": {
+          "column": 9,
+          "line": 3468
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3475:79: replace & with | in sources::Source::run_waiting_action",
+    "package": "blake3-servil",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 80,
+        "line": 3475
+      },
+      "start": {
+        "column": 79,
+        "line": 3475
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sources::Source::run_waiting_action\n@@ -3467,17 +3467,17 @@\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n             match self.take() {\n                 Some(Item::Action { run, context, arg }) => {\n                     // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.\n                     let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };\n-                    if let Some(waker) = unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) } {\n+                    if let Some(waker) = unsafe { f(context as *const (), arg &  /* ~ changed by cargo-mutants ~ */ACTION_SME2, pool_platform()) } {\n                         crate::waker::wake_or_abort(waker);\n                     }\n                     true\n                 }\n                 Some(_) => unreachable!(\"an action source carries actions\"),\n                 None => false,\n             }\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3483
+        },
+        "start": {
+          "column": 9,
+          "line": 3468
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:3475:81: delete ! in sources::Source::run_waiting_action",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 82,
+        "line": 3475
+      },
+      "start": {
+        "column": 81,
+        "line": 3475
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Held::get -> &Source with Box::leak(Box::new(Default::default()))\n@@ -3631,17 +3631,17 @@\n             #[cfg(test)]\n             LIVE_JOB_SOURCES.fetch_add(1, Ordering::Relaxed);\n             Held(source)\n         }\n \n         #[inline(always)]\n         fn get(&self) -> &Source {\n             // Sound: `self.0` stays pinned and live until `Held::drop`.\n-            unsafe { &*self.0 }\n+            Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n         }\n     }\n \n     impl Drop for Held {\n         /// Wait for any worker that could still hold a pre-unregister scan\n         /// pointer to this thread's job source, then free it cleanly.\n         fn drop(&mut self) {\n             drain_readers();\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Held::get",
+      "return_type": "-> &Source",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3640
+        },
+        "start": {
+          "column": 9,
+          "line": 3636
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3639:13: replace sources::Held::get -> &Source with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 3639
+      },
+      "start": {
+        "column": 13,
+        "line": 3639
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::<impl Drop for Held>::drop with ()\n@@ -3639,23 +3639,17 @@\n             unsafe { &*self.0 }\n         }\n     }\n \n     impl Drop for Held {\n         /// Wait for any worker that could still hold a pre-unregister scan\n         /// pointer to this thread's job source, then free it cleanly.\n         fn drop(&mut self) {\n-            drain_readers();\n-            // Sound: every `run_job` call unregistered this source before\n-            // returning, and `drain_readers()` ensured no worker still holds a\n-            // pointer to it.\n-            unsafe { drop(Box::from_raw(self.0)) };\n-            #[cfg(test)]\n-            LIVE_JOB_SOURCES.fetch_sub(1, Ordering::Relaxed);\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n     }\n \n     std::thread_local! {\n         static MINE: std::cell::OnceCell<Held> = const { std::cell::OnceCell::new() };\n     }\n \n     /// Whether this thread's job-source TLS key is still live (false only\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::<impl Drop for Held>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3654
+        },
+        "start": {
+          "column": 9,
+          "line": 3644
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3647:13: replace sources::<impl Drop for Held>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 62,
+        "line": 3653
+      },
+      "start": {
+        "column": 13,
+        "line": 3647
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::try_prepare_job_source with ()\n@@ -3661,19 +3661,17 @@\n     /// Whether this thread's job-source TLS key is still live (false only\n     /// during thread-local destruction after `MINE` has been destroyed).\n     pub(crate) fn job_source_available() -> bool {\n         MINE.try_with(|_| ()).is_ok()\n     }\n \n     /// Pre-allocate this thread's one-shot job source (no-op during TLS teardown).\n     pub(crate) fn try_prepare_job_source() {\n-        let _ = MINE.try_with(|mine| {\n-            let _ = mine.get_or_init(Held::new);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Borrow this thread's one-shot job source for the duration of `f`.\n     pub(crate) fn with_job_source<R>(f: impl FnOnce(&Source) -> R) -> R {\n         MINE.with(|mine| f(mine.get_or_init(Held::new).get()))\n     }\n \n     pub(crate) fn opened() {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::try_prepare_job_source",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3672
+        },
+        "start": {
+          "column": 5,
+          "line": 3667
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3669:9: replace sources::try_prepare_job_source with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 3671
+      },
+      "start": {
+        "column": 9,
+        "line": 3669
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::with_job_source -> R with Default::default()\n@@ -3668,17 +3668,17 @@\n     pub(crate) fn try_prepare_job_source() {\n         let _ = MINE.try_with(|mine| {\n             let _ = mine.get_or_init(Held::new);\n         });\n     }\n \n     /// Borrow this thread's one-shot job source for the duration of `f`.\n     pub(crate) fn with_job_source<R>(f: impl FnOnce(&Source) -> R) -> R {\n-        MINE.with(|mine| f(mine.get_or_init(Held::new).get()))\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     pub(crate) fn opened() {\n         OPEN.fetch_add(1, Ordering::SeqCst);\n     }\n \n     pub(crate) fn closed() {\n         OPEN.fetch_sub(1, Ordering::SeqCst);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::with_job_source",
+      "return_type": "-> R",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3677
+        },
+        "start": {
+          "column": 5,
+          "line": 3674
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3676:9: replace sources::with_job_source -> R with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 63,
+        "line": 3676
+      },
+      "start": {
+        "column": 9,
+        "line": 3676
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find -> bool with true\n@@ -3685,17 +3685,17 @@\n     }\n \n     pub(crate) fn open() -> bool {\n         OPEN.load(Ordering::Relaxed) > 0\n     }\n \n     /// The first registered source for which `f` says yes.\n     fn find(guard: &ReaderGuard<'_>, f: impl FnMut(&Source) -> bool) -> bool {\n-        find_from(guard, 0, f).is_some()\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     #[inline(always)]\n     fn find_from(guard: &ReaderGuard<'_>, start: usize, f: impl FnMut(&Source) -> bool) -> Option<usize> {\n         REGISTRY.find_from(guard, start, f)\n     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3694
+        },
+        "start": {
+          "column": 5,
+          "line": 3691
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3693:9: replace sources::find -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 3693
+      },
+      "start": {
+        "column": 9,
+        "line": 3693
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find -> bool with false\n@@ -3685,17 +3685,17 @@\n     }\n \n     pub(crate) fn open() -> bool {\n         OPEN.load(Ordering::Relaxed) > 0\n     }\n \n     /// The first registered source for which `f` says yes.\n     fn find(guard: &ReaderGuard<'_>, f: impl FnMut(&Source) -> bool) -> bool {\n-        find_from(guard, 0, f).is_some()\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     #[inline(always)]\n     fn find_from(guard: &ReaderGuard<'_>, start: usize, f: impl FnMut(&Source) -> bool) -> Option<usize> {\n         REGISTRY.find_from(guard, start, f)\n     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3694
+        },
+        "start": {
+          "column": 5,
+          "line": 3691
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3693:9: replace sources::find -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 3693
+      },
+      "start": {
+        "column": 9,
+        "line": 3693
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find_from -> Option<usize> with None\n@@ -3692,17 +3692,17 @@\n     fn find(guard: &ReaderGuard<'_>, f: impl FnMut(&Source) -> bool) -> bool {\n         find_from(guard, 0, f).is_some()\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     #[inline(always)]\n     fn find_from(guard: &ReaderGuard<'_>, start: usize, f: impl FnMut(&Source) -> bool) -> Option<usize> {\n-        REGISTRY.find_from(guard, start, f)\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Whether any registered source has work waiting (`streams`: any stream or\n     /// pipeline). Requires a live [`ReaderGuard`] so the type system enforces\n     /// read-side protection.\n     #[inline]\n     pub(crate) fn visible(guard: &ReaderGuard<'_>, streams: bool) -> bool {\n         find(guard, |source| (!streams || source.carries_tasks()) && source.waiting() > 0)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3701
+        },
+        "start": {
+          "column": 5,
+          "line": 3696
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3700:9: replace sources::find_from -> Option<usize> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 3700
+      },
+      "start": {
+        "column": 9,
+        "line": 3700
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find_from -> Option<usize> with Some(0)\n@@ -3692,17 +3692,17 @@\n     fn find(guard: &ReaderGuard<'_>, f: impl FnMut(&Source) -> bool) -> bool {\n         find_from(guard, 0, f).is_some()\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     #[inline(always)]\n     fn find_from(guard: &ReaderGuard<'_>, start: usize, f: impl FnMut(&Source) -> bool) -> Option<usize> {\n-        REGISTRY.find_from(guard, start, f)\n+        Some(0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Whether any registered source has work waiting (`streams`: any stream or\n     /// pipeline). Requires a live [`ReaderGuard`] so the type system enforces\n     /// read-side protection.\n     #[inline]\n     pub(crate) fn visible(guard: &ReaderGuard<'_>, streams: bool) -> bool {\n         find(guard, |source| (!streams || source.carries_tasks()) && source.waiting() > 0)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3701
+        },
+        "start": {
+          "column": 5,
+          "line": 3696
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3700:9: replace sources::find_from -> Option<usize> with Some(0)",
+    "package": "blake3-servil",
+    "replacement": "Some(0)",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 3700
+      },
+      "start": {
+        "column": 9,
+        "line": 3700
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find_from -> Option<usize> with Some(1)\n@@ -3692,17 +3692,17 @@\n     fn find(guard: &ReaderGuard<'_>, f: impl FnMut(&Source) -> bool) -> bool {\n         find_from(guard, 0, f).is_some()\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     #[inline(always)]\n     fn find_from(guard: &ReaderGuard<'_>, start: usize, f: impl FnMut(&Source) -> bool) -> Option<usize> {\n-        REGISTRY.find_from(guard, start, f)\n+        Some(1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Whether any registered source has work waiting (`streams`: any stream or\n     /// pipeline). Requires a live [`ReaderGuard`] so the type system enforces\n     /// read-side protection.\n     #[inline]\n     pub(crate) fn visible(guard: &ReaderGuard<'_>, streams: bool) -> bool {\n         find(guard, |source| (!streams || source.carries_tasks()) && source.waiting() > 0)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3701
+        },
+        "start": {
+          "column": 5,
+          "line": 3696
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3700:9: replace sources::find_from -> Option<usize> with Some(1)",
+    "package": "blake3-servil",
+    "replacement": "Some(1)",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 3700
+      },
+      "start": {
+        "column": 9,
+        "line": 3700
+      }
+    }
+  }
+]

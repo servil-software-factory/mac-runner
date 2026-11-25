@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace != with == in <impl Drop for Room>::drop
+@@ -653,17 +653,17 @@
+             return;
+         }
+         // Slow path (room becoming free, `ROOM_CLOSING_BIT` stamped, or CAS
+         // contention): reserve a temporary hold BEFORE subtracting `unused` so
+         // `Pipeline::drop` cannot observe `refs[i] == 0` and free `storage`
+         // while `waker.notify_after_seqcst()` is still using it.
+         storage.holders.fetch_add(1, Ordering::Relaxed);
+         let prev = r.fetch_sub(unused, Ordering::SeqCst);
+-        if prev & ROOM_CLOSING_BIT != 0 {
++        if prev & ROOM_CLOSING_BIT == /* ~ changed by cargo-mutants ~ */ 0 {
+             assert_eq!(prev & !ROOM_CLOSING_BIT, unused, "surviving room ref count");
+             r.store(0, Ordering::Release);
+             PipeStorage::release_n(self.storage, 2);
+         } else {
+             if prev == unused {
+                 storage.waker.notify_after_seqcst();
+             }
+             PipeStorage::release(self.storage);

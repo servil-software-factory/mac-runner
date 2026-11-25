@@ -1,0 +1,57 @@
+--- src/pipeline.rs
++++ replace PipeStorage::run_group -> Option<Waker> with None
+@@ -737,53 +737,17 @@
+             KIND_GROUP => storage.run_group(a, platform),
+             KIND_ROOM_PIECE => storage.run_room_piece(a, platform),
+             KIND_MULTI => storage.run_multi_piece(a, b, platform),
+             _ => unreachable!(),
+         }
+     }
+ 
+     fn run_group(&self, group_idx: usize, platform: Platform) -> Option<Waker> {
+-        let group = &self.groups[group_idx];
+-        // Sound: the owner wrote this group's task, custom_tree, epoch and
+-        // metas before it dispatched the group (publish_open), keeping every
+-        // member's input and output valid until `completed_epoch` reaches this
+-        // epoch.
+-        let task = unsafe { &*group.task.get() };
+-        let tree = unsafe { (*group.custom_tree.get()).as_ref() }.unwrap_or(&self.tree);
+-        let count = task.members;
+-        let epoch = unsafe { *group.epoch.get() };
+-        unsafe { task.run_members(tree, platform) };
+-        // Sound: `metas` was written before dispatch and stays read-only until `completed_epoch` publishes.
+-        let metas = unsafe { &*group.metas.get() };
+-
+-        // Coalesce consecutive members sharing a Room into a single atomic subtraction.
+-        let mut cur_room = NONE;
+-        let mut cur_n = 0usize;
+-        for meta in &metas[..count] {
+-            if meta.room != NONE {
+-                if meta.room == cur_room {
+-                    cur_n += 1;
+-                } else {
+-                    if cur_room != NONE {
+-                        self.rooms.release_n(cur_room, cur_n);
+-                    }
+-                    cur_room = meta.room;
+-                    cur_n = 1;
+-                }
+-            }
+-        }
+-        if cur_room != NONE {
+-            self.rooms.release_n(cur_room, cur_n);
+-        }
+-
+-        // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!
+-        finished(self, || {
+-            group.completed_epoch.swap(epoch, Ordering::SeqCst);
+-        })
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) -> Option<Waker> {
+         let pnode = &self.pieces[pnode_idx];
+         // Sound: the owner wrote the piece's fields before dispatching it
+         // (commit_multi), and touches the node again only once `done` is set,
+         // which is this function's last store.
+         let slot = unsafe { *pnode.slot.get() } as usize;

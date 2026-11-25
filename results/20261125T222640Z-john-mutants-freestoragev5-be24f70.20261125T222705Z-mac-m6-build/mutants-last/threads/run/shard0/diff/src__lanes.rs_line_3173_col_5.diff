@@ -1,0 +1,40 @@
+--- src/lanes.rs
++++ replace serve_burst -> bool with true
+@@ -3165,36 +3165,17 @@
+ /// re-enter with a fresh epoch (a full burst ran or a deferred waker was
+ /// dispatched), and `false` once no work remained. Shared by `Pool::serve` and
+ /// `sme2_serve`.
+ #[inline(always)]
+ fn serve_burst(
+     token: &mut crate::registry::ReaderToken<'_>,
+     mut run_one: impl FnMut(&crate::registry::ReaderGuard<'_>, &mut Option<core::task::Waker>) -> bool,
+ ) -> bool {
+-    let mut pending_waker = None;
+-    let mut again = false;
+-    {
+-        let guard = token.enter();
+-        for _ in 0..sources::READER_BURST {
+-            if run_one(&guard, &mut pending_waker) {
+-                again = true;
+-                if pending_waker.is_some() {
+-                    break;
+-                }
+-            } else {
+-                again = false;
+-                break;
+-            }
+-        }
+-    }
+-    if let Some(waker) = pending_waker {
+-        wake_pending(waker);
+-    }
+-    again
++    true /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Out-of-line user waker dispatch so cold waker/abort landing pads stay out
+ /// of `Pool::serve`'s hot instruction cache lines.
+ #[cold]
+ #[inline(never)]
+ fn wake_pending(waker: core::task::Waker) {
+     crate::waker::wake_or_abort(waker);

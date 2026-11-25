@@ -1,0 +1,24 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::storage -> &PipeStorage with Box::leak(Box::new(Default::default()))
+@@ -1384,20 +1384,17 @@
+     }
+ }
+ 
+ impl<T, B, P> Pipeline<T, B, P> {
+     #[inline(always)]
+     fn storage(&self) -> &PipeStorage {
+         // Sound: this Pipeline holds a reference in `PipeStorage::holders`
+         // until `Pipeline::drop` releases it after draining workers.
+-        let st = unsafe { &*self.storage };
+-        #[cfg(shuttle)]
+-        assert!(!st.retired.load(Ordering::Acquire), "PipeStorage used after release");
+-        st
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn validate_limits(limits: Limits) -> usize {
+         assert!(limits.messages > 0, "Pipeline Limits.messages must be at least 1");
+         let m = limits.messages;
+         // Each limit alone first: their sum, next, could wrap round to a
+         // small one (`rooms: usize::MAX` passed the check below so).
+         assert!(m < 1 << 29 && limits.rooms < 1 << 29, "Pipeline Limits beyond what an action can name");
