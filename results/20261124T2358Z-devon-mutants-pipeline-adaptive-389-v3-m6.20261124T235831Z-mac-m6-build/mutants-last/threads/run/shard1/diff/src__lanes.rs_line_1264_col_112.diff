@@ -1,0 +1,21 @@
+--- src/lanes.rs
++++ replace < with <= in places::cost
+@@ -1256,17 +1256,17 @@
+     /// pipelined batches (`cycle * in_flight * 4 < job`); else the job's own
+     /// time.
+     fn cost(job: std::time::Duration, cycle: Option<std::time::Duration>, in_flight: usize) -> u64 {
+         let nanos = |d: std::time::Duration| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX);
+         let job_ns = nanos(job);
+         match cycle {
+             Some(cycle) => {
+                 let cycle_ns = nanos(cycle);
+-                let burst_drain = in_flight > 1 && cycle_ns.saturating_mul(in_flight as u64).saturating_mul(4) < job_ns;
++                let burst_drain = in_flight > 1 && cycle_ns.saturating_mul(in_flight as u64).saturating_mul(4) <= /* ~ changed by cargo-mutants ~ */ job_ns;
+                 if !burst_drain && cycle_ns < CLOSE.saturating_mul(job_ns) { cycle_ns } else { job_ns }
+             }
+             None => job_ns,
+         }
+     }
+ 
+     /// Jobs follow closely when one ends within this many times its own
+     /// time of the last one's end: 64. (At 8, a 43 MB collection written
