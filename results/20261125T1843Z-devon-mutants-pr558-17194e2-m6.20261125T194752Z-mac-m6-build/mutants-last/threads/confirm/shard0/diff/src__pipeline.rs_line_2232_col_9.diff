@@ -1,0 +1,50 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::publish_open with ()
+@@ -2224,46 +2224,17 @@
+         match self.slots[front as usize].kind {
+             SlotKind::WaitSingle { group, .. } | SlotKind::WaitBatch { group, .. } | SlotKind::WaitAborted { group, .. } => group == open_g,
+             _ => false,
+         }
+     }
+ 
+     #[inline(never)]
+     fn publish_open(&mut self) {
+-        let Some((group_idx, epoch)) = self.open_group.take() else { return };
+-        let count = self.local_count;
+-        let storage = self.shared().storage;
+-        let group = &storage.groups[group_idx as usize];
+-        // Sound: the group is not in flight (acquire_free_group gave it), so
+-        // its task, metas, custom tree flag and epoch are the owner's to write
+-        // before the dispatch below.
+-        unsafe {
+-            let task = &mut *group.task.get();
+-            task.batch = self.local_batch;
+-            task.len = self.local_bytes;
+-            task.members = count;
+-            task.member[..count].copy_from_slice(&self.local_members[..count]);
+-            let metas = &mut *group.metas.get();
+-            for i in 0..count {
+-                metas[i] = GroupMemberMeta { room: self.local_rooms[i] };
+-            }
+-            if self.has_custom_mode {
+-                if let Some(tree) = self.cold.local_custom_tree.take() {
+-                    *storage.group_trees[group_idx as usize].get() = Some(tree);
+-                    *group.has_custom_tree.get() = true;
+-                } else if *group.has_custom_tree.get() {
+-                    *group.has_custom_tree.get() = false;
+-                }
+-            }
+-            *group.epoch.get() = epoch;
+-        }
+-        self.assigned_group_epoch[group_idx as usize] = epoch;
+-        let arg = pack_arg(KIND_GROUP, group_idx, 0, false);
+-        self.dispatch_one(arg);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline]
+     fn dispatch_one(&mut self, arg: u64) {
+         let ctx = self.shared as *const Shared as *const ();
+         match self.source_slot {
+             // Sound: this Pipeline exclusively publishes to its own action
+             // source, and `ctx` stays valid for the lifetime of `Shared`.

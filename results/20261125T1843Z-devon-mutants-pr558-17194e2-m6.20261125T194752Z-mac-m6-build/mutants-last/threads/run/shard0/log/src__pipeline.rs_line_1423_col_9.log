@@ -1,0 +1,242 @@
+
+*** src/pipeline.rs:1423:9: replace Pipeline<T, B, P>::create -> Self with Default::default()
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::create -> Self with Default::default()
+@@ -1415,168 +1415,17 @@
+ impl<T, B, P> Pipeline<T, B, P> {
+     #[inline(always)]
+     fn shared(&self) -> &Shared {
+         // Sound: `shared` is this Pipeline's Shared (create), never freed.
+         unsafe { &*self.shared }
+     }
+ 
+     fn create(mode: Mode, limits: Limits) -> Self {
+-        crate::lanes::require();
+-        prepare_thread();
+-        assert!(limits.messages > 0, "Pipeline Limits.messages must be at least 1");
+-        let tree = TreeHasher::new(mode);
+-        let m = limits.messages;
+-        // Each limit alone first: their sum, next, could wrap round to a
+-        // small one (`rooms: usize::MAX` passed the check below so).
+-        assert!(m < 1 << 29 && limits.rooms < 1 << 29, "Pipeline Limits beyond what an action can name");
+-        let p_cap = limits.rooms + m + 1;
+-        let g_cap = m.clamp(4, 256);
+-        let actions_cap = m * MAX_SLOT_PIECES + p_cap + g_cap;
+-        // An action names a slot, a piece or a group in 29 bits (pack_arg).
+-        assert!(m < 1 << 29 && p_cap < 1 << 29, "Pipeline Limits beyond what an action can name");
+-        // Reserve a non-wrapping identity before acquiring storage or a source
+-        // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot
+-        // wrap back to previously issued IDs.
+-        let id = loop {
+-            let cur = NEXT_PIPELINE_ID.load(Ordering::Relaxed);
+-            assert!(cur < u64::MAX, "Pipeline ID counter exhausted");
+-            if NEXT_PIPELINE_ID.compare_exchange(cur, cur + 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+-                break cur;
+-            }
+-        };
+-
+-        let storage = PipeStorage::acquire(actions_cap, m, limits.rooms, g_cap);
+-        // Sound: this Pipeline now holds the storage alone
+-        // (PipeStorage::acquire), and these cells are its holder's.
+-        let next_loan_epoch = unsafe { *storage.saved_loan_epoch.get() };
+-        let next_group_epoch = unsafe { *storage.saved_group_epoch.get() };
+-        // A pool of one thread has no worker to take a published action,
+-        // and only this crate's block_on would run it: an outside executor
+-        // waited for ever. Unregistered, every action runs where it is
+-        // dispatched, as when no slot is free.
+-        let source_slot = if crate::lanes::pool_has_workers() { storage.source.register() } else { None };
+-        crate::lanes::sources::opened();
+-
+-        let mut local_free_rooms = Ring::new(limits.rooms.max(1));
+-        for i in 0..limits.rooms {
+-            local_free_rooms.push_back(u32::try_from(i).expect("room index fits u32"));
+-        }
+-        // The storage's `Shared`, where it has one of this size: every task
+-        // of the Pipeline before is done (its drop saw to that), and only
+-        // the mode is this Pipeline's own.
+-        // Sound: as the saved epochs above. A Shared the storage keeps was the
+-        // Pipeline before's, whose every task is published done (its drop saw
+-        // to that), so reading its lengths races with no worker.
+-        let held = unsafe { *storage.shared.get() };
+-        let shared: *mut Shared = if !held.is_null() && unsafe { (&(*held).hashes).len() >= m } {
+-            // A storage has one count of rooms, so pieces enough too.
+-            assert!(unsafe { (&(*held).pieces).len() } >= p_cap, "a Shared of as many messages has as many pieces");
+-            // Sound: nor does writing its mode. A worker may still be
+-            // returning from that last task with its `&Shared`: the mode is
+-            // in a cell, and the worker's borrow of it ended before it
+-            // published the task (Shared::tree).
+-            unsafe {
+-                *(*held).tree.get() = tree;
+-            }
+-            held
+-        } else {
+-            // One it replaces stays allocated: a worker of an earlier
+-            // Pipeline may still be reading it.
+-            let new = Box::into_raw(Box::new(Shared {
+-                tree: UnsafeCell::new(tree.clone()),
+-                storage,
+-                hashes: (0..m).map(|_| UnsafeCell::new([0u8; OUT_LEN])).collect(),
+-                cvs: (0..m).map(|_| UnsafeCell::new(PieceValues { whole: [Cv::unset(); MAX_SLOT_PIECES], last: None })).collect(),
+-                slot_done: (0..m).map(|_| OwnLine(AtomicBool::new(true))).collect(),
+-                tasks_left: (0..m).map(|_| OwnLine(AtomicUsize::new(0))).collect(),
+-                multi: (0..m)
+-                    .map(|_| {
+-                        UnsafeCell::new(MultiDesc {
+-                            input: core::ptr::null(),
+-                            total_len: 0,
+-                            piece_level: level_of(TASK_LEN as u64),
+-                            pieces: 0,
+-                            batch: None,
+-                            digests: core::ptr::null_mut(),
+-                            loan_epoch: 0,
+-                        })
+-                    })
+-                    .collect(),
+-                pieces: (0..p_cap)
+-                    .map(|_| PieceNode {
+-                        slot: UnsafeCell::new(0),
+-                        room: UnsafeCell::new(0),
+-                        offset: UnsafeCell::new(0),
+-                        len: UnsafeCell::new(0),
+-                        index: UnsafeCell::new(0),
+-                        out: OwnLine(UnsafeCell::new(RoomValue::Whole(Cv::unset()))),
+-                        done: OwnLine(AtomicBool::new(true)),
+-                        next: UnsafeCell::new(NONE),
+-                    })
+-                    .collect(),
+-                cold: Box::new(SharedCold {
+-                    slot_trees: (0..m).map(|_| UnsafeCell::new(tree.clone())).collect(),
+-                    slot_custom: (0..m).map(|_| UnsafeCell::new(false)).collect(),
+-                }),
+-            }));
+-            // Sound: as above; the Shared is kept for the next Pipeline.
+-            unsafe { *storage.shared.get() = new };
+-            new
+-        };
+-
+-        let mut free_slots = Ring::new(m);
+-        for i in 0..m {
+-            free_slots.push_back(u32::try_from(i).expect("slot index fits u32"));
+-        }
+-        let mut free_pieces = Ring::new(p_cap);
+-        for i in 0..p_cap {
+-            free_pieces.push_back(u32::try_from(i).expect("piece index fits u32"));
+-        }
+-
+-        Pipeline {
+-            id,
+-            limits,
+-            group_count: g_cap,
+-            source_slot,
+-            shared,
+-            slots: (0..m).map(|_| SlotMeta { tag: None, kind: SlotKind::Free }).collect(),
+-            room_streams: vec![RoomStream::EMPTY; m].into_boxed_slice(),
+-            owners: RawSlots::new(m),
+-            batches: RawSlots::new(m),
+-            free_slots,
+-            open_messages: 0,
+-            end_queue: Ring::new(m),
+-            events: Ring::new(m),
+-            local_free_rooms,
+-            room_cursor: 0,
+-            free_pieces,
+-            piece_slots: Vec::with_capacity(if limits.rooms == 0 { 0 } else { m }),
+-            group_cursor: 0,
+-            open_group: None,
+-            local_count: 0,
+-            local_bytes: 0,
+-            local_batch: None,
+-            has_custom_mode: false,
+-            has_batch_plans: false,
+-            local_members: Box::new([Member { input: core::ptr::null(), len: 0, out: core::ptr::null_mut() }; MEMBERS]),
+-            local_rooms: Box::new([NONE; MEMBERS]),
+-            next_loan_epoch,
+-            next_group_epoch,
+-            assigned_group_epoch: vec![0u64; g_cap].into_boxed_slice(),
+-            seen_group_epoch: vec![0u64; g_cap].into_boxed_slice(),
+-            cold: Box::new(PipelineCold {
+-                batch_plans: vec![None; m].into_boxed_slice(),
+-                batches_in_flight: 0,
+-                slot_modes: vec![SlotMode::Default; m].into_boxed_slice(),
+-                local_group_mode: SlotMode::Default,
+-                local_custom_tree: None,
+-                action_buf: [0; MAX_SLOT_PIECES],
+-            }),
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Wait for a free message slot and open a [`Message`] in this pipeline's
+     /// default [`Mode`].
+     ///
+     /// # Panics
+     ///
+     /// If no slot is free and waiting cannot free one: as many messages
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-0/Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43793]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43801]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43772]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil` (build script) generated 1 warning
+   Compiling blake3-servil v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/threads)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `Pipeline<T, B, P>: Default` is not satisfied
+    --> src/pipeline.rs:1423:9
+     |
+1423 |         Default::default() /* ~ changed by cargo-mutants ~ */
+     |         ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `Default` is not implemented for `Pipeline<T, B, P>`
+    --> src/pipeline.rs:1121:1
+     |
+1121 | pub struct Pipeline<T, B = (), P = Batch<'static>> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `pipeline::Pipeline<T, B, P>: Default` is not satisfied
+    --> src/pipeline.rs:1423:9
+     |
+1423 |         Default::default() /* ~ changed by cargo-mutants ~ */
+     |         ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `Default` is not implemented for `pipeline::Pipeline<T, B, P>`
+    --> src/pipeline.rs:1121:1
+     |
+1121 | pub struct Pipeline<T, B = (), P = Batch<'static>> {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

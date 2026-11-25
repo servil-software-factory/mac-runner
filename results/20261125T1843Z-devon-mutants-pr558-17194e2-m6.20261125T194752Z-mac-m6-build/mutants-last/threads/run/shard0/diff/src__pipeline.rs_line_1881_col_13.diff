@@ -1,0 +1,29 @@
+--- src/pipeline.rs
++++ delete match arm SlotKind::OpenShort{room:room_idx, offset, len} in Pipeline<T, B, P>::end
+@@ -1873,25 +1873,17 @@
+     #[inline(always)]
+     pub fn end(&mut self, message: Message) {
+         assert_eq!(message.pipeline_id, self.id, "Message belongs to a different Pipeline");
+         let s32 = message.slot;
+         let (_, s) = message.take();
+         self.open_messages -= 1;
+ 
+         match self.slots[s].kind {
+-            SlotKind::OpenShort { room: room_idx, offset, len } => {
+-                // Sound: the offset is within the room (commit checked
+-                // `written` against what was left).
+-                let ptr = unsafe { self.shared().storage.rooms.room_ptr(room_idx as usize).add(offset as usize) };
+-                let out = self.shared().hashes[s].get() as *mut u8;
+-                let (group, epoch) = self.push_member(s, ptr, len as usize, out, room_idx, None);
+-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group, epoch };
+-                self.end_queue.push_back(s32);
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             _ => self.end_slow(s),
+         }
+     }
+ 
+     #[inline(never)]
+     fn end_slow(&mut self, s: usize) {
+         match self.slots[s].kind {
+             SlotKind::OpenEmpty => {
