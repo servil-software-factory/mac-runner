@@ -1,0 +1,30 @@
+--- src/pipeline.rs
++++ delete match arm SlotKind::WaitBatch{..} in Pipeline<T, B, P>::try_reap_one
+@@ -2317,26 +2317,17 @@
+                 let owner = if has_owner { Some(unsafe { (*self.owners.slot(s)).assume_init_read() }) } else { None };
+                 Event::Hashed { tag, hash, owner }
+             }
+             SlotKind::WaitRoomMulti => {
+                 // Sound: as above.
+                 let hash = Hash::from_bytes(unsafe { *self.shared().hashes[s].get() });
+                 Event::Hashed { tag, hash, owner: None }
+             }
+-            SlotKind::WaitBatch { .. } => {
+-                if let Some(plan) = self.batch_plans[s].take() {
+-                    self.batches_in_flight -= 1;
+-                    plan.done();
+-                }
+-                // Sound: a WaitBatch slot holds its batch and digests (batch
+-                // wrote them), read out here once.
+-                let (batch, digests) = unsafe { (*self.batches.slot(s)).assume_init_read() };
+-                Event::Batch { tag, batch, digests }
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             _ => unreachable!(),
+         };
+         self.free_slots.push_back(u32::try_from(s).expect("slot fits u32"));
+         return Some(event);
+     }
+ 
+     fn reap(&mut self) {
+         while self.events.len() < self.limits.messages {
