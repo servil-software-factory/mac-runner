@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::alloc_piece_node -> u32 with 1\n@@ -1794,42 +1794,17 @@\n         }\n         rs.tail_piece = pnode;\n \n         let arg = pack_arg(KIND_ROOM_PIECE, pnode, 0, written >= SME2_MIN_LEN);\n         self.dispatch_one(arg);\n     }\n \n     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {\n-        if let Some(p) = self.free_pieces.pop_front() {\n-            return p;\n-        }\n-        loop {\n-            self.drain_slot_pieces(current_slot);\n-            self.reap();\n-            if self.free_pieces.is_empty() {\n-                // Every node may be another open message's: its later\n-                // pieces finished while a worker was on an earlier one,\n-                // and only a commit to it or its end would fold them.\n-                // Scan only slots that currently hold pieces (`<= piece_cap`),\n-                // not all `self.slots.len()` slots (#465). `keep_last = true`\n-                // keeps at least one piece per slot, so `piece_slots` stays fixed.\n-                for idx in 0..self.piece_slots.len() {\n-                    let other = self.piece_slots[idx] as usize;\n-                    self.drain_pieces(other, true);\n-                }\n-            }\n-            if let Some(p) = self.free_pieces.pop_front() {\n-                return p;\n-            }\n-            crate::lanes::require();\n-            if !self.shared().storage.source.run_waiting_action() {\n-                core::hint::spin_loop();\n-            }\n-        }\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Finish `message` and queue its [`Event::Hashed`] in end order.\n     ///\n     /// # Panics\n     ///\n     /// If `message` is another Pipeline's.\n     #[inline(always)]\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::alloc_piece_node",
+      "return_type": "-> u32",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1828
+        },
+        "start": {
+          "column": 5,
+          "line": 1801
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1802:9: replace Pipeline<T, B, P>::alloc_piece_node -> u32 with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1827
+      },
+      "start": {
+        "column": 9,
+        "line": 1802
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::drain_pieces with ()\n@@ -2227,71 +2227,17 @@\n         self.drain_pieces(s, false);\n     }\n \n     /// Fold slot `s`'s finished pieces, in order, up to the first still\n     /// being hashed. `keep_last` leaves the newest piece: an open\n     /// message may end with it, and the last piece folds as the root.\n     fn drain_pieces(&mut self, s: usize, keep_last: bool) {\n         // Sound: as `shared()`.\n-        let shared = unsafe { &*self.shared };\n-        let tree = shared.slot_tree(s);\n-        let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n-        let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n-\n-        loop {\n-            let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.pieces[head as usize].done.load(Ordering::Acquire) {\n-                return;\n-            }\n-            // Sound: the piece is done (checked above), so its `next` and\n-            // `out` are the owner's again.\n-            let next = unsafe { *shared.pieces[head as usize].next.get() };\n-            let out = unsafe { *shared.pieces[head as usize].out.0.get() };\n-            self.free_pieces.push_back(head);\n-\n-            let rs = &mut self.room_streams[s];\n-            rs.head_piece = next;\n-            if next == NONE {\n-                rs.tail_piece = NONE;\n-                let pos = rs.piece_slot_pos;\n-                rs.piece_slot_pos = NONE;\n-                let idx = pos as usize;\n-                self.piece_slots.swap_remove(idx);\n-                if let Some(&moved) = self.piece_slots.get(idx) {\n-                    self.room_streams[moved as usize].piece_slot_pos = pos;\n-                }\n-            }\n-            let rs = &mut self.room_streams[s];\n-            if aborted {\n-                continue;\n-            }\n-\n-            // Sound: the caller alone writes a room message's stack\n-            // (workers write a slice message's slots, never both for one slot).\n-            let cvs = unsafe { &mut (*shared.cvs[s].get()).whole };\n-            if ended && rs.merged_pieces + 1 == rs.len.div_ceil(ROOM_LEN as u64) {\n-                let root = match out {\n-                    RoomValue::First([left, right]) => tree.root_hash(&left, &right.into(), rs.len),\n-                    RoomValue::Whole(cv) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, cv.into(), rs.len),\n-                    RoomValue::Last(last) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, last, rs.len),\n-                };\n-                // Sound: the room message is done, with no other writer.\n-                unsafe { *shared.hashes[s].get() = *root.as_bytes() };\n-                shared.slot_done[s].store(true, Ordering::Relaxed);\n-                return;\n-            }\n-            let cv = match out {\n-                RoomValue::First([left, right]) => tree.parent_cv(&left, &right),\n-                RoomValue::Whole(cv) => cv,\n-                RoomValue::Last(_) => panic!(\"a short room is the last piece\"),\n-            };\n-            push_piece(tree, cvs, &mut rs.stack_len, rs.merged_pieces, cv);\n-            rs.merged_pieces += 1;\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn try_reap_one(&mut self) -> Option<Event<T, B, P>> {\n         let &front = self.end_queue.front()?;\n         let s = front as usize;\n \n         let ready = match self.slots[s].kind {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2290
+        },
+        "start": {
+          "column": 5,
+          "line": 2230
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2235:9: replace Pipeline<T, B, P>::drain_pieces with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2289
+      },
+      "start": {
+        "column": 9,
+        "line": 2235
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Future for RoomFut<'_, T, B, P>>::poll -> Poll<Room> with Poll::new()\n@@ -2589,33 +2589,17 @@\n     }\n }\n \n impl<T, B, P> Future for RoomFut<'_, T, B, P> {\n     type Output = Room;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Room> {\n-        assert!(!self.done, \"Pipeline::room future polled after completion\");\n-        if let Some(r) = self.pipe.pop_cached_room() {\n-            self.registered = false;\n-            self.done = true;\n-            return Poll::Ready(r);\n-        }\n-        match self.pipe.poll_room(cx) {\n-            Poll::Ready(r) => {\n-                self.registered = false;\n-                self.done = true;\n-                Poll::Ready(r)\n-            }\n-            Poll::Pending => {\n-                self.registered = true;\n-                Poll::Pending\n-            }\n-        }\n+        Poll::new() /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct ReadyFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     registered: bool,\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Future for RoomFut<'_, T, B, P>>::poll",
+      "return_type": "-> Poll<Room>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2614
+        },
+        "start": {
+          "column": 5,
+          "line": 2595
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2597:9: replace <impl Future for RoomFut<'_, T, B, P>>::poll -> Poll<Room> with Poll::new()",
+    "package": "blake3-servil",
+    "replacement": "Poll::new()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2613
+      },
+      "start": {
+        "column": 9,
+        "line": 2597
+      }
+    }
+  }
+]
