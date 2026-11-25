@@ -1,0 +1,24 @@
+--- src/lanes.rs
++++ replace places::affinity_with -> std::io::Result<Set> with Ok(Default::default())
+@@ -1453,20 +1453,17 @@
+         status.lines().find_map(|line| line.strip_prefix("Cpus_allowed_list:")).and_then(cpu_set)
+     }
+ 
+     /// Read this thread's CPU mask, falling back to `read_status` (Linux
+     /// `/proc/thread-self/status`) when `read_affinity` (`sched_getaffinity`)
+     /// is refused by a sandbox (#465).
+     #[cfg(target_os = "linux")]
+     fn affinity_with(read_affinity: impl FnOnce() -> std::io::Result<Set>, read_status: impl FnOnce() -> std::io::Result<String>) -> std::io::Result<Set> {
+-        match read_affinity() {
+-            Ok(set) => Ok(set),
+-            Err(err) => read_status().ok().as_deref().and_then(allowed_from_status).ok_or(err),
+-        }
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Read this thread's CPU mask directly via Linux `sched_getaffinity`.
+     #[cfg(target_os = "linux")]
+     fn affinity_syscall() -> std::io::Result<Set> {
+         let mut allowed: Set = [0; CPUS / 64];
+         // Sound: the set is `len` writable bytes.
+         if unsafe { sched_getaffinity(0, core::mem::size_of::<Set>(), &mut allowed) } != 0 {
