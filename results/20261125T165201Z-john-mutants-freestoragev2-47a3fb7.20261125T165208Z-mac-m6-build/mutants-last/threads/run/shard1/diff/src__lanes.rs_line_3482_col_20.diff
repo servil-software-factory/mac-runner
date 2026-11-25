@@ -1,0 +1,21 @@
+--- src/lanes.rs
++++ replace &= with |= in sources::find_from
+@@ -3474,17 +3474,17 @@
+     }
+ 
+     /// The slot of the first registered source for which `f` says yes, in
+     /// a walk of the slots from `start` up and then of those below it.
+     fn find_from(reader: Option<&AtomicUsize>, start: usize, mut f: impl FnMut(&Source) -> bool) -> Option<usize> {
+         let mut active = ACTIVE.load(Ordering::SeqCst).rotate_right(u32::from(start.to_le_bytes()[0]));
+         while active != 0 {
+             let slot = (active.trailing_zeros() as usize + start) % SLOTS;
+-            active &= active - 1;
++            active |= /* ~ changed by cargo-mutants ~ */ active - 1;
+             let _guard = reader.map(|cell| ReaderGuard::enter(cell, slot));
+             let ptr = REGISTERED[slot].load(Ordering::SeqCst);
+             // Sound: while `_guard` holds `slot`, `Source::unregister_and_drain`
+             // cannot return until `_guard` drops (and `Source::unregister` is
+             // used only for never-freed `job_source`s; `reader == None` runs
+             // only in single-threaded unit tests).
+             if is_live(ptr) && f(unsafe { &*ptr }) {
+                 return Some(slot);

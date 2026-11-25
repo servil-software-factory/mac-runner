@@ -1,0 +1,28 @@
+--- src/pipeline.rs
++++ delete match arm SlotKind::WaitSingle{has_owner, ..} | SlotKind::WaitMulti{has_owner} in Pipeline<T, B, P>::try_reap_one
+@@ -2217,24 +2217,17 @@
+             return None;
+         }
+ 
+         self.end_queue.pop_front();
+         let tag = self.slots[s].tag.take().expect("ended slot holds its tag");
+         let kind = core::mem::replace(&mut self.slots[s].kind, SlotKind::Free);
+         let event = match kind {
+             SlotKind::WaitAborted { .. } => Event::Aborted { tag, owner: None },
+-            SlotKind::WaitSingle { has_owner, .. } | SlotKind::WaitMulti { has_owner } => {
+-                // Sound: the slot's work is done (`ready`), so its hash has no
+-                // writer; `has_owner` says the slot holds an owner, read out
+-                // here once (the slot is then Free).
+-                let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });
+-                let owner = if has_owner { Some(unsafe { (*self.owners.slot(s)).assume_init_read() }) } else { None };
+-                Event::Hashed { tag, hash, owner }
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             SlotKind::WaitRoomMulti => {
+                 // Sound: as above.
+                 let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });
+                 Event::Hashed { tag, hash, owner: None }
+             }
+             SlotKind::WaitBatch { .. } => {
+                 if let Some(plan) = self.batch_plans[s].take() {
+                     self.batches_in_flight -= 1;

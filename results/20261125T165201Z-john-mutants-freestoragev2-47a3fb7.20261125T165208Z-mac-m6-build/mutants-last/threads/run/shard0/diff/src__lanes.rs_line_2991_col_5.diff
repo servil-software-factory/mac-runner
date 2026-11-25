@@ -1,0 +1,35 @@
+--- src/lanes.rs
++++ replace spin_for_work -> bool with true
+@@ -2983,31 +2983,17 @@
+ /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;
+ /// a cap on how many workers spin did not help.
+ const SPIN: std::time::Duration = std::time::Duration::from_micros(5);
+ 
+ /// Look for work for up to SPIN: whether some appeared. Holds one
+ /// `ANY_SLOT` reader guard across each 16-poll batch so spinning workers
+ /// do not execute 16× `SeqCst` barriers per loop.
+ fn spin_for_work(reader: Option<&AtomicUsize>) -> bool {
+-    let started = now();
+-    loop {
+-        let _guard = reader.map(sources::ReaderGuard::enter_any);
+-        for _ in 0..16 {
+-            noted(Noted::Poll);
+-            if sources::visible_guarded(false) {
+-                return true;
+-            }
+-            core::hint::spin_loop();
+-        }
+-        drop(_guard);
+-        if spin_ends(now() - started, sources::open) {
+-            return false;
+-        }
+-    }
++    true /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Whether a worker's look for work ends, `elapsed` into it: once SPIN has
+ /// passed, or when no stream is open (asked only before SPIN, as the
+ /// look's own code would). Its own function so a test holds it
+ /// whatever the machine's load (#202: with `>=` turned to `<`, a worker
+ /// preempted past SPIN before its first look spun while the stream stayed
+ /// open, and the mutant timed out only under load).

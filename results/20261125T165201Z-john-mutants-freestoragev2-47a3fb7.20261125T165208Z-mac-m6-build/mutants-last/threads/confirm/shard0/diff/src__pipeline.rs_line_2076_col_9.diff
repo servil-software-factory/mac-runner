@@ -1,0 +1,33 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::dispatch_one with ()
+@@ -2068,29 +2068,17 @@
+         }
+         self.assigned_group_epoch[group_idx as usize] = epoch;
+         let arg = pack_arg(KIND_GROUP, group_idx, 0, false);
+         self.dispatch_one(arg);
+     }
+ 
+     #[inline]
+     fn dispatch_one(&mut self, arg: u64) {
+-        let ctx = self.storage as *const PipeStorage as *const ();
+-        match self.source_slot {
+-            // Sound: this Pipeline exclusively publishes to its own action
+-            // source, and `ctx` stays valid until `Source::unregister_and_drain`
+-            // finishes draining every worker on this slot.
+-            Some(_) => unsafe { self.storage().source.publish_actions(PipeStorage::run_action, ctx, core::slice::from_ref(&arg), false) },
+-            // Sound: `ctx` is this Pipeline's PipeStorage, as run_action requires.
+-            None => {
+-                if let Some(waker) = unsafe { PipeStorage::run_action(ctx, arg, pool_platform()) } {
+-                    crate::waker::wake_or_abort(waker);
+-                }
+-            }
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn dispatch_many(&mut self, count: usize, near: bool) {
+         let ctx = self.storage as *const PipeStorage as *const ();
+         match self.source_slot {
+             // Sound: as dispatch_one's.
+             Some(_) => unsafe { self.storage().source.publish_actions(PipeStorage::run_action, ctx, &self.action_buf[..count], near) },
+             None => {

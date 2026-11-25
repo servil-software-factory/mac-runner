@@ -1,0 +1,50 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::abort_slot with ()
+@@ -1769,46 +1769,17 @@
+     /// If `message` is another Pipeline's.
+     pub fn abort(&mut self, message: Message) {
+         assert_eq!(message.pipeline_id, self.id, "Message belongs to a different Pipeline");
+         let (_, s) = message.take();
+         self.abort_slot(s);
+     }
+ 
+     fn abort_slot(&mut self, s: usize) {
+-        self.open_messages -= 1;
+-
+-        match self.slots[s].kind {
+-            SlotKind::OpenEmpty => {
+-                self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };
+-            }
+-            SlotKind::OpenShort { room: room_idx, .. } => {
+-                // The record first, whole, and the wake last: the wake runs
+-                // the program's waker in the middle of this call. (A waker
+-                // that panics ends the process, in the waker slot's wake.
+-                // Until it did, such a panic, caught, could leave a slot
+-                // that still said it held the room's credit, to be given
+-                // back a second time.)
+-                self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };
+-                self.end_queue.push_back(u32::try_from(s).expect("slot fits u32"));
+-                if self.storage().rooms.release_n(room_idx, 1) {
+-                    self.storage().waker.notify_after_seqcst();
+-                }
+-                return;
+-            }
+-            SlotKind::OpenShortDispatched { group, epoch } => {
+-                self.slots[s].kind = SlotKind::WaitAborted { group, epoch };
+-            }
+-            SlotKind::OpenRooms { .. } => {
+-                self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };
+-                self.drain_slot_pieces(s);
+-            }
+-            _ => unreachable!(),
+-        }
+-        self.end_queue.push_back(u32::try_from(s).expect("slot fits u32"));
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Hash `bytes` in place on loan, returning a [`Lent`] guard.
+     ///
+     /// # Safety
+     /// The returned [`Lent`] guard must be dropped and never leaked
+     /// (`core::mem::forget`, `Box::leak`, a reference cycle, or a leaked
+     /// task holding it).

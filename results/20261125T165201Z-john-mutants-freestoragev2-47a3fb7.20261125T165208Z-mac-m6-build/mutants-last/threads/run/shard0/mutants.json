@@ -1,0 +1,1058 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace initialize -> usize with 0\n@@ -959,86 +959,17 @@\n     readers: Box<[OwnLine<AtomicUsize>]>,\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n-    #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n-    let threads = requested.map_or_else(\n-        || {\n-            let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = &node {\n-                return available.min(node.cpu_count());\n-            }\n-            available\n-        },\n-        |n| n.get(),\n-    );\n-    // With one thread, none beside the caller: no SME2 thread either.\n-    let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n-    let workers = Pool::workers_of(threads);\n-    let readers = (0..workers + usize::from(sme2)).map(|_| OwnLine(AtomicUsize::new(sources::NO_SLOT))).collect();\n-    let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(workers, crate::park::FANOUT), readers };\n-    if threads > 1 {\n-        // Before any thread starts: a child forked from here on has none\n-        // of them, and its multithreaded calls stop at `pool` (FORKED).\n-        // Before the pool is published, too: a refusal here is a panic\n-        // that leaves no pool behind.\n-        unsafe extern \"C\" {\n-            fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n-        }\n-        // Sound: the handler only stores to an atomic, which a forked\n-        // child may do.\n-        assert_eq!(unsafe { pthread_atfork(None, None, Some(mark_forked)) }, 0, \"registering the fork handler\");\n-    }\n-    assert!(POOL.set(pool).is_ok(), \"initialize_multithreaded creates the pool once\");\n-    if threads == 1 {\n-        return threads;\n-    }\n-    // The pool is published and says it has workers: from here a thread\n-    // that cannot start ends the process (`started`). A panic would leave\n-    // that pool to a caller that caught it, and to every other thread.\n-    if sme2 {\n-        #[cfg(target_os = \"linux\")]\n-        let sme2_node = node.clone();\n-        started(std::thread::Builder::new().name(\"blake3-sme2\".into()).spawn(move || {\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = sme2_node {\n-                node.bind();\n-            }\n-            sme2_main();\n-        }));\n-    }\n-    started(std::thread::Builder::new().name(\"blake3-worker-1\".into()).spawn(move || {\n-        // Bind before starting the other workers, which inherit this\n-        // mask. The caller keeps its own affinity.\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(node) = node {\n-            node.bind();\n-        }\n-        // The pool is published, and calls may already wait on these\n-        // workers: a failure from here on ends the process, as a\n-        // worker's own panic does (worker_main).\n-        let _starting = AbortOnUnwind;\n-        for worker in 2..threads {\n-            started(std::thread::Builder::new().name(format!(\"blake3-worker-{worker}\")).spawn(move || worker_main(worker - 1)));\n-        }\n-        // After the workers have started, never before: reading the\n-        // machine's caches takes 2 ms on a machine of 96 CPUs, and\n-        // b3sum has hashed a 16 MiB file by then (read first, it made\n-        // b3sum's warm 16 MiB 1.4 ms slower on two servers).\n-        places::settle(Pool::workers_of(threads));\n-        worker_main(0)\n-    }));\n-    threads\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The workers' places. On a machine with more than one last-level cache\n /// (several sockets, or an EPYC's cores in groups of six or eight), each\n /// worker runs on the CPUs under one of them, its place, and a waker wakes\n /// the workers of its own place first, then its socket's, then any.\n ///\n /// Work a caller has just written is in its cache, and a worker under\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1037
+        },
+        "start": {
+          "column": 1,
+          "line": 962
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:967:5: replace initialize -> usize with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 1036
+      },
+      "start": {
+        "column": 5,
+        "line": 967
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace initialize -> usize with 1\n@@ -959,86 +959,17 @@\n     readers: Box<[OwnLine<AtomicUsize>]>,\n }\n \n /// Create the pool and start its threads in the background, once per\n /// process ([`crate::initialize_multithreaded`] is its public face): this\n /// thread starts the SME2 thread and worker 1, and worker 1 the other\n /// workers. Calls run on the workers started so far.\n pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {\n-    #[cfg(target_os = \"linux\")]\n-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };\n-    let threads = requested.map_or_else(\n-        || {\n-            let available = std::thread::available_parallelism().map_or(1, |n| n.get());\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = &node {\n-                return available.min(node.cpu_count());\n-            }\n-            available\n-        },\n-        |n| n.get(),\n-    );\n-    // With one thread, none beside the caller: no SME2 thread either.\n-    let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n-    let workers = Pool::workers_of(threads);\n-    let readers = (0..workers + usize::from(sme2)).map(|_| OwnLine(AtomicUsize::new(sources::NO_SLOT))).collect();\n-    let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(workers, crate::park::FANOUT), readers };\n-    if threads > 1 {\n-        // Before any thread starts: a child forked from here on has none\n-        // of them, and its multithreaded calls stop at `pool` (FORKED).\n-        // Before the pool is published, too: a refusal here is a panic\n-        // that leaves no pool behind.\n-        unsafe extern \"C\" {\n-            fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n-        }\n-        // Sound: the handler only stores to an atomic, which a forked\n-        // child may do.\n-        assert_eq!(unsafe { pthread_atfork(None, None, Some(mark_forked)) }, 0, \"registering the fork handler\");\n-    }\n-    assert!(POOL.set(pool).is_ok(), \"initialize_multithreaded creates the pool once\");\n-    if threads == 1 {\n-        return threads;\n-    }\n-    // The pool is published and says it has workers: from here a thread\n-    // that cannot start ends the process (`started`). A panic would leave\n-    // that pool to a caller that caught it, and to every other thread.\n-    if sme2 {\n-        #[cfg(target_os = \"linux\")]\n-        let sme2_node = node.clone();\n-        started(std::thread::Builder::new().name(\"blake3-sme2\".into()).spawn(move || {\n-            #[cfg(target_os = \"linux\")]\n-            if let Some(node) = sme2_node {\n-                node.bind();\n-            }\n-            sme2_main();\n-        }));\n-    }\n-    started(std::thread::Builder::new().name(\"blake3-worker-1\".into()).spawn(move || {\n-        // Bind before starting the other workers, which inherit this\n-        // mask. The caller keeps its own affinity.\n-        #[cfg(target_os = \"linux\")]\n-        if let Some(node) = node {\n-            node.bind();\n-        }\n-        // The pool is published, and calls may already wait on these\n-        // workers: a failure from here on ends the process, as a\n-        // worker's own panic does (worker_main).\n-        let _starting = AbortOnUnwind;\n-        for worker in 2..threads {\n-            started(std::thread::Builder::new().name(format!(\"blake3-worker-{worker}\")).spawn(move || worker_main(worker - 1)));\n-        }\n-        // After the workers have started, never before: reading the\n-        // machine's caches takes 2 ms on a machine of 96 CPUs, and\n-        // b3sum has hashed a 16 MiB file by then (read first, it made\n-        // b3sum's warm 16 MiB 1.4 ms slower on two servers).\n-        places::settle(Pool::workers_of(threads));\n-        worker_main(0)\n-    }));\n-    threads\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// The workers' places. On a machine with more than one last-level cache\n /// (several sockets, or an EPYC's cores in groups of six or eight), each\n /// worker runs on the CPUs under one of them, its place, and a waker wakes\n /// the workers of its own place first, then its socket's, then any.\n ///\n /// Work a caller has just written is in its cache, and a worker under\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1037
+        },
+        "start": {
+          "column": 1,
+          "line": 962
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:967:5: replace initialize -> usize with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 1036
+      },
+      "start": {
+        "column": 5,
+        "line": 967
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace + with - in initialize\n@@ -975,17 +975,17 @@\n             }\n             available\n         },\n         |n| n.get(),\n     );\n     // With one thread, none beside the caller: no SME2 thread either.\n     let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));\n     let workers = Pool::workers_of(threads);\n-    let readers = (0..workers + usize::from(sme2)).map(|_| OwnLine(AtomicUsize::new(sources::NO_SLOT))).collect();\n+    let readers = (0..workers - /* ~ changed by cargo-mutants ~ */ usize::from(sme2)).map(|_| OwnLine(AtomicUsize::new(sources::NO_SLOT))).collect();\n     let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(workers, crate::park::FANOUT), readers };\n     if threads > 1 {\n         // Before any thread starts: a child forked from here on has none\n         // of them, and its multithreaded calls stop at `pool` (FORKED).\n         // Before the pool is published, too: a refusal here is a panic\n         // that leaves no pool behind.\n         unsafe extern \"C\" {\n             fn pthread_atfork(prepare: Option<extern \"C\" fn()>, parent: Option<extern \"C\" fn()>, child: Option<extern \"C\" fn()>) -> i32;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "initialize",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1037
+        },
+        "start": {
+          "column": 1,
+          "line": 962
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:983:31: replace + with - in initialize",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 983
+      },
+      "start": {
+        "column": 31,
+        "line": 983
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in Pool::serve\n@@ -2945,17 +2945,17 @@\n     fn serve(&self, me: usize) -> ! {\n         let mut placed = false;\n         let mut turn = sources::Turn::default();\n         let reader = &self.readers[me].0;\n         loop {\n             if sources::run_one(Some(reader), &mut turn) {\n                 continue;\n             }\n-            if sources::open() && spin_for_work(Some(reader)) {\n+            if sources::open() || /* ~ changed by cargo-mutants ~ */ spin_for_work(Some(reader)) {\n                 continue;\n             }\n             // With nothing to do, and once: the worker moves to its place,\n             // if the first worker has settled the places by now.\n             if !placed {\n                 placed = places::take(me);\n             }\n             // Park unless work shows (crate::park's handshake); woken, pay\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Pool::serve",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2971
+        },
+        "start": {
+          "column": 5,
+          "line": 2942
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:2953:32: replace && with || in Pool::serve",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 34,
+        "line": 2953
+      },
+      "start": {
+        "column": 32,
+        "line": 2953
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace stays -> bool with true\n@@ -2969,17 +2969,17 @@\n             }\n         }\n     }\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(reader: Option<&AtomicUsize>, placed: bool) -> bool {\n-    sources::visible(reader, false) || (!placed && places::settled())\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2978
+        },
+        "start": {
+          "column": 1,
+          "line": 2974
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:2977:5: replace stays -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 70,
+        "line": 2977
+      },
+      "start": {
+        "column": 5,
+        "line": 2977
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace stays -> bool with false\n@@ -2969,17 +2969,17 @@\n             }\n         }\n     }\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(reader: Option<&AtomicUsize>, placed: bool) -> bool {\n-    sources::visible(reader, false) || (!placed && places::settled())\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2978
+        },
+        "start": {
+          "column": 1,
+          "line": 2974
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:2977:5: replace stays -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 70,
+        "line": 2977
+      },
+      "start": {
+        "column": 5,
+        "line": 2977
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace || with && in stays\n@@ -2969,17 +2969,17 @@\n             }\n         }\n     }\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(reader: Option<&AtomicUsize>, placed: bool) -> bool {\n-    sources::visible(reader, false) || (!placed && places::settled())\n+    sources::visible(reader, false) && /* ~ changed by cargo-mutants ~ */ (!placed && places::settled())\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2978
+        },
+        "start": {
+          "column": 1,
+          "line": 2974
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:2977:37: replace || with && in stays",
+    "package": "blake3-servil",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 39,
+        "line": 2977
+      },
+      "start": {
+        "column": 37,
+        "line": 2977
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in stays\n@@ -2969,17 +2969,17 @@\n             }\n         }\n     }\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(reader: Option<&AtomicUsize>, placed: bool) -> bool {\n-    sources::visible(reader, false) || (!placed && places::settled())\n+    sources::visible(reader, false) || (!placed || /* ~ changed by cargo-mutants ~ */ places::settled())\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2978
+        },
+        "start": {
+          "column": 1,
+          "line": 2974
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:2977:49: replace && with || in stays",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 51,
+        "line": 2977
+      },
+      "start": {
+        "column": 49,
+        "line": 2977
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in stays\n@@ -2969,17 +2969,17 @@\n             }\n         }\n     }\n }\n \n /// Whether a worker about to park stays up: work waits, or the places\n /// are settled and it is not yet in its own.\n fn stays(reader: Option<&AtomicUsize>, placed: bool) -> bool {\n-    sources::visible(reader, false) || (!placed && places::settled())\n+    sources::visible(reader, false) || ( /* ~ changed by cargo-mutants ~ */placed && places::settled())\n }\n \n /// How long a worker that finds nothing keeps looking while a stream is\n /// open (more is coming) before it parks: 5 us. i7-12700K, against the\n /// stream on the earlier pool: none cost small messages 9-12% (a park and\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "stays",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2978
+        },
+        "start": {
+          "column": 1,
+          "line": 2974
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:2977:41: delete ! in stays",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 42,
+        "line": 2977
+      },
+      "start": {
+        "column": 41,
+        "line": 2977
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace spin_for_work -> bool with true\n@@ -2983,31 +2983,17 @@\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n \n /// Look for work for up to SPIN: whether some appeared. Holds one\n /// `ANY_SLOT` reader guard across each 16-poll batch so spinning workers\n /// do not execute 16× `SeqCst` barriers per loop.\n fn spin_for_work(reader: Option<&AtomicUsize>) -> bool {\n-    let started = now();\n-    loop {\n-        let _guard = reader.map(sources::ReaderGuard::enter_any);\n-        for _ in 0..16 {\n-            noted(Noted::Poll);\n-            if sources::visible_guarded(false) {\n-                return true;\n-            }\n-            core::hint::spin_loop();\n-        }\n-        drop(_guard);\n-        if spin_ends(now() - started, sources::open) {\n-            return false;\n-        }\n-    }\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /// Whether a worker's look for work ends, `elapsed` into it: once SPIN has\n /// passed, or when no stream is open (asked only before SPIN, as the\n /// look's own code would). Its own function so a test holds it\n /// whatever the machine's load (#202: with `>=` turned to `<`, a worker\n /// preempted past SPIN before its first look spun while the stream stayed\n /// open, and the mutant timed out only under load).\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "spin_for_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3006
+        },
+        "start": {
+          "column": 1,
+          "line": 2987
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:2991:5: replace spin_for_work -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 3005
+      },
+      "start": {
+        "column": 5,
+        "line": 2991
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace spin_for_work -> bool with false\n@@ -2983,31 +2983,17 @@\n /// a wake at every gap); 20 us cost 22% more CPU time a run for no speed;\n /// a cap on how many workers spin did not help.\n const SPIN: std::time::Duration = std::time::Duration::from_micros(5);\n \n /// Look for work for up to SPIN: whether some appeared. Holds one\n /// `ANY_SLOT` reader guard across each 16-poll batch so spinning workers\n /// do not execute 16× `SeqCst` barriers per loop.\n fn spin_for_work(reader: Option<&AtomicUsize>) -> bool {\n-    let started = now();\n-    loop {\n-        let _guard = reader.map(sources::ReaderGuard::enter_any);\n-        for _ in 0..16 {\n-            noted(Noted::Poll);\n-            if sources::visible_guarded(false) {\n-                return true;\n-            }\n-            core::hint::spin_loop();\n-        }\n-        drop(_guard);\n-        if spin_ends(now() - started, sources::open) {\n-            return false;\n-        }\n-    }\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// Whether a worker's look for work ends, `elapsed` into it: once SPIN has\n /// passed, or when no stream is open (asked only before SPIN, as the\n /// look's own code would). Its own function so a test holds it\n /// whatever the machine's load (#202: with `>=` turned to `<`, a worker\n /// preempted past SPIN before its first look spun while the stream stayed\n /// open, and the mutant timed out only under load).\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "spin_for_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3006
+        },
+        "start": {
+          "column": 1,
+          "line": 2987
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:2991:5: replace spin_for_work -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 3005
+      },
+      "start": {
+        "column": 5,
+        "line": 2991
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::is_live -> bool with true\n@@ -3044,17 +3044,17 @@\n \n     /// Sentinel stored in `REGISTERED[slot]` while `unregister_and_drain` waits\n     /// for active readers on `slot`: invisible to workers and un-reusable by a\n     /// new registration until every reader has exited.\n     const DRAINING: *mut Source = core::ptr::without_provenance_mut(1);\n \n     #[inline(always)]\n     fn is_live(ptr: *mut Source) -> bool {\n-        !ptr.is_null() && ptr != DRAINING\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     pub(crate) struct ReaderGuard<'a>(&'a AtomicUsize);\n \n     impl<'a> ReaderGuard<'a> {\n         #[inline(always)]\n         fn enter(cell: &'a AtomicUsize, slot: usize) -> Self {\n             cell.store(slot, Ordering::SeqCst);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::is_live",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3053
+        },
+        "start": {
+          "column": 5,
+          "line": 3050
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3052:9: replace sources::is_live -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 42,
+        "line": 3052
+      },
+      "start": {
+        "column": 9,
+        "line": 3052
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::is_live -> bool with false\n@@ -3044,17 +3044,17 @@\n \n     /// Sentinel stored in `REGISTERED[slot]` while `unregister_and_drain` waits\n     /// for active readers on `slot`: invisible to workers and un-reusable by a\n     /// new registration until every reader has exited.\n     const DRAINING: *mut Source = core::ptr::without_provenance_mut(1);\n \n     #[inline(always)]\n     fn is_live(ptr: *mut Source) -> bool {\n-        !ptr.is_null() && ptr != DRAINING\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     pub(crate) struct ReaderGuard<'a>(&'a AtomicUsize);\n \n     impl<'a> ReaderGuard<'a> {\n         #[inline(always)]\n         fn enter(cell: &'a AtomicUsize, slot: usize) -> Self {\n             cell.store(slot, Ordering::SeqCst);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::is_live",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3053
+        },
+        "start": {
+          "column": 5,
+          "line": 3050
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3052:9: replace sources::is_live -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 42,
+        "line": 3052
+      },
+      "start": {
+        "column": 9,
+        "line": 3052
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in sources::is_live\n@@ -3044,17 +3044,17 @@\n \n     /// Sentinel stored in `REGISTERED[slot]` while `unregister_and_drain` waits\n     /// for active readers on `slot`: invisible to workers and un-reusable by a\n     /// new registration until every reader has exited.\n     const DRAINING: *mut Source = core::ptr::without_provenance_mut(1);\n \n     #[inline(always)]\n     fn is_live(ptr: *mut Source) -> bool {\n-        !ptr.is_null() && ptr != DRAINING\n+        !ptr.is_null() || /* ~ changed by cargo-mutants ~ */ ptr != DRAINING\n     }\n \n     pub(crate) struct ReaderGuard<'a>(&'a AtomicUsize);\n \n     impl<'a> ReaderGuard<'a> {\n         #[inline(always)]\n         fn enter(cell: &'a AtomicUsize, slot: usize) -> Self {\n             cell.store(slot, Ordering::SeqCst);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::is_live",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3053
+        },
+        "start": {
+          "column": 5,
+          "line": 3050
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3052:24: replace && with || in sources::is_live",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 26,
+        "line": 3052
+      },
+      "start": {
+        "column": 24,
+        "line": 3052
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sources::is_live\n@@ -3044,17 +3044,17 @@\n \n     /// Sentinel stored in `REGISTERED[slot]` while `unregister_and_drain` waits\n     /// for active readers on `slot`: invisible to workers and un-reusable by a\n     /// new registration until every reader has exited.\n     const DRAINING: *mut Source = core::ptr::without_provenance_mut(1);\n \n     #[inline(always)]\n     fn is_live(ptr: *mut Source) -> bool {\n-        !ptr.is_null() && ptr != DRAINING\n+         /* ~ changed by cargo-mutants ~ */ptr.is_null() && ptr != DRAINING\n     }\n \n     pub(crate) struct ReaderGuard<'a>(&'a AtomicUsize);\n \n     impl<'a> ReaderGuard<'a> {\n         #[inline(always)]\n         fn enter(cell: &'a AtomicUsize, slot: usize) -> Self {\n             cell.store(slot, Ordering::SeqCst);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::is_live",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3053
+        },
+        "start": {
+          "column": 5,
+          "line": 3050
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:3052:9: delete ! in sources::is_live",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3052
+      },
+      "start": {
+        "column": 9,
+        "line": 3052
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace != with == in sources::is_live\n@@ -3044,17 +3044,17 @@\n \n     /// Sentinel stored in `REGISTERED[slot]` while `unregister_and_drain` waits\n     /// for active readers on `slot`: invisible to workers and un-reusable by a\n     /// new registration until every reader has exited.\n     const DRAINING: *mut Source = core::ptr::without_provenance_mut(1);\n \n     #[inline(always)]\n     fn is_live(ptr: *mut Source) -> bool {\n-        !ptr.is_null() && ptr != DRAINING\n+        !ptr.is_null() && ptr == /* ~ changed by cargo-mutants ~ */ DRAINING\n     }\n \n     pub(crate) struct ReaderGuard<'a>(&'a AtomicUsize);\n \n     impl<'a> ReaderGuard<'a> {\n         #[inline(always)]\n         fn enter(cell: &'a AtomicUsize, slot: usize) -> Self {\n             cell.store(slot, Ordering::SeqCst);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::is_live",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3053
+        },
+        "start": {
+          "column": 5,
+          "line": 3050
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3052:31: replace != with == in sources::is_live",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 3052
+      },
+      "start": {
+        "column": 31,
+        "line": 3052
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::ReaderGuard<'a>::enter -> Self with Default::default()\n@@ -3052,18 +3052,17 @@\n         !ptr.is_null() && ptr != DRAINING\n     }\n \n     pub(crate) struct ReaderGuard<'a>(&'a AtomicUsize);\n \n     impl<'a> ReaderGuard<'a> {\n         #[inline(always)]\n         fn enter(cell: &'a AtomicUsize, slot: usize) -> Self {\n-            cell.store(slot, Ordering::SeqCst);\n-            Self(cell)\n+            Default::default() /* ~ changed by cargo-mutants ~ */\n         }\n \n         #[inline(always)]\n         pub(crate) fn enter_any(cell: &'a AtomicUsize) -> Self {\n             cell.store(ANY_SLOT, Ordering::SeqCst);\n             core::sync::atomic::fence(Ordering::SeqCst);\n             Self(cell)\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::ReaderGuard<'a>::enter",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3062
+        },
+        "start": {
+          "column": 9,
+          "line": 3058
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3060:13: replace sources::ReaderGuard<'a>::enter -> Self with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 3061
+      },
+      "start": {
+        "column": 13,
+        "line": 3060
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::ReaderGuard<'a>::enter_any -> Self with Default::default()\n@@ -3058,19 +3058,17 @@\n         #[inline(always)]\n         fn enter(cell: &'a AtomicUsize, slot: usize) -> Self {\n             cell.store(slot, Ordering::SeqCst);\n             Self(cell)\n         }\n \n         #[inline(always)]\n         pub(crate) fn enter_any(cell: &'a AtomicUsize) -> Self {\n-            cell.store(ANY_SLOT, Ordering::SeqCst);\n-            core::sync::atomic::fence(Ordering::SeqCst);\n-            Self(cell)\n+            Default::default() /* ~ changed by cargo-mutants ~ */\n         }\n     }\n \n     impl Drop for ReaderGuard<'_> {\n         #[inline(always)]\n         fn drop(&mut self) {\n             self.0.store(NO_SLOT, Ordering::Release);\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::ReaderGuard<'a>::enter_any",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3069
+        },
+        "start": {
+          "column": 9,
+          "line": 3064
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3066:13: replace sources::ReaderGuard<'a>::enter_any -> Self with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 3068
+      },
+      "start": {
+        "column": 13,
+        "line": 3066
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::<impl Drop for ReaderGuard<'_>>::drop with ()\n@@ -3067,17 +3067,17 @@\n             core::sync::atomic::fence(Ordering::SeqCst);\n             Self(cell)\n         }\n     }\n \n     impl Drop for ReaderGuard<'_> {\n         #[inline(always)]\n         fn drop(&mut self) {\n-            self.0.store(NO_SLOT, Ordering::Release);\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n     }\n \n     static REGISTERED: [AtomicPtr<Source>; SLOTS] = [const { AtomicPtr::new(core::ptr::null_mut()) }; SLOTS];\n     static ACTIVE: AtomicU64 = AtomicU64::new(0);\n     /// Pipelines open: workers spin a while for more work only when some are.\n     static OPEN: OwnLine<AtomicUsize> = OwnLine(AtomicUsize::new(0));\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::<impl Drop for ReaderGuard<'_>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3076
+        },
+        "start": {
+          "column": 9,
+          "line": 3073
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3075:13: replace sources::<impl Drop for ReaderGuard<'_>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 54,
+        "line": 3075
+      },
+      "start": {
+        "column": 13,
+        "line": 3075
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::register -> Option<usize> with None\n@@ -3164,17 +3164,17 @@\n \n         fn carries_tasks(&self) -> bool {\n             !self.actions.is_empty()\n         }\n \n         /// Register a `'static` recycled job source for the workers.\n         pub(crate) fn register(&'static self) -> Option<usize> {\n             // Sound: `self` is `'static` (recycled, never freed).\n-            unsafe { self.register_until_drained() }\n+            None /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Register a pinned source that will stay alive at its address until\n         /// [`Source::unregister_and_drain`] returns.\n         ///\n         /// # Safety\n         ///\n         /// `*self` must remain valid at its address until the returned slot is\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::register",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3173
+        },
+        "start": {
+          "column": 9,
+          "line": 3169
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3172:13: replace sources::Source::register -> Option<usize> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 3172
+      },
+      "start": {
+        "column": 13,
+        "line": 3172
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::register -> Option<usize> with Some(0)\n@@ -3164,17 +3164,17 @@\n \n         fn carries_tasks(&self) -> bool {\n             !self.actions.is_empty()\n         }\n \n         /// Register a `'static` recycled job source for the workers.\n         pub(crate) fn register(&'static self) -> Option<usize> {\n             // Sound: `self` is `'static` (recycled, never freed).\n-            unsafe { self.register_until_drained() }\n+            Some(0) /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Register a pinned source that will stay alive at its address until\n         /// [`Source::unregister_and_drain`] returns.\n         ///\n         /// # Safety\n         ///\n         /// `*self` must remain valid at its address until the returned slot is\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::register",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3173
+        },
+        "start": {
+          "column": 9,
+          "line": 3169
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3172:13: replace sources::Source::register -> Option<usize> with Some(0)",
+    "package": "blake3-servil",
+    "replacement": "Some(0)",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 3172
+      },
+      "start": {
+        "column": 13,
+        "line": 3172
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::register -> Option<usize> with Some(1)\n@@ -3164,17 +3164,17 @@\n \n         fn carries_tasks(&self) -> bool {\n             !self.actions.is_empty()\n         }\n \n         /// Register a `'static` recycled job source for the workers.\n         pub(crate) fn register(&'static self) -> Option<usize> {\n             // Sound: `self` is `'static` (recycled, never freed).\n-            unsafe { self.register_until_drained() }\n+            Some(1) /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Register a pinned source that will stay alive at its address until\n         /// [`Source::unregister_and_drain`] returns.\n         ///\n         /// # Safety\n         ///\n         /// `*self` must remain valid at its address until the returned slot is\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::register",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3173
+        },
+        "start": {
+          "column": 9,
+          "line": 3169
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3172:13: replace sources::Source::register -> Option<usize> with Some(1)",
+    "package": "blake3-servil",
+    "replacement": "Some(1)",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 3172
+      },
+      "start": {
+        "column": 13,
+        "line": 3172
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::unregister_and_drain with ()\n@@ -3196,31 +3196,17 @@\n         /// soundly free the `Source` and its enclosing `PipeStorage`.\n         ///\n         /// `REGISTERED[slot]` holds `DRAINING` until the drain completes so no\n         /// new registration can reuse `slot` and re-arm readers on it while\n         /// draining. In a forked child (`FORKED`), no pool worker threads exist\n         /// (any copied `readers` entry is stale parent memory), so draining\n         /// skips the wait rather than spinning forever.\n         pub(crate) fn unregister_and_drain(slot: usize) {\n-            ACTIVE.fetch_and(!(1 << slot), Ordering::SeqCst);\n-            REGISTERED[slot].store(DRAINING, Ordering::SeqCst);\n-            if !FORKED.load(Ordering::Relaxed)\n-                && let Some(pool) = POOL.get()\n-            {\n-                for reader in &pool.readers {\n-                    while {\n-                        let cur = reader.0.load(Ordering::SeqCst);\n-                        cur == slot || cur == ANY_SLOT\n-                    } {\n-                        core::hint::spin_loop();\n-                    }\n-                }\n-            }\n-            REGISTERED[slot].store(core::ptr::null_mut(), Ordering::Release);\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Publish one or more pipeline actions in order with one Release\n         /// store and one fence, then wake parked workers only where awake\n         /// workers fall short of the items waiting.\n         ///\n         /// # Safety\n         ///\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::unregister_and_drain",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3219
+        },
+        "start": {
+          "column": 9,
+          "line": 3194
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3204:13: replace sources::Source::unregister_and_drain with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 78,
+        "line": 3218
+      },
+      "start": {
+        "column": 13,
+        "line": 3204
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sources::Source::unregister_and_drain\n@@ -3196,17 +3196,17 @@\n         /// soundly free the `Source` and its enclosing `PipeStorage`.\n         ///\n         /// `REGISTERED[slot]` holds `DRAINING` until the drain completes so no\n         /// new registration can reuse `slot` and re-arm readers on it while\n         /// draining. In a forked child (`FORKED`), no pool worker threads exist\n         /// (any copied `readers` entry is stale parent memory), so draining\n         /// skips the wait rather than spinning forever.\n         pub(crate) fn unregister_and_drain(slot: usize) {\n-            ACTIVE.fetch_and(!(1 << slot), Ordering::SeqCst);\n+            ACTIVE.fetch_and( /* ~ changed by cargo-mutants ~ */(1 << slot), Ordering::SeqCst);\n             REGISTERED[slot].store(DRAINING, Ordering::SeqCst);\n             if !FORKED.load(Ordering::Relaxed)\n                 && let Some(pool) = POOL.get()\n             {\n                 for reader in &pool.readers {\n                     while {\n                         let cur = reader.0.load(Ordering::SeqCst);\n                         cur == slot || cur == ANY_SLOT\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::unregister_and_drain",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3219
+        },
+        "start": {
+          "column": 9,
+          "line": 3194
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:3204:30: delete ! in sources::Source::unregister_and_drain",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 3204
+      },
+      "start": {
+        "column": 30,
+        "line": 3204
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace << with >> in sources::Source::unregister_and_drain\n@@ -3196,17 +3196,17 @@\n         /// soundly free the `Source` and its enclosing `PipeStorage`.\n         ///\n         /// `REGISTERED[slot]` holds `DRAINING` until the drain completes so no\n         /// new registration can reuse `slot` and re-arm readers on it while\n         /// draining. In a forked child (`FORKED`), no pool worker threads exist\n         /// (any copied `readers` entry is stale parent memory), so draining\n         /// skips the wait rather than spinning forever.\n         pub(crate) fn unregister_and_drain(slot: usize) {\n-            ACTIVE.fetch_and(!(1 << slot), Ordering::SeqCst);\n+            ACTIVE.fetch_and(!(1 >> /* ~ changed by cargo-mutants ~ */ slot), Ordering::SeqCst);\n             REGISTERED[slot].store(DRAINING, Ordering::SeqCst);\n             if !FORKED.load(Ordering::Relaxed)\n                 && let Some(pool) = POOL.get()\n             {\n                 for reader in &pool.readers {\n                     while {\n                         let cur = reader.0.load(Ordering::SeqCst);\n                         cur == slot || cur == ANY_SLOT\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::unregister_and_drain",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3219
+        },
+        "start": {
+          "column": 9,
+          "line": 3194
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3204:34: replace << with >> in sources::Source::unregister_and_drain",
+    "package": "blake3-servil",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 36,
+        "line": 3204
+      },
+      "start": {
+        "column": 34,
+        "line": 3204
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace && with || in sources::Source::unregister_and_drain\n@@ -3199,17 +3199,17 @@\n         /// new registration can reuse `slot` and re-arm readers on it while\n         /// draining. In a forked child (`FORKED`), no pool worker threads exist\n         /// (any copied `readers` entry is stale parent memory), so draining\n         /// skips the wait rather than spinning forever.\n         pub(crate) fn unregister_and_drain(slot: usize) {\n             ACTIVE.fetch_and(!(1 << slot), Ordering::SeqCst);\n             REGISTERED[slot].store(DRAINING, Ordering::SeqCst);\n             if !FORKED.load(Ordering::Relaxed)\n-                && let Some(pool) = POOL.get()\n+                || /* ~ changed by cargo-mutants ~ */ let Some(pool) = POOL.get()\n             {\n                 for reader in &pool.readers {\n                     while {\n                         let cur = reader.0.load(Ordering::SeqCst);\n                         cur == slot || cur == ANY_SLOT\n                     } {\n                         core::hint::spin_loop();\n                     }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::unregister_and_drain",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3219
+        },
+        "start": {
+          "column": 9,
+          "line": 3194
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3207:17: replace && with || in sources::Source::unregister_and_drain",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 3207
+      },
+      "start": {
+        "column": 17,
+        "line": 3207
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sources::Source::unregister_and_drain\n@@ -3198,17 +3198,17 @@\n         /// `REGISTERED[slot]` holds `DRAINING` until the drain completes so no\n         /// new registration can reuse `slot` and re-arm readers on it while\n         /// draining. In a forked child (`FORKED`), no pool worker threads exist\n         /// (any copied `readers` entry is stale parent memory), so draining\n         /// skips the wait rather than spinning forever.\n         pub(crate) fn unregister_and_drain(slot: usize) {\n             ACTIVE.fetch_and(!(1 << slot), Ordering::SeqCst);\n             REGISTERED[slot].store(DRAINING, Ordering::SeqCst);\n-            if !FORKED.load(Ordering::Relaxed)\n+            if  /* ~ changed by cargo-mutants ~ */FORKED.load(Ordering::Relaxed)\n                 && let Some(pool) = POOL.get()\n             {\n                 for reader in &pool.readers {\n                     while {\n                         let cur = reader.0.load(Ordering::SeqCst);\n                         cur == slot || cur == ANY_SLOT\n                     } {\n                         core::hint::spin_loop();\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::unregister_and_drain",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3219
+        },
+        "start": {
+          "column": 9,
+          "line": 3194
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:3206:16: delete ! in sources::Source::unregister_and_drain",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 17,
+        "line": 3206
+      },
+      "start": {
+        "column": 16,
+        "line": 3206
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace || with && in sources::Source::unregister_and_drain\n@@ -3204,17 +3204,17 @@\n             ACTIVE.fetch_and(!(1 << slot), Ordering::SeqCst);\n             REGISTERED[slot].store(DRAINING, Ordering::SeqCst);\n             if !FORKED.load(Ordering::Relaxed)\n                 && let Some(pool) = POOL.get()\n             {\n                 for reader in &pool.readers {\n                     while {\n                         let cur = reader.0.load(Ordering::SeqCst);\n-                        cur == slot || cur == ANY_SLOT\n+                        cur == slot && /* ~ changed by cargo-mutants ~ */ cur == ANY_SLOT\n                     } {\n                         core::hint::spin_loop();\n                     }\n                 }\n             }\n             REGISTERED[slot].store(core::ptr::null_mut(), Ordering::Release);\n         }\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::unregister_and_drain",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3219
+        },
+        "start": {
+          "column": 9,
+          "line": 3194
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3212:37: replace || with && in sources::Source::unregister_and_drain",
+    "package": "blake3-servil",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 39,
+        "line": 3212
+      },
+      "start": {
+        "column": 37,
+        "line": 3212
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace == with != in sources::Source::unregister_and_drain\n@@ -3204,17 +3204,17 @@\n             ACTIVE.fetch_and(!(1 << slot), Ordering::SeqCst);\n             REGISTERED[slot].store(DRAINING, Ordering::SeqCst);\n             if !FORKED.load(Ordering::Relaxed)\n                 && let Some(pool) = POOL.get()\n             {\n                 for reader in &pool.readers {\n                     while {\n                         let cur = reader.0.load(Ordering::SeqCst);\n-                        cur == slot || cur == ANY_SLOT\n+                        cur != /* ~ changed by cargo-mutants ~ */ slot || cur == ANY_SLOT\n                     } {\n                         core::hint::spin_loop();\n                     }\n                 }\n             }\n             REGISTERED[slot].store(core::ptr::null_mut(), Ordering::Release);\n         }\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::unregister_and_drain",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3219
+        },
+        "start": {
+          "column": 9,
+          "line": 3194
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3212:29: replace == with != in sources::Source::unregister_and_drain",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 3212
+      },
+      "start": {
+        "column": 29,
+        "line": 3212
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace == with != in sources::Source::unregister_and_drain\n@@ -3204,17 +3204,17 @@\n             ACTIVE.fetch_and(!(1 << slot), Ordering::SeqCst);\n             REGISTERED[slot].store(DRAINING, Ordering::SeqCst);\n             if !FORKED.load(Ordering::Relaxed)\n                 && let Some(pool) = POOL.get()\n             {\n                 for reader in &pool.readers {\n                     while {\n                         let cur = reader.0.load(Ordering::SeqCst);\n-                        cur == slot || cur == ANY_SLOT\n+                        cur == slot || cur != /* ~ changed by cargo-mutants ~ */ ANY_SLOT\n                     } {\n                         core::hint::spin_loop();\n                     }\n                 }\n             }\n             REGISTERED[slot].store(core::ptr::null_mut(), Ordering::Release);\n         }\n \n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::unregister_and_drain",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3219
+        },
+        "start": {
+          "column": 9,
+          "line": 3194
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3212:44: replace == with != in sources::Source::unregister_and_drain",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 46,
+        "line": 3212
+      },
+      "start": {
+        "column": 44,
+        "line": 3212
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::run_waiting_action -> bool with true\n@@ -3263,28 +3263,17 @@\n             let c = self.claimed.load(Ordering::Acquire);\n             let p = self.finish.published.load(Ordering::Acquire);\n             c < p && self.actions[c % self.actions.len()].near.load(Ordering::Relaxed)\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n-            match self.take() {\n-                Some(Item::Action { run, context, arg }) => {\n-                    // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.\n-                    let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };\n-                    if let Some(waker) = unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) } {\n-                        crate::waker::wake_or_abort(waker);\n-                    }\n-                    true\n-                }\n-                Some(_) => unreachable!(\"an action source carries actions\"),\n-                None => false,\n-            }\n+            true /* ~ changed by cargo-mutants ~ */\n         }\n \n         #[cfg(test)]\n         pub(super) fn own_for_test(&self) {\n             self.finish.own();\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3283
+        },
+        "start": {
+          "column": 9,
+          "line": 3268
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3271:13: replace sources::Source::run_waiting_action -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3282
+      },
+      "start": {
+        "column": 13,
+        "line": 3271
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::run_waiting_action -> bool with false\n@@ -3263,28 +3263,17 @@\n             let c = self.claimed.load(Ordering::Acquire);\n             let p = self.finish.published.load(Ordering::Acquire);\n             c < p && self.actions[c % self.actions.len()].near.load(Ordering::Relaxed)\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n-            match self.take() {\n-                Some(Item::Action { run, context, arg }) => {\n-                    // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.\n-                    let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };\n-                    if let Some(waker) = unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) } {\n-                        crate::waker::wake_or_abort(waker);\n-                    }\n-                    true\n-                }\n-                Some(_) => unreachable!(\"an action source carries actions\"),\n-                None => false,\n-            }\n+            false /* ~ changed by cargo-mutants ~ */\n         }\n \n         #[cfg(test)]\n         pub(super) fn own_for_test(&self) {\n             self.finish.own();\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3283
+        },
+        "start": {
+          "column": 9,
+          "line": 3268
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3271:13: replace sources::Source::run_waiting_action -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3282
+      },
+      "start": {
+        "column": 13,
+        "line": 3271
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace & with | in sources::Source::run_waiting_action\n@@ -3267,17 +3267,17 @@\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n             match self.take() {\n                 Some(Item::Action { run, context, arg }) => {\n                     // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.\n                     let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };\n-                    if let Some(waker) = unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) } {\n+                    if let Some(waker) = unsafe { f(context as *const (), arg | /* ~ changed by cargo-mutants ~ */ !ACTION_SME2, pool_platform()) } {\n                         crate::waker::wake_or_abort(waker);\n                     }\n                     true\n                 }\n                 Some(_) => unreachable!(\"an action source carries actions\"),\n                 None => false,\n             }\n         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3283
+        },
+        "start": {
+          "column": 9,
+          "line": 3268
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3275:79: replace & with | in sources::Source::run_waiting_action",
+    "package": "blake3-servil",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 80,
+        "line": 3275
+      },
+      "start": {
+        "column": 79,
+        "line": 3275
+      }
+    }
+  }
+]

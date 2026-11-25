@@ -1,0 +1,120 @@
+
+*** src/pipeline.rs:2423:9: replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new(Default::default())
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new(Default::default())
+@@ -2415,42 +2415,17 @@
+     }
+ }
+ 
+ impl<T, B, P> Future for MessageWithFut<'_, T, B, P> {
+     type Output = Message;
+ 
+     #[inline(always)]
+     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {
+-        let this = &mut *self;
+-        assert!(this.tag.is_some(), "Pipeline::message_with future polled after completion");
+-        let slot = match this.pipe.free_slots.pop_front() {
+-            Some(s) => s,
+-            None => match this.pipe.poll_message(cx) {
+-                Poll::Ready(s) => s,
+-                Poll::Pending => {
+-                    this.registered = true;
+-                    return Poll::Pending;
+-                }
+-            },
+-        };
+-        this.registered = false;
+-        let tree = this.tree.take().expect("message_with tree present before completion");
+-        // Sound: `slot` just came off `free_slots`, so no worker task reads
+-        // `slot_trees[slot]` or `slot_custom[slot]` until work is dispatched.
+-        unsafe {
+-            *this.pipe.storage().slot_trees[slot as usize].get() = tree;
+-            *this.pipe.storage().slot_custom[slot as usize].get() = true;
+-        }
+-        let sm = &mut this.pipe.slots[slot as usize];
+-        sm.tag = this.tag.take();
+-        sm.kind = SlotKind::OpenEmpty;
+-        sm.mode = if this.is_plain { SlotMode::Plain } else { SlotMode::Custom };
+-        this.pipe.open_messages += 1;
+-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })
++        Poll::new(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ struct RoomFut<'a, T, B, P> {
+     pipe: &'a mut Pipeline<T, B, P>,
+     registered: bool,
+     done: bool,
+ }
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-5/Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[70556]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[70574]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[70546]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil` (build script) generated 1 warning
+   Compiling blake3-servil v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5/threads)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5)
+error[E0599]: no variant, associated function, or constant named `new` found for enum `Poll<T>` in the current scope
+    --> src/pipeline.rs:2423:15
+     |
+2423 |         Poll::new(Default::default()) /* ~ changed by cargo-mutants ~ */
+     |               ^^^ variant, associated function, or constant not found in `Poll<_>`
+     |
+note: if you're trying to build a new `Poll<_>`, consider using `async_iter::async_iter::<impl Poll<Option<T>>>::async_gen_ready` which returns `Poll<Option<_>>`
+    --> /rustc/6eeff9a52c3e35c4c4cbf5651f342dcd2191866f/library/core/src/async_iter/async_iter.rs:122:4
+help: there is a method `ne` with a similar name
+     |
+2423 -         Poll::new(Default::default()) /* ~ changed by cargo-mutants ~ */
+2423 +         Poll::ne(Default::default()) /* ~ changed by cargo-mutants ~ */
+     |
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0599]: no variant, associated function, or constant named `new` found for enum `std::task::Poll<T>` in the current scope
+    --> src/pipeline.rs:2423:15
+     |
+2423 |         Poll::new(Default::default()) /* ~ changed by cargo-mutants ~ */
+     |               ^^^ variant, associated function, or constant not found in `std::task::Poll<_>`
+     |
+note: if you're trying to build a new `std::task::Poll<_>`, consider using `async_iter::async_iter::<impl std::task::Poll<Option<T>>>::async_gen_ready` which returns `std::task::Poll<Option<_>>`
+    --> /rustc/6eeff9a52c3e35c4c4cbf5651f342dcd2191866f/library/core/src/async_iter/async_iter.rs:122:4
+help: there is a method `ne` with a similar name
+     |
+2423 -         Poll::new(Default::default()) /* ~ changed by cargo-mutants ~ */
+2423 +         Poll::ne(Default::default()) /* ~ changed by cargo-mutants ~ */
+     |
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

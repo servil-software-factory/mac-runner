@@ -1,0 +1,50 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::poll_ready -> Poll<()> with Poll::new(())
+@@ -1862,46 +1862,17 @@
+     /// If no message has been ended (or aborted, or handed over whole)
+     /// whose event is still to come: nothing would end the wait.
+     #[inline(always)]
+     pub fn ready(&mut self) -> impl Future<Output = ()> + '_ {
+         ReadyFut { pipe: self, registered: false }
+     }
+ 
+     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+-        self.reap();
+-        if !self.events.is_empty() {
+-            return Poll::Ready(());
+-        }
+-        assert!(!self.end_queue.is_empty(), "Pipeline::ready cannot make progress: no ended messages are in flight");
+-        if self.front_uses_open_group() {
+-            self.publish_open();
+-            self.reap();
+-            if !self.events.is_empty() {
+-                return Poll::Ready(());
+-            }
+-        }
+-        if in_block_on() {
+-            while self.storage().source.run_waiting_action() {
+-                self.reap();
+-                if !self.events.is_empty() {
+-                    return Poll::Ready(());
+-                }
+-            }
+-        }
+-        self.storage().waker.register(cx);
+-        self.reap();
+-        if !self.events.is_empty() {
+-            self.storage().waker.clear();
+-            return Poll::Ready(());
+-        }
+-        if self.source_slot.is_some() {
+-            self.storage().source.wake_for_waiting();
+-        }
+-        Poll::Pending
++        Poll::new(()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn require_uncommitted(&mut self, s: usize) {
+         match self.slots[s].kind {
+             SlotKind::OpenEmpty => {}
+             SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { .. } => {
+                 self.abort_slot(s);

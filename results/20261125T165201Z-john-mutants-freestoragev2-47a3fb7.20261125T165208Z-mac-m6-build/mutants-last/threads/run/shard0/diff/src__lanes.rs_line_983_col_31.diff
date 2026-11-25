@@ -1,0 +1,21 @@
+--- src/lanes.rs
++++ replace + with - in initialize
+@@ -975,17 +975,17 @@
+             }
+             available
+         },
+         |n| n.get(),
+     );
+     // With one thread, none beside the caller: no SME2 thread either.
+     let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));
+     let workers = Pool::workers_of(threads);
+-    let readers = (0..workers + usize::from(sme2)).map(|_| OwnLine(AtomicUsize::new(sources::NO_SLOT))).collect();
++    let readers = (0..workers - /* ~ changed by cargo-mutants ~ */ usize::from(sme2)).map(|_| OwnLine(AtomicUsize::new(sources::NO_SLOT))).collect();
+     let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(workers, crate::park::FANOUT), readers };
+     if threads > 1 {
+         // Before any thread starts: a child forked from here on has none
+         // of them, and its multithreaded calls stop at `pool` (FORKED).
+         // Before the pool is published, too: a refusal here is a panic
+         // that leaves no pool behind.
+         unsafe extern "C" {
+             fn pthread_atfork(prepare: Option<extern "C" fn()>, parent: Option<extern "C" fn()>, child: Option<extern "C" fn()>) -> i32;

@@ -1,0 +1,79 @@
+--- src/pipeline.rs
++++ replace PipeStorage::run_multi_piece -> Option<Waker> with Some(Default::default())
+@@ -756,75 +756,17 @@
+             pnode.done.swap(true, Ordering::SeqCst);
+         })
+     }
+ 
+     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) -> Option<Waker> {
+         // Sound: the owner wrote the description before dispatching the slot's
+         // tasks (batch, submit_multi_slice), and writes it again only after
+         // `slot_done`.
+-        let desc = unsafe { *self.multi[slot].get() };
+-        assert!(piece_idx < desc.pieces, "the action names a piece of its submission");
+-        if let Some((message_len, slot_len, per_part)) = desc.batch {
+-            let first = piece_idx * per_part;
+-            let count = (desc.total_len - first).min(per_part);
+-            // Sound: the batch and its digests stay in the slot (`batches[s]`)
+-            // until the slot's event, which waits for `slot_done`; this task's
+-            // messages and digests are its own range of them (`first`,
+-            // `count`).
+-            let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };
+-            let digests = unsafe { core::slice::from_raw_parts_mut(desc.digests.add(first), count) };
+-            // Sound: `desc.batch` came from a validated `Prepared` batch
+-            // (including zero-length messages padded to `BLOCK_LEN`) held alive
+-            // in `Pipeline::batches[slot]` until `slot_done`.
+-            let part = unsafe { crate::throughput::Part::from_checked_slots(bytes, message_len, slot_len) };
+-            self.slot_tree(slot).hash_many_on(platform, &part, digests);
+-            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {
+-                return finished(self, || {
+-                    self.slot_done[slot].swap(true, Ordering::SeqCst);
+-                });
+-            }
+-            return None;
+-        }
+-
+-        // Sound: the owner, or the Lent guard, keeps all the message's
+-        // bytes in place until the slot is done. The chunks of this slice
+-        // are the same partition the submitter put in the action list.
+-        let input = unsafe { core::slice::from_raw_parts(desc.input, desc.total_len) };
+-        let level = desc.piece_level;
+-        let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect("a piece within its message");
+-        let values = self.cvs[slot].get();
+-        let tree = self.slot_tree(slot);
+-        if piece_idx + 1 == desc.pieces {
+-            let value = tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);
+-            // Sound: only the last piece writes this field.
+-            unsafe { (*values).last = Some(value) };
+-        } else {
+-            let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);
+-            // Sound: a separate slot for each index (submit_multi_slice
+-            // limits the count); form no borrow of other workers' slots.
+-            unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };
+-        }
+-
+-        if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {
+-            // Sound: this is the slot's last task (`tasks_left` reached zero),
+-            // so every piece's value is written and no one else reads or
+-            // writes the slot's values or hash until `slot_done` below.
+-            let values = unsafe { &mut *values };
+-            let last = values.last.take().expect("the last piece supplied its value");
+-            let hash = fold_multi_cvs(tree, &values.whole[..desc.pieces - 1], last, desc.total_len as u64);
+-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };
+-            if desc.loan_epoch != 0 {
+-                self.loan_completed[slot].0.store(desc.loan_epoch, Ordering::Release);
+-            }
+-            return finished(self, || {
+-                self.slot_done[slot].swap(true, Ordering::SeqCst);
+-            });
+-        }
+-        None
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of
+ /// `count` name the whole subtrees left on the stack, largest first.
+ fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {
+     let merges = used.saturating_sub(count.count_ones() as usize);
+     for _ in 0..merges {
