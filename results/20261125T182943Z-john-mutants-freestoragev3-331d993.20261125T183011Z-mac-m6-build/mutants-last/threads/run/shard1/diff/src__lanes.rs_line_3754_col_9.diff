@@ -1,0 +1,35 @@
+--- src/lanes.rs
++++ replace sources::find_from -> Option<usize> with None
+@@ -3746,31 +3746,17 @@
+     /// The first registered source for which `f` says yes.
+     fn find(guard: &ReaderGuard<'_>, f: impl FnMut(&Source) -> bool) -> bool {
+         find_from(guard, 0, f).is_some()
+     }
+ 
+     /// The slot of the first registered source for which `f` says yes, in
+     /// a walk of the slots from `start` up and then of those below it.
+     fn find_from(_guard: &ReaderGuard<'_>, start: usize, mut f: impl FnMut(&Source) -> bool) -> Option<usize> {
+-        let mut active = ACTIVE.load(Ordering::Acquire).rotate_right(u32::from(start.to_le_bytes()[0]));
+-        while active != 0 {
+-            let slot = (active.trailing_zeros() as usize + start) % SLOTS;
+-            active &= active - 1;
+-            let ptr = REGISTERED[slot].load(Ordering::Acquire);
+-            // Sound: `_guard` guarantees this thread published a nonzero epoch
+-            // with `SeqCst` + `SeqCst` fence before this `Acquire` load, so
+-            // `Source::unregister_and_drain` cannot free `*ptr` until `_guard`
+-            // drops (and `Source::unregister` is used only for never-freed
+-            // `job_source`s).
+-            if is_live(ptr) && f(unsafe { &*ptr }) {
+-                return Some(slot);
+-            }
+-        }
+-        None
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Whether any registered source has work waiting (`streams`: any stream or
+     /// pipeline). Requires a live [`ReaderGuard`] so the type system enforces
+     /// read-side protection.
+     #[inline]
+     pub(crate) fn visible(guard: &ReaderGuard<'_>, streams: bool) -> bool {
+         find(guard, |source| (!streams || source.carries_tasks()) && source.waiting() > 0)

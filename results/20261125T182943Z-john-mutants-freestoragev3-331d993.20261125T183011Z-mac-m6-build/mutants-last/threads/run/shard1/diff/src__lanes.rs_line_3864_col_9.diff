@@ -1,0 +1,43 @@
+--- src/lanes.rs
++++ replace sources::serve -> Option<core::task::Waker> with None
+@@ -3856,39 +3856,17 @@
+             park.wake_one();
+         }
+     }
+ 
+     /// Hash `item` of `source` on this thread, waking the next worker first
+     /// when two or more wait and one is parked, returning any user `Waker` to
+     /// invoke after the worker's `ReaderGuard` drops.
+     fn serve(source: &Source, item: Item) -> Option<core::task::Waker> {
+-        if source.waiting() >= 2 {
+-            let near = match item {
+-                Item::Action { .. } => source.front_action_near(),
+-                Item::Pieces(..) => source.near.load(Ordering::Relaxed),
+-            };
+-            wake_speculative(&pool().park, near);
+-        }
+-        match item {
+-            Item::Action { run, context, arg } => {
+-                // Sound: `publish_actions` stored an `unsafe fn(*const (), u64, Platform) -> Option<Waker>` function pointer and live `context` valid until completion.
+-                let f: unsafe fn(*const (), u64, Platform) -> Option<core::task::Waker> = unsafe { core::mem::transmute(run) };
+-                unsafe { f(context as *const (), arg & !ACTION_SME2, pool_platform()) }
+-            }
+-            Item::Pieces(job, index, n) => {
+-                // Sound: the job lives until its pieces are finished,
+-                // these among them; this thread alone took them.
+-                for i in index..index + n {
+-                    unsafe { (*job).hash_piece(i, false) };
+-                }
+-                source.finished(n);
+-                None
+-            }
+-        }
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Take and run one item from any stream or pipeline under `guard` (the
+     /// SME2 thread calls this), returning any user `Waker` via `pending_waker`
+     /// so the caller drops `guard` before waking.
+     pub(crate) fn run_stream_item_guarded(
+         guard: &ReaderGuard<'_>,
+         mut run: impl FnMut(Item) -> Option<core::task::Waker>,

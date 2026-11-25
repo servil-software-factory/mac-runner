@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace Room::storage -> &PipeStorage with Box::leak(Box::new(Default::default()))
+@@ -601,17 +601,17 @@
+     /// never gives out its last: before that it takes a new set, so the
+     /// pool cannot count it free while the caller holds it. An empty
+     /// commit moves the Room on by nothing, so one Room can take them
+     /// without end (BLAKE3 #418: after ROOM_CREDITS of them a second Room
+     /// was made over the same bytes).
+     #[inline(always)]
+     fn storage(&self) -> &PipeStorage {
+         // Sound: this Room holds a reference in `PipeStorage::holders` until `Drop`.
+-        unsafe { &*self.storage }
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn take_credit(&mut self) {
+         if self.commits as usize == ROOM_CREDITS - 1 {
+             self.storage().rooms.refs[self.index as usize].fetch_add(ROOM_CREDITS - 1, Ordering::Relaxed);
+             self.commits = 0;
+         }

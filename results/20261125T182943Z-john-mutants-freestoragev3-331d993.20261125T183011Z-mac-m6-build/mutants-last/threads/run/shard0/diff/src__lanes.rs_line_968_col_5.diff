@@ -1,0 +1,88 @@
+--- src/lanes.rs
++++ replace initialize -> usize with 0
+@@ -960,84 +960,17 @@
+     readers: Box<[OwnLine<AtomicU64>]>,
+ }
+ 
+ /// Create the pool and start its threads in the background, once per
+ /// process ([`crate::initialize_multithreaded`] is its public face): this
+ /// thread starts the SME2 thread and worker 1, and worker 1 the other
+ /// workers. Calls run on the workers started so far.
+ pub(crate) fn initialize(requested: Option<core::num::NonZeroUsize>) -> usize {
+-    #[cfg(target_os = "linux")]
+-    let node = if requested == Some(core::num::NonZeroUsize::MIN) { None } else { places::Node::current() };
+-    let threads = requested.map_or_else(
+-        || {
+-            let available = std::thread::available_parallelism().map_or(1, |n| n.get());
+-            #[cfg(target_os = "linux")]
+-            let available = places::cap_default_threads(available, node.as_ref(), places::allowed_cpu_count);
+-            available
+-        },
+-        |n| n.get(),
+-    );
+-    // With one thread, none beside the caller: no SME2 thread either.
+-    let sme2 = threads > 1 && cfg!(blake3_sme2) && !matches!(pool_platform(), p if core::mem::discriminant(&p) == core::mem::discriminant(&Platform::detect()));
+-    let workers = Pool::workers_of(threads);
+-    let readers = (0..workers + usize::from(sme2)).map(|_| OwnLine(AtomicU64::new(0))).collect();
+-    let pool = Pool { callers: AtomicUsize::new(0), threads, sme2, park: crate::park::Park::new(workers, crate::park::FANOUT), readers };
+-    if threads > 1 {
+-        // Before any thread starts: a child forked from here on has none
+-        // of them, and its multithreaded calls stop at `pool` (FORKED).
+-        // Before the pool is published, too: a refusal here is a panic
+-        // that leaves no pool behind.
+-        unsafe extern "C" {
+-            fn pthread_atfork(prepare: Option<extern "C" fn()>, parent: Option<extern "C" fn()>, child: Option<extern "C" fn()>) -> i32;
+-        }
+-        // Sound: the handler only stores to an atomic, which a forked
+-        // child may do.
+-        assert_eq!(unsafe { pthread_atfork(None, None, Some(mark_forked)) }, 0, "registering the fork handler");
+-    }
+-    assert!(POOL.set(pool).is_ok(), "initialize_multithreaded creates the pool once");
+-    if threads == 1 {
+-        return threads;
+-    }
+-    // The pool is published and says it has workers: from here a thread
+-    // that cannot start ends the process (`started`). A panic would leave
+-    // that pool to a caller that caught it, and to every other thread.
+-    if sme2 {
+-        #[cfg(target_os = "linux")]
+-        let sme2_node = node.clone();
+-        started(std::thread::Builder::new().name("blake3-sme2".into()).spawn(move || {
+-            #[cfg(target_os = "linux")]
+-            if let Some(node) = sme2_node {
+-                node.bind();
+-            }
+-            sme2_main();
+-        }));
+-    }
+-    started(std::thread::Builder::new().name("blake3-worker-1".into()).spawn(move || {
+-        // Bind before starting the other workers, which inherit this
+-        // mask. The caller keeps its own affinity.
+-        #[cfg(target_os = "linux")]
+-        if let Some(node) = node {
+-            node.bind();
+-        }
+-        // The pool is published, and calls may already wait on these
+-        // workers: a failure from here on ends the process, as a
+-        // worker's own panic does (worker_main).
+-        let _starting = AbortOnUnwind;
+-        for worker in 2..threads {
+-            started(std::thread::Builder::new().name(format!("blake3-worker-{worker}")).spawn(move || worker_main(worker - 1)));
+-        }
+-        // After the workers have started, never before: reading the
+-        // machine's caches takes 2 ms on a machine of 96 CPUs, and
+-        // b3sum has hashed a 16 MiB file by then (read first, it made
+-        // b3sum's warm 16 MiB 1.4 ms slower on two servers).
+-        places::settle(Pool::workers_of(threads));
+-        worker_main(0)
+-    }));
+-    threads
++    0 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The workers' places. On a machine with more than one last-level cache
+ /// (several sockets, or an EPYC's cores in groups of six or eight), each
+ /// worker runs on the CPUs under one of them, its place, and a waker wakes
+ /// the workers of its own place first, then its socket's, then any.
+ ///
+ /// Work a caller has just written is in its cache, and a worker under
