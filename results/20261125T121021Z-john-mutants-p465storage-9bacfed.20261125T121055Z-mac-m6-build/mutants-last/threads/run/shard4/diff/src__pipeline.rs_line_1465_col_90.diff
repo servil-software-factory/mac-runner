@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace >= with < in Pipeline<T, B, P>::create
+@@ -1457,17 +1457,17 @@
+         }
+         // The storage's `Shared`, where it has one of this size: every task
+         // of the Pipeline before is done (its drop saw to that), and only
+         // the mode is this Pipeline's own.
+         // Sound: as the saved epochs above. A Shared the storage keeps was the
+         // Pipeline before's, whose every task is published done (its drop saw
+         // to that), so reading its lengths races with no worker.
+         let held = unsafe { *storage.shared.get() };
+-        let shared: *mut Shared = if !held.is_null() && unsafe { (&(*held).hashes).len() >= m } {
++        let shared: *mut Shared = if !held.is_null() && unsafe { (&(*held).hashes).len() < /* ~ changed by cargo-mutants ~ */ m } {
+             // Each Shared allocates `storage.rooms.count + m + 1` piece nodes,
+             // so any later Pipeline reusing this storage with `<= m` messages
+             // and `<= storage.rooms.count` rooms has enough pieces too.
+             assert!(unsafe { (&(*held).pieces).len() } >= p_cap, "a Shared of as many messages has as many pieces");
+             // Sound: nor does writing its mode. A worker may still be
+             // returning from that last task with its `&Shared`: the mode is
+             // in a cell, and the worker's borrow of it ended before it
+             // published the task (Shared::tree).

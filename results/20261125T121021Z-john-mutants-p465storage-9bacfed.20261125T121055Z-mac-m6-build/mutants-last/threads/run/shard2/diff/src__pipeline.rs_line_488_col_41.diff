@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace == with != in PipeStorage::acquire
+@@ -480,17 +480,17 @@
+     fn release(st: &'static PipeStorage) {
+         Self::release_n(st, 1);
+     }
+ 
+     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize) -> &'static PipeStorage {
+         let chosen = {
+             let mut free = FREE_STORAGES.lock().unwrap();
+             let fits = |st: &&'static PipeStorage| {
+-                let rooms_ok = if rooms == 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };
++                let rooms_ok = if rooms != /* ~ changed by cargo-mutants ~ */ 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };
+                 st.source.actions_len() >= actions && st.loan_completed.len() >= messages && rooms_ok && st.groups.len() >= groups
+             };
+             let best = free
+                 .iter()
+                 .enumerate()
+                 .filter(|(_, st)| fits(st))
+                 .min_by_key(|(_, st)| (st.rooms.count, st.source.actions_len(), st.loan_completed.len(), st.groups.len()))
+                 .map(|(i, _)| i);
