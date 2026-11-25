@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace >= with < in PipeStorage::acquire
+@@ -540,17 +540,17 @@
+         let max_key = (alloc_rooms, usize::MAX, usize::MAX);
+         let chosen = {
+             let mut free = FREE_STORAGES.lock().unwrap();
+             let found_key = free
+                 .range(min_key..=max_key)
+                 .find(|(k, bucket)| {
+                     #[cfg(all(test, not(shuttle)))]
+                     ACQUIRE_SCANS.fetch_add(1, Ordering::Relaxed);
+-                    !bucket.is_empty() && k.2 >= messages
++                    !bucket.is_empty() && k.2 < /* ~ changed by cargo-mutants ~ */ messages
+                 })
+                 .map(|(&k, _)| k);
+             found_key.and_then(|k| free.get_mut(&k).and_then(Vec::pop))
+         };
+         if let Some(st) = chosen {
+             assert!(st.groups.len() >= groups, "a storage of as many messages has as many groups");
+             st.holders.store(1, Ordering::Release);
+             return st;
