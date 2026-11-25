@@ -1,0 +1,92 @@
+
+*** src/lanes.rs:1302:13: replace places::Plan::new_in -> Plan with Default::default()
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace places::Plan::new_in -> Plan with Default::default()
+@@ -1294,23 +1294,17 @@
+ 
+         /// Adaptive locality plan for a split `Pipeline::batch` submission
+         /// with `in_flight` active batches (`[TASK_LEN, FAR_LEN)`).
+         pub(crate) fn new_batch(len: usize, in_flight: usize) -> Plan {
+             Self::new_in(Kind::PipelineBatch, len, pool().threads, in_flight.max(1))
+         }
+ 
+         fn new_in(kind: Kind, len: usize, all: usize, in_flight: usize) -> Plan {
+-            let Some(near) = near_workers() else { return Plan { threads: all, learning: None } };
+-            if len >= FAR_LEN {
+-                return Plan { threads: all, learning: None };
+-            }
+-            let reach = LEARNED.with(|l| l.get()[kind as usize][class(len)].choose());
+-            let threads = if reach == Reach::Near { (near + 1).min(all) } else { all };
+-            Plan { threads, learning: Some((kind, len, reach, in_flight, now())) }
++            Default::default() /* ~ changed by cargo-mutants ~ */
+         }
+ 
+         /// Whether the job stays with the caller's place.
+         pub(crate) fn near(&self) -> bool {
+             matches!(self.learning, Some((_, _, Reach::Near, _, _)))
+         }
+ 
+         /// The job is done: the thread learns from it.
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.10.0+dev
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-2/Cargo.toml: version requirement `=0.10.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+    Blocking waiting for file lock on package cache
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[14319]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[18390]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil` (build script) generated 1 warning
+   Compiling blake3-servil v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/threads)
+   Compiling blake3-servil-core v0.10.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2)
+error[E0277]: the trait bound `Plan: Default` is not satisfied
+    --> src/lanes.rs:1302:13
+     |
+1302 |             Default::default() /* ~ changed by cargo-mutants ~ */
+     |             ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `Plan`
+     |
+help: consider annotating `Plan` with `#[derive(Default)]`
+     |
+1281 +     #[derive(Default)]
+1282 |     pub(crate) struct Plan {
+     |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `lanes::places::Plan: Default` is not satisfied
+    --> src/lanes.rs:1302:13
+     |
+1302 |             Default::default() /* ~ changed by cargo-mutants ~ */
+     |             ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `lanes::places::Plan`
+     |
+help: consider annotating `lanes::places::Plan` with `#[derive(Default)]`
+     |
+1281 +     #[derive(Default)]
+1282 |     pub(crate) struct Plan {
+     |
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.10.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
