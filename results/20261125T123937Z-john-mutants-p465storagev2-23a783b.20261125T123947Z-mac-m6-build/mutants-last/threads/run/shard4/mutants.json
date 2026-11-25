@@ -1,0 +1,258 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::drain_pieces with ()\n@@ -2282,71 +2282,17 @@\n         self.drain_pieces(s, false);\n     }\n \n     /// Fold slot `s`'s finished pieces, in order, up to the first still\n     /// being hashed. `keep_last` leaves the newest piece: an open\n     /// message may end with it, and the last piece folds as the root.\n     fn drain_pieces(&mut self, s: usize, keep_last: bool) {\n         // Sound: as `shared()`.\n-        let shared = unsafe { &*self.shared };\n-        let tree = shared.slot_tree(s);\n-        let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n-        let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n-\n-        loop {\n-            let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n-                return;\n-            }\n-            // Sound: the piece is done (checked above), so its `next` and\n-            // `out` are the owner's again.\n-            let next = unsafe { *shared.storage.pieces[head as usize].next.get() };\n-            let out = unsafe { *shared.storage.pieces[head as usize].out.0.get() };\n-            self.free_pieces.push_back(head);\n-\n-            let rs = &mut self.room_streams[s];\n-            rs.head_piece = next;\n-            if next == NONE {\n-                rs.tail_piece = NONE;\n-                let pos = rs.piece_slot_pos;\n-                rs.piece_slot_pos = NONE;\n-                let idx = pos as usize;\n-                self.piece_slots.swap_remove(idx);\n-                if let Some(&moved) = self.piece_slots.get(idx) {\n-                    self.room_streams[moved as usize].piece_slot_pos = pos;\n-                }\n-            }\n-            let rs = &mut self.room_streams[s];\n-            if aborted {\n-                continue;\n-            }\n-\n-            // Sound: the caller alone writes a room message's stack\n-            // (workers write a slice message's slots, never both for one slot).\n-            let cvs = unsafe { &mut (*shared.cvs[s].get()).whole };\n-            if ended && rs.merged_pieces + 1 == rs.len.div_ceil(ROOM_LEN as u64) {\n-                let root = match out {\n-                    RoomValue::First([left, right]) => tree.root_hash(&left, &right.into(), rs.len),\n-                    RoomValue::Whole(cv) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, cv.into(), rs.len),\n-                    RoomValue::Last(last) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, last, rs.len),\n-                };\n-                // Sound: the room message is done, with no other writer.\n-                unsafe { *shared.hashes[s].get() = *root.as_bytes() };\n-                shared.slot_done[s].store(true, Ordering::Relaxed);\n-                return;\n-            }\n-            let cv = match out {\n-                RoomValue::First([left, right]) => tree.parent_cv(&left, &right),\n-                RoomValue::Whole(cv) => cv,\n-                RoomValue::Last(_) => panic!(\"a short room is the last piece\"),\n-            };\n-            push_piece(tree, cvs, &mut rs.stack_len, rs.merged_pieces, cv);\n-            rs.merged_pieces += 1;\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn try_reap_one(&mut self) -> Option<Event<T, B, P>> {\n         let &front = self.end_queue.front()?;\n         let s = front as usize;\n \n         let ready = match self.slots[s].kind {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2345
+        },
+        "start": {
+          "column": 5,
+          "line": 2285
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2290:9: replace Pipeline<T, B, P>::drain_pieces with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2344
+      },
+      "start": {
+        "column": 9,
+        "line": 2290
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace || with && in Pipeline<T, B, P>::drain_pieces\n@@ -2289,17 +2289,17 @@\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n         let tree = shared.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) && /* ~ changed by cargo-mutants ~ */ !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.storage.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.storage.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2345
+        },
+        "start": {
+          "column": 5,
+          "line": 2285
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2297:87: replace || with && in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 2297
+      },
+      "start": {
+        "column": 87,
+        "line": 2297
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace || with && in Pipeline<T, B, P>::drain_pieces\n@@ -2289,17 +2289,17 @@\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n         let tree = shared.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE && /* ~ changed by cargo-mutants ~ */ (keep_last && head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.storage.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.storage.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2345
+        },
+        "start": {
+          "column": 5,
+          "line": 2285
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2297:29: replace || with && in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 2297
+      },
+      "start": {
+        "column": 29,
+        "line": 2297
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Pipeline<T, B, P>::drain_pieces\n@@ -2289,17 +2289,17 @@\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n         let tree = shared.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head != /* ~ changed by cargo-mutants ~ */ NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.storage.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.storage.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2345
+        },
+        "start": {
+          "column": 5,
+          "line": 2285
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2297:21: replace == with != in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 2297
+      },
+      "start": {
+        "column": 21,
+        "line": 2297
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in Pipeline<T, B, P>::drain_pieces\n@@ -2289,17 +2289,17 @@\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n         let tree = shared.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last || /* ~ changed by cargo-mutants ~ */ head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.storage.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.storage.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2345
+        },
+        "start": {
+          "column": 5,
+          "line": 2285
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2297:43: replace && with || in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 45,
+        "line": 2297
+      },
+      "start": {
+        "column": 43,
+        "line": 2297
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Pipeline<T, B, P>::drain_pieces\n@@ -2289,17 +2289,17 @@\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n         let tree = shared.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last && head != /* ~ changed by cargo-mutants ~ */ self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.storage.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.storage.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2345
+        },
+        "start": {
+          "column": 5,
+          "line": 2285
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2297:51: replace == with != in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 2297
+      },
+      "start": {
+        "column": 51,
+        "line": 2297
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete ! in Pipeline<T, B, P>::drain_pieces\n@@ -2289,17 +2289,17 @@\n         // Sound: as `shared()`.\n         let shared = unsafe { &*self.shared };\n         let tree = shared.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) ||  /* ~ changed by cargo-mutants ~ */shared.storage.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *shared.storage.pieces[head as usize].next.get() };\n             let out = unsafe { *shared.storage.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2345
+        },
+        "start": {
+          "column": 5,
+          "line": 2285
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/pipeline.rs:2297:90: delete ! in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 91,
+        "line": 2297
+      },
+      "start": {
+        "column": 90,
+        "line": 2297
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::has_in_flight_work -> bool with true\n@@ -2413,42 +2413,17 @@\n     fn reap(&mut self) {\n         while self.events.len() < self.limits.messages {\n             let Some(ev) = self.try_reap_one() else { break };\n             self.events.push_back(ev);\n         }\n     }\n \n     fn has_in_flight_work(&self) -> bool {\n-        let shared = self.shared();\n-        for g in 0..self.group_count {\n-            let assigned = self.assigned_group_epoch[g];\n-            if assigned != 0 && shared.storage.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {\n-                return true;\n-            }\n-        }\n-        // Scan only this Pipeline's active piece prefix (`0..p_cap`), never\n-        // inactive tail nodes of a larger reused PipeStorage (#465).\n-        let p_cap = self.limits.rooms + self.limits.messages + 1;\n-        for p in &shared.storage.pieces[..p_cap] {\n-            if !p.done.load(Ordering::Acquire) {\n-                return true;\n-            }\n-        }\n-        for s in 0..self.slots.len() {\n-            match self.slots[s].kind {\n-                SlotKind::WaitMulti { .. } | SlotKind::WaitBatch { group: NONE, .. } => {\n-                    if !shared.slot_done[s].load(Ordering::Acquire) {\n-                        return true;\n-                    }\n-                }\n-                _ => {}\n-            }\n-        }\n-        false\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P> Drop for Pipeline<T, B, P> {\n     fn drop(&mut self) {\n         if self.has_in_flight_work() {\n             stop_process(\"blake3-servil: Pipeline dropped while worker tasks are still in flight\\n\");\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::has_in_flight_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2447
+        },
+        "start": {
+          "column": 5,
+          "line": 2420
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2421:9: replace Pipeline<T, B, P>::has_in_flight_work -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 2446
+      },
+      "start": {
+        "column": 9,
+        "line": 2421
+      }
+    }
+  }
+]

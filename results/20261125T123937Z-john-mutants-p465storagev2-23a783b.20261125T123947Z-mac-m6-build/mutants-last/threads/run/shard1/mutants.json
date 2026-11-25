@@ -1,0 +1,258 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <= with > in room_storage_class\n@@ -471,17 +471,17 @@\n /// bounding distinct storages when callers vary `Limits.rooms` (#465).\n fn room_storage_class(rooms: usize) -> usize {\n     if rooms <= 4 {\n         return rooms;\n     }\n     let max_rooms = (1usize << 29) - 1;\n     let p = rooms.next_power_of_two();\n     let mid = (p >> 1) + (p >> 2);\n-    if rooms <= mid { mid } else { p.min(max_rooms) }\n+    if rooms > /* ~ changed by cargo-mutants ~ */ mid { mid } else { p.min(max_rooms) }\n }\n \n impl PipeStorage {\n     /// Give up `n` holds on `st` (its Pipeline's teardown holds, or a\n     /// surviving Room's): the last hold puts it on the free list. A Room may\n     /// outlive its Pipeline, so either may be the last.\n     fn release_n(st: &'static PipeStorage, n: usize) {\n         if st.holders.fetch_sub(n, Ordering::AcqRel) == n {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "room_storage_class",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 480
+        },
+        "start": {
+          "column": 1,
+          "line": 468
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:479:14: replace <= with > in room_storage_class",
+    "package": "blake3-servil",
+    "replacement": ">",
+    "span": {
+      "end": {
+        "column": 16,
+        "line": 479
+      },
+      "start": {
+        "column": 14,
+        "line": 479
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))\n@@ -489,89 +489,17 @@\n         }\n     }\n \n     fn release(st: &'static PipeStorage) {\n         Self::release_n(st, 1);\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize) -> &'static PipeStorage {\n-        let alloc_rooms = room_storage_class(rooms);\n-        // Minimum attainable `(rooms, actions, messages, groups)` key for any\n-        // fitting storage: breaks immediately on index 0 in homogeneous pools.\n-        let floor_key = (alloc_rooms, actions.max(1024), messages.max(64), groups.max(64));\n-        let chosen = {\n-            let mut free = FREE_STORAGES.lock().unwrap();\n-            let mut best: Option<(usize, (usize, usize, usize, usize))> = None;\n-            for (i, st) in free.iter().enumerate() {\n-                #[cfg(all(test, not(shuttle)))]\n-                ACQUIRE_SCANS.fetch_add(1, Ordering::Relaxed);\n-                let rooms_ok = if rooms == 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };\n-                if st.source.actions_len() >= actions && st.loan_completed.len() >= messages && rooms_ok && st.groups.len() >= groups {\n-                    let key = (st.rooms.count, st.source.actions_len(), st.loan_completed.len(), st.groups.len());\n-                    if best.is_none_or(|(_, best_key)| key < best_key) {\n-                        best = Some((i, key));\n-                        if key == floor_key {\n-                            break;\n-                        }\n-                    }\n-                }\n-            }\n-            best.map(|(at, _)| free.swap_remove(at))\n-        };\n-        if let Some(st) = chosen {\n-            st.holders.store(1, Ordering::Release);\n-            return st;\n-        }\n-        // Reserve actions for the allocated room class (`alloc_rooms`), not just\n-        // the unrounded `rooms`, so ascending room sweeps above the 1,024-action\n-        // floor reuse each allocated class instead of missing on every step (#465).\n-        let alloc_actions = actions.saturating_add(alloc_rooms - rooms).max(1024);\n-        let alloc_messages = messages.max(64);\n-        let alloc_groups = groups.max(64);\n-        let alloc_pieces = alloc_rooms + alloc_messages + 1;\n-        let dummy = GroupMemberMeta { room: NONE };\n-        #[cfg(any(test, shuttle))]\n-        STORAGES_MADE.fetch_add(1, Ordering::Relaxed);\n-        let raw = Box::into_raw(Box::new(PipeStorage {\n-            source: Source::with_actions(alloc_actions),\n-            waker: WakerSlot::new(),\n-            rooms: Rooms::new(alloc_rooms),\n-            pieces: (0..alloc_pieces)\n-                .map(|_| PieceNode {\n-                    slot: UnsafeCell::new(0),\n-                    room: UnsafeCell::new(0),\n-                    offset: UnsafeCell::new(0),\n-                    len: UnsafeCell::new(0),\n-                    index: UnsafeCell::new(0),\n-                    out: OwnLine(UnsafeCell::new(RoomValue::Whole(Cv::unset()))),\n-                    done: OwnLine(AtomicBool::new(true)),\n-                    next: UnsafeCell::new(NONE),\n-                })\n-                .collect(),\n-            groups: (0..alloc_groups)\n-                .map(|_| MemberGroup {\n-                    task: UnsafeCell::new(Task::members(None)),\n-                    metas: UnsafeCell::new([dummy; MEMBERS]),\n-                    custom_tree: UnsafeCell::new(None),\n-                    epoch: UnsafeCell::new(0),\n-                    completed_epoch: OwnLine(AtomicU64::new(0)),\n-                })\n-                .collect(),\n-            loan_completed: (0..alloc_messages).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            saved_loan_epoch: UnsafeCell::new(1),\n-            saved_group_epoch: UnsafeCell::new(1),\n-            shared: UnsafeCell::new(core::ptr::null_mut()),\n-            holders: OwnLine(AtomicUsize::new(1)),\n-        }));\n-        #[cfg(shuttle)]\n-        MODEL_OWNED_STORAGES.lock().unwrap().push(OwnedStoragePtr(raw));\n-        // Sound: `raw` is a valid leaked allocation (freed only after all\n-        // Shuttle workers join in `model_storages::free_storages_for_model`).\n-        unsafe { &*raw }\n+        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.\n ///\n /// # Trait implementations\n ///\n /// - `Drop` returns the unused credits; workers retain access to committed\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 570
+        },
+        "start": {
+          "column": 5,
+          "line": 496
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:497:9: replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 569
+      },
+      "start": {
+        "column": 9,
+        "line": 497
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in PipeStorage::acquire\n@@ -499,17 +499,17 @@\n         // fitting storage: breaks immediately on index 0 in homogeneous pools.\n         let floor_key = (alloc_rooms, actions.max(1024), messages.max(64), groups.max(64));\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let mut best: Option<(usize, (usize, usize, usize, usize))> = None;\n             for (i, st) in free.iter().enumerate() {\n                 #[cfg(all(test, not(shuttle)))]\n                 ACQUIRE_SCANS.fetch_add(1, Ordering::Relaxed);\n-                let rooms_ok = if rooms == 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };\n+                let rooms_ok = if rooms != /* ~ changed by cargo-mutants ~ */ 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };\n                 if st.source.actions_len() >= actions && st.loan_completed.len() >= messages && rooms_ok && st.groups.len() >= groups {\n                     let key = (st.rooms.count, st.source.actions_len(), st.loan_completed.len(), st.groups.len());\n                     if best.is_none_or(|(_, best_key)| key < best_key) {\n                         best = Some((i, key));\n                         if key == floor_key {\n                             break;\n                         }\n                     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 570
+        },
+        "start": {
+          "column": 5,
+          "line": 496
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:507:41: replace == with != in PipeStorage::acquire",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 43,
+        "line": 507
+      },
+      "start": {
+        "column": 41,
+        "line": 507
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in PipeStorage::acquire\n@@ -499,17 +499,17 @@\n         // fitting storage: breaks immediately on index 0 in homogeneous pools.\n         let floor_key = (alloc_rooms, actions.max(1024), messages.max(64), groups.max(64));\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let mut best: Option<(usize, (usize, usize, usize, usize))> = None;\n             for (i, st) in free.iter().enumerate() {\n                 #[cfg(all(test, not(shuttle)))]\n                 ACQUIRE_SCANS.fetch_add(1, Ordering::Relaxed);\n-                let rooms_ok = if rooms == 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };\n+                let rooms_ok = if rooms == 0 { st.rooms.count != /* ~ changed by cargo-mutants ~ */ 0 } else { st.rooms.count >= rooms };\n                 if st.source.actions_len() >= actions && st.loan_completed.len() >= messages && rooms_ok && st.groups.len() >= groups {\n                     let key = (st.rooms.count, st.source.actions_len(), st.loan_completed.len(), st.groups.len());\n                     if best.is_none_or(|(_, best_key)| key < best_key) {\n                         best = Some((i, key));\n                         if key == floor_key {\n                             break;\n                         }\n                     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 570
+        },
+        "start": {
+          "column": 5,
+          "line": 496
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:507:63: replace == with != in PipeStorage::acquire",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 507
+      },
+      "start": {
+        "column": 63,
+        "line": 507
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace >= with < in PipeStorage::acquire\n@@ -499,17 +499,17 @@\n         // fitting storage: breaks immediately on index 0 in homogeneous pools.\n         let floor_key = (alloc_rooms, actions.max(1024), messages.max(64), groups.max(64));\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let mut best: Option<(usize, (usize, usize, usize, usize))> = None;\n             for (i, st) in free.iter().enumerate() {\n                 #[cfg(all(test, not(shuttle)))]\n                 ACQUIRE_SCANS.fetch_add(1, Ordering::Relaxed);\n-                let rooms_ok = if rooms == 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };\n+                let rooms_ok = if rooms == 0 { st.rooms.count == 0 } else { st.rooms.count < /* ~ changed by cargo-mutants ~ */ rooms };\n                 if st.source.actions_len() >= actions && st.loan_completed.len() >= messages && rooms_ok && st.groups.len() >= groups {\n                     let key = (st.rooms.count, st.source.actions_len(), st.loan_completed.len(), st.groups.len());\n                     if best.is_none_or(|(_, best_key)| key < best_key) {\n                         best = Some((i, key));\n                         if key == floor_key {\n                             break;\n                         }\n                     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 570
+        },
+        "start": {
+          "column": 5,
+          "line": 496
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:507:92: replace >= with < in PipeStorage::acquire",
+    "package": "blake3-servil",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 94,
+        "line": 507
+      },
+      "start": {
+        "column": 92,
+        "line": 507
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in PipeStorage::acquire\n@@ -500,17 +500,17 @@\n         let floor_key = (alloc_rooms, actions.max(1024), messages.max(64), groups.max(64));\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let mut best: Option<(usize, (usize, usize, usize, usize))> = None;\n             for (i, st) in free.iter().enumerate() {\n                 #[cfg(all(test, not(shuttle)))]\n                 ACQUIRE_SCANS.fetch_add(1, Ordering::Relaxed);\n                 let rooms_ok = if rooms == 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };\n-                if st.source.actions_len() >= actions && st.loan_completed.len() >= messages && rooms_ok && st.groups.len() >= groups {\n+                if st.source.actions_len() >= actions && st.loan_completed.len() >= messages && rooms_ok || /* ~ changed by cargo-mutants ~ */ st.groups.len() >= groups {\n                     let key = (st.rooms.count, st.source.actions_len(), st.loan_completed.len(), st.groups.len());\n                     if best.is_none_or(|(_, best_key)| key < best_key) {\n                         best = Some((i, key));\n                         if key == floor_key {\n                             break;\n                         }\n                     }\n                 }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 570
+        },
+        "start": {
+          "column": 5,
+          "line": 496
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:508:106: replace && with || in PipeStorage::acquire",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 108,
+        "line": 508
+      },
+      "start": {
+        "column": 106,
+        "line": 508
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in PipeStorage::acquire\n@@ -500,17 +500,17 @@\n         let floor_key = (alloc_rooms, actions.max(1024), messages.max(64), groups.max(64));\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let mut best: Option<(usize, (usize, usize, usize, usize))> = None;\n             for (i, st) in free.iter().enumerate() {\n                 #[cfg(all(test, not(shuttle)))]\n                 ACQUIRE_SCANS.fetch_add(1, Ordering::Relaxed);\n                 let rooms_ok = if rooms == 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };\n-                if st.source.actions_len() >= actions && st.loan_completed.len() >= messages && rooms_ok && st.groups.len() >= groups {\n+                if st.source.actions_len() >= actions && st.loan_completed.len() >= messages || /* ~ changed by cargo-mutants ~ */ rooms_ok && st.groups.len() >= groups {\n                     let key = (st.rooms.count, st.source.actions_len(), st.loan_completed.len(), st.groups.len());\n                     if best.is_none_or(|(_, best_key)| key < best_key) {\n                         best = Some((i, key));\n                         if key == floor_key {\n                             break;\n                         }\n                     }\n                 }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 570
+        },
+        "start": {
+          "column": 5,
+          "line": 496
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:508:94: replace && with || in PipeStorage::acquire",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 96,
+        "line": 508
+      },
+      "start": {
+        "column": 94,
+        "line": 508
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in PipeStorage::acquire\n@@ -500,17 +500,17 @@\n         let floor_key = (alloc_rooms, actions.max(1024), messages.max(64), groups.max(64));\n         let chosen = {\n             let mut free = FREE_STORAGES.lock().unwrap();\n             let mut best: Option<(usize, (usize, usize, usize, usize))> = None;\n             for (i, st) in free.iter().enumerate() {\n                 #[cfg(all(test, not(shuttle)))]\n                 ACQUIRE_SCANS.fetch_add(1, Ordering::Relaxed);\n                 let rooms_ok = if rooms == 0 { st.rooms.count == 0 } else { st.rooms.count >= rooms };\n-                if st.source.actions_len() >= actions && st.loan_completed.len() >= messages && rooms_ok && st.groups.len() >= groups {\n+                if st.source.actions_len() >= actions || /* ~ changed by cargo-mutants ~ */ st.loan_completed.len() >= messages && rooms_ok && st.groups.len() >= groups {\n                     let key = (st.rooms.count, st.source.actions_len(), st.loan_completed.len(), st.groups.len());\n                     if best.is_none_or(|(_, best_key)| key < best_key) {\n                         best = Some((i, key));\n                         if key == floor_key {\n                             break;\n                         }\n                     }\n                 }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 570
+        },
+        "start": {
+          "column": 5,
+          "line": 496
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:508:55: replace && with || in PipeStorage::acquire",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 57,
+        "line": 508
+      },
+      "start": {
+        "column": 55,
+        "line": 508
+      }
+    }
+  }
+]
