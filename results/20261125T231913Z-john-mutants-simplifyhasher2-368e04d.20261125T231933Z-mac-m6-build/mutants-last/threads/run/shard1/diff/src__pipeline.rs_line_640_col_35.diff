@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace - with + in <impl Drop for Room>::drop
+@@ -632,17 +632,17 @@
+         self.storage().rooms.release_n(self.index, spent as usize);
+         self.commits += spent;
+     }
+ }
+ 
+ impl Drop for Room {
+     #[inline]
+     fn drop(&mut self) {
+-        let unused = ROOM_CREDITS - (self.commits as usize);
++        let unused = ROOM_CREDITS + /* ~ changed by cargo-mutants ~ */ (self.commits as usize);
+         let storage = self.storage();
+         #[cfg(shuttle)]
+         assert!(!storage.retired.load(Ordering::Acquire), "PipeStorage used after release");
+         let r = &storage.rooms.refs[self.index as usize];
+         // Fast path: while workers still hold piece credits (`next != 0`) and
+         // `Pipeline::drop` has not stamped `ROOM_CLOSING_BIT`
+         // (`next < ROOM_CLOSING_BIT`), a single `SeqCst` CAS drops our unused
+         // credits while leaving `refs[i] > 0`, paying zero `holders` atomics

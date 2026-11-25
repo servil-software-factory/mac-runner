@@ -1,0 +1,36 @@
+--- src/lanes.rs
++++ replace sources::run_one_from -> bool with false
+@@ -3753,32 +3753,17 @@
+     /// drops its [`ReaderGuard`] BEFORE invoking `Waker::wake()`, preventing
+     /// deadlock if an inline executor drops the `Pipeline` inside `wake()`.
+     fn run_one_from(
+         guard: &ReaderGuard<'_>,
+         turn: &mut Turn,
+         pending_waker: &mut Option<core::task::Waker>,
+         mut serve: impl FnMut(&Source, Item) -> Option<core::task::Waker>,
+     ) -> bool {
+-        let in_turn = turn.taken >= TURN;
+-        let start = if in_turn { turn.cursor as usize } else { 0 };
+-        let taken_from = find_from(guard, start, |source| {
+-            let Some(item) = source.take() else { return false };
+-            *pending_waker = serve(source, item);
+-            true
+-        });
+-        let Some(slot) = taken_from else { return false };
+-        if in_turn {
+-            // The slot after this one (after the last, the first: the
+-            // walk takes its start round).
+-            *turn = Turn { taken: 0, cursor: u32::from((slot + 1).to_le_bytes()[0]) };
+-        } else {
+-            turn.taken += 1;
+-        }
+-        true
++        false /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Speculative publication / worker-chain wake: prefers the waker's own
+     /// place when `near` is set without spilling to remote caches; spills
+     /// across places when `near` is false. Progress waits (`wake_for_waiting`)
+     /// never call this and always call `Park::wake_one()`.
+     fn wake_speculative(park: &crate::park::Park, near: bool) {
+         noted(Noted::WakeTry);
