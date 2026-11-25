@@ -1,0 +1,33 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::open_new_group -> (u32, u64) with (1, 1)
+@@ -2197,29 +2197,17 @@
+         // Sound: `slot` just came off `free_slots`, so no worker task reads
+         // `slot_custom[slot]` until the owner dispatches work for this slot.
+         unsafe { *self.shared().cold.slot_custom[slot].get() = false };
+         self.cold.slot_modes[slot] = SlotMode::Default;
+     }
+ 
+     #[inline(never)]
+     fn open_new_group(&mut self, slot: usize, batch: Option<(usize, usize)>) -> (u32, u64) {
+-        let g = self.acquire_free_group();
+-        let epoch = self.next_group_epoch;
+-        self.next_group_epoch = epoch.checked_add(1).expect("Pipeline group epoch counter exhausted");
+-        self.local_count = 0;
+-        self.local_bytes = 0;
+-        self.local_batch = batch;
+-        if self.has_custom_mode {
+-            let slot_mode = self.cold.slot_modes[slot];
+-            self.cold.local_group_mode = slot_mode;
+-            self.cold.local_custom_tree = if slot_mode == SlotMode::Default { None } else { Some(self.shared().slot_tree(slot).clone()) };
+-        }
+-        self.open_group = Some((g, epoch));
+-        (g, epoch)
++        (1, 1) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline]
+     fn front_uses_open_group(&self) -> bool {
+         let Some((open_g, _)) = self.open_group else { return false };
+         let Some(&front) = self.end_queue.front() else { return false };
+         match self.slots[front as usize].kind {
+             SlotKind::WaitSingle { group, .. } | SlotKind::WaitBatch { group, .. } | SlotKind::WaitAborted { group, .. } => group == open_g,
