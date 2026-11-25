@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace == with != in PipeStorage::release
+@@ -458,17 +458,17 @@
+         {
+             // Sound: under Shuttle, logically retired storages stay quarantined
+             // until all threads join so this assertion fires cleanly on an
+             // early-release fault without use-after-free UB.
+             let st_ref = unsafe { &*st };
+             assert!(!st_ref.retired.load(Ordering::Acquire), "PipeStorage used after release");
+             let prev = st_ref.holders.fetch_sub(1, Ordering::AcqRel);
+             assert!(prev >= 1, "PipeStorage holders underflow");
+-            if prev == 1 {
++            if prev != /* ~ changed by cargo-mutants ~ */ 1 {
+                 assert!(!st_ref.retired.swap(true, Ordering::AcqRel), "PipeStorage double free");
+                 LIVE_STORAGES.fetch_sub(1, Ordering::Relaxed);
+                 crate::pipeline_sync::quarantine_storage(st as usize);
+             }
+             return;
+         }
+         #[cfg(not(shuttle))]
+         // Sound: the caller holds one reference in `holders`, keeping `*st`

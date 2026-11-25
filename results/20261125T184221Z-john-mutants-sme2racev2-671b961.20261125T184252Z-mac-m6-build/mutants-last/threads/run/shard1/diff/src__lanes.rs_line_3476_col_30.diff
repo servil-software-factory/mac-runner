@@ -1,0 +1,21 @@
+--- src/lanes.rs
++++ delete ! in sources::Source::unregister_and_drain
+@@ -3468,17 +3468,17 @@
+         /// newer epoch stored after `DRAINING`), so the caller can soundly free
+         /// the `Source` and its enclosing `PipeStorage`.
+         ///
+         /// `REGISTERED[slot]` holds `DRAINING` until the drain completes so no
+         /// new registration can reuse `slot` while draining. In a forked child
+         /// (`FORKED`), no pool worker threads exist (any copied `readers` entry
+         /// is stale parent memory), so draining skips the wait.
+         pub(crate) fn unregister_and_drain(slot: usize) {
+-            ACTIVE.fetch_and(!(1 << slot), Ordering::SeqCst);
++            ACTIVE.fetch_and( /* ~ changed by cargo-mutants ~ */(1 << slot), Ordering::SeqCst);
+             REGISTERED[slot].store(DRAINING, Ordering::Release);
+             core::sync::atomic::fence(Ordering::SeqCst);
+             if !FORKED.load(Ordering::Relaxed)
+                 && let Some(pool) = POOL.get()
+             {
+                 let _waiter = DrainWaiter::enter();
+                 for reader in &pool.readers {
+                     let initial = reader.0.load(Ordering::Acquire);
