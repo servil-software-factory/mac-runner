@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::create -> Self with Default::default()\n@@ -1384,161 +1384,17 @@\n impl<T, B, P> Pipeline<T, B, P> {\n     #[inline(always)]\n     fn shared(&self) -> &Shared {\n         // Sound: `shared` is this Pipeline's Shared (create), never freed.\n         unsafe { &*self.shared }\n     }\n \n     fn create(mode: Mode, limits: Limits) -> Self {\n-        crate::lanes::require();\n-        prepare_thread();\n-        assert!(limits.messages > 0, \"Pipeline Limits.messages must be at least 1\");\n-        let tree = TreeHasher::new(mode);\n-        let m = limits.messages;\n-        // Each limit alone first: their sum, next, could wrap round to a\n-        // small one (`rooms: usize::MAX` passed the check below so).\n-        assert!(m < 1 << 29 && limits.rooms < 1 << 29, \"Pipeline Limits beyond what an action can name\");\n-        let p_cap = limits.rooms + m + 1;\n-        let g_cap = m.clamp(4, 256);\n-        let actions_cap = m * MAX_SLOT_PIECES + p_cap + g_cap;\n-        // An action names a slot, a piece or a group in 29 bits (pack_arg).\n-        assert!(m < 1 << 29 && p_cap < 1 << 29, \"Pipeline Limits beyond what an action can name\");\n-        // Reserve a non-wrapping identity before acquiring storage or a source\n-        // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot\n-        // wrap back to previously issued IDs.\n-        let id = loop {\n-            let cur = NEXT_PIPELINE_ID.load(Ordering::Relaxed);\n-            assert!(cur < u64::MAX, \"Pipeline ID counter exhausted\");\n-            if NEXT_PIPELINE_ID.compare_exchange(cur, cur + 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {\n-                break cur;\n-            }\n-        };\n-\n-        let storage = PipeStorage::acquire(actions_cap, m, limits.rooms, g_cap);\n-        // Sound: this Pipeline now holds the storage alone\n-        // (PipeStorage::acquire), and these cells are its holder's.\n-        let next_loan_epoch = unsafe { *storage.saved_loan_epoch.get() };\n-        let next_group_epoch = unsafe { *storage.saved_group_epoch.get() };\n-        // A pool of one thread has no worker to take a published action,\n-        // and only this crate's block_on would run it: an outside executor\n-        // waited for ever. Unregistered, every action runs where it is\n-        // dispatched, as when no slot is free.\n-        let source_slot = if crate::lanes::pool_has_workers() { storage.source.register() } else { None };\n-        crate::lanes::sources::opened();\n-\n-        let mut local_free_rooms = Ring::new(limits.rooms.max(1));\n-        for i in 0..limits.rooms {\n-            local_free_rooms.push_back(u32::try_from(i).expect(\"room index fits u32\"));\n-        }\n-        // The storage's `Shared`, where it has one of this size: every task\n-        // of the Pipeline before is done (its drop saw to that), and only\n-        // the mode is this Pipeline's own.\n-        // Sound: as the saved epochs above. A Shared the storage keeps was the\n-        // Pipeline before's, whose every task is published done (its drop saw\n-        // to that), so reading its lengths races with no worker.\n-        let held = unsafe { *storage.shared.get() };\n-        let shared: *mut Shared = if !held.is_null() && unsafe { (&(*held).hashes).len() >= m } {\n-            // A storage has one count of rooms, so pieces enough too.\n-            assert!(unsafe { (&(*held).pieces).len() } >= p_cap, \"a Shared of as many messages has as many pieces\");\n-            // Sound: nor does writing its mode. A worker may still be\n-            // returning from that last task with its `&Shared`: the mode is\n-            // in a cell, and the worker's borrow of it ended before it\n-            // published the task (Shared::tree).\n-            unsafe {\n-                *(*held).tree.get() = tree;\n-            }\n-            held\n-        } else {\n-            // One it replaces stays allocated: a worker of an earlier\n-            // Pipeline may still be reading it.\n-            let new = Box::into_raw(Box::new(Shared {\n-                tree: UnsafeCell::new(tree.clone()),\n-                slot_trees: (0..m).map(|_| UnsafeCell::new(tree.clone())).collect(),\n-                slot_custom: (0..m).map(|_| UnsafeCell::new(false)).collect(),\n-                storage,\n-                hashes: (0..m).map(|_| UnsafeCell::new([0u8; OUT_LEN])).collect(),\n-                cvs: (0..m).map(|_| UnsafeCell::new(PieceValues { whole: [Cv::unset(); MAX_SLOT_PIECES], last: None })).collect(),\n-                slot_done: (0..m).map(|_| OwnLine(AtomicBool::new(true))).collect(),\n-                tasks_left: (0..m).map(|_| OwnLine(AtomicUsize::new(0))).collect(),\n-                multi: (0..m)\n-                    .map(|_| {\n-                        UnsafeCell::new(MultiDesc {\n-                            input: core::ptr::null(),\n-                            total_len: 0,\n-                            piece_level: level_of(TASK_LEN as u64),\n-                            pieces: 0,\n-                            batch: None,\n-                            digests: core::ptr::null_mut(),\n-                            loan_epoch: 0,\n-                        })\n-                    })\n-                    .collect(),\n-                pieces: (0..p_cap)\n-                    .map(|_| PieceNode {\n-                        slot: UnsafeCell::new(0),\n-                        room: UnsafeCell::new(0),\n-                        offset: UnsafeCell::new(0),\n-                        len: UnsafeCell::new(0),\n-                        index: UnsafeCell::new(0),\n-                        out: OwnLine(UnsafeCell::new(RoomValue::Whole(Cv::unset()))),\n-                        done: OwnLine(AtomicBool::new(true)),\n-                        next: UnsafeCell::new(NONE),\n-                    })\n-                    .collect(),\n-            }));\n-            // Sound: as above; the Shared is kept for the next Pipeline.\n-            unsafe { *storage.shared.get() = new };\n-            new\n-        };\n-\n-        let mut free_slots = Ring::new(m);\n-        for i in 0..m {\n-            free_slots.push_back(u32::try_from(i).expect(\"slot index fits u32\"));\n-        }\n-        let mut free_pieces = Ring::new(p_cap);\n-        for i in 0..p_cap {\n-            free_pieces.push_back(u32::try_from(i).expect(\"piece index fits u32\"));\n-        }\n-\n-        Pipeline {\n-            id,\n-            limits,\n-            group_count: g_cap,\n-            source_slot,\n-            shared,\n-            slots: (0..m).map(|_| SlotMeta { tag: None, kind: SlotKind::Free, mode: SlotMode::Default }).collect(),\n-            room_streams: vec![RoomStream::EMPTY; m].into_boxed_slice(),\n-            owners: RawSlots::new(m),\n-            batches: RawSlots::new(m),\n-            batch_plans: vec![None; m].into_boxed_slice(),\n-            batches_in_flight: 0,\n-            free_slots,\n-            open_messages: 0,\n-            end_queue: Ring::new(m),\n-            events: Ring::new(m),\n-            local_free_rooms,\n-            room_cursor: 0,\n-            free_pieces,\n-            piece_slots: Vec::with_capacity(if limits.rooms == 0 { 0 } else { m }),\n-            group_cursor: 0,\n-            open_group: None,\n-            local_count: 0,\n-            local_bytes: 0,\n-            local_batch: None,\n-            local_group_mode: SlotMode::Default,\n-            local_custom_tree: None,\n-            local_members: Box::new([Member { input: core::ptr::null(), len: 0, out: core::ptr::null_mut() }; MEMBERS]),\n-            local_rooms: Box::new([NONE; MEMBERS]),\n-            next_loan_epoch,\n-            next_group_epoch,\n-            assigned_group_epoch: vec![0u64; g_cap].into_boxed_slice(),\n-            seen_group_epoch: vec![0u64; g_cap].into_boxed_slice(),\n-            action_buf: [0; MAX_SLOT_PIECES],\n-        }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Wait for a free message slot and open a [`Message`] in this pipeline's\n     /// default [`Mode`].\n     ///\n     /// # Panics\n     ///\n     /// If no slot is free and waiting cannot free one: as many messages\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1537
+        },
+        "start": {
+          "column": 5,
+          "line": 1391
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1392:9: replace Pipeline<T, B, P>::create -> Self with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1536
+      },
+      "start": {
+        "column": 9,
+        "line": 1392
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::commit_multi with ()\n@@ -1724,83 +1724,17 @@\n             self.slots[s].kind = SlotKind::OpenShort { room: room.index, offset: start_offset, len: u32::try_from(written).expect(\"written < ROOM_LEN\") };\n             return;\n         }\n         self.commit_multi(s, room, written);\n     }\n \n     #[inline(never)]\n     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {\n-        let start_offset = room.offset;\n-        let room_idx = room.index;\n-\n-        match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                debug_assert_eq!(written, ROOM_LEN);\n-                debug_assert_eq!(start_offset, 0);\n-                room.offset = u32::try_from(ROOM_LEN).unwrap();\n-                self.room_streams[s] = RoomStream::EMPTY;\n-                self.slots[s].kind = SlotKind::OpenRooms { sealed: false };\n-            }\n-            SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {\n-                panic!(\"commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room\");\n-            }\n-            SlotKind::OpenRooms { ref mut sealed } => {\n-                if written == ROOM_LEN {\n-                    debug_assert_eq!(start_offset, 0);\n-                    room.offset = u32::try_from(ROOM_LEN).unwrap();\n-                } else {\n-                    *sealed = true;\n-                    room.offset = u32::try_from(((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN)).expect(\"bounded by ROOM_LEN\");\n-                    if written == 0 {\n-                        return;\n-                    }\n-                }\n-            }\n-            _ => unreachable!(\"Message token refers to a non-open slot\"),\n-        }\n-\n-        room.take_credit();\n-        let rs = &mut self.room_streams[s];\n-        // The earlier commits all filled a whole room. A short one\n-        // seals the message, so there can be no commit after it.\n-        let index = rs.len / ROOM_LEN as u64;\n-        rs.len = rs.len.checked_add(written as u64).expect(\"a message fits in u64 bytes\");\n-\n-        self.drain_slot_pieces(s);\n-        let pnode = self.alloc_piece_node(s);\n-        // Sound: as `shared()`. The node came off the free list, so no task\n-        // uses it: its fields are the owner's to write before the dispatch\n-        // below.\n-        let shared = unsafe { &*self.shared };\n-        let node = &shared.pieces[pnode as usize];\n-        unsafe {\n-            *node.slot.get() = u32::try_from(s).expect(\"slot fits u32\");\n-            *node.room.get() = room_idx;\n-            *node.offset.get() = start_offset;\n-            *node.len.get() = u32::try_from(written).expect(\"written <= ROOM_LEN\");\n-            *node.index.get() = index;\n-            *node.next.get() = NONE;\n-        }\n-        node.done.store(false, Ordering::Relaxed);\n-\n-        let rs = &mut self.room_streams[s];\n-        if rs.tail_piece == NONE {\n-            rs.head_piece = pnode;\n-            rs.piece_slot_pos = u32::try_from(self.piece_slots.len()).expect(\"piece_slots length fits u32\");\n-            self.piece_slots.push(u32::try_from(s).expect(\"slot fits u32\"));\n-        } else {\n-            // Sound: `next` is the owner's alone (workers read a node's other\n-            // fields).\n-            unsafe { *shared.pieces[rs.tail_piece as usize].next.get() = pnode };\n-        }\n-        rs.tail_piece = pnode;\n-\n-        let arg = pack_arg(KIND_ROOM_PIECE, pnode, 0, written >= SME2_MIN_LEN);\n-        self.dispatch_one(arg);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {\n         if let Some(p) = self.free_pieces.pop_front() {\n             return p;\n         }\n         loop {\n             self.drain_slot_pieces(current_slot);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::commit_multi",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1799
+        },
+        "start": {
+          "column": 5,
+          "line": 1730
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1732:9: replace Pipeline<T, B, P>::commit_multi with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 1798
+      },
+      "start": {
+        "column": 9,
+        "line": 1732
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::alloc_piece_node -> u32 with 0\n@@ -1794,42 +1794,17 @@\n         }\n         rs.tail_piece = pnode;\n \n         let arg = pack_arg(KIND_ROOM_PIECE, pnode, 0, written >= SME2_MIN_LEN);\n         self.dispatch_one(arg);\n     }\n \n     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {\n-        if let Some(p) = self.free_pieces.pop_front() {\n-            return p;\n-        }\n-        loop {\n-            self.drain_slot_pieces(current_slot);\n-            self.reap();\n-            if self.free_pieces.is_empty() {\n-                // Every node may be another open message's: its later\n-                // pieces finished while a worker was on an earlier one,\n-                // and only a commit to it or its end would fold them.\n-                // Scan only slots that currently hold pieces (`<= piece_cap`),\n-                // not all `self.slots.len()` slots (#465). `keep_last = true`\n-                // keeps at least one piece per slot, so `piece_slots` stays fixed.\n-                for idx in 0..self.piece_slots.len() {\n-                    let other = self.piece_slots[idx] as usize;\n-                    self.drain_pieces(other, true);\n-                }\n-            }\n-            if let Some(p) = self.free_pieces.pop_front() {\n-                return p;\n-            }\n-            crate::lanes::require();\n-            if !self.shared().storage.source.run_waiting_action() {\n-                core::hint::spin_loop();\n-            }\n-        }\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Finish `message` and queue its [`Event::Hashed`] in end order.\n     ///\n     /// # Panics\n     ///\n     /// If `message` is another Pipeline's.\n     #[inline(always)]\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::alloc_piece_node",
+      "return_type": "-> u32",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1828
+        },
+        "start": {
+          "column": 5,
+          "line": 1801
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1802:9: replace Pipeline<T, B, P>::alloc_piece_node -> u32 with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1827
+      },
+      "start": {
+        "column": 9,
+        "line": 1802
+      }
+    }
+  }
+]
