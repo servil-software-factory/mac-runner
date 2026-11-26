@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace hash_cohort_on with ()\n@@ -461,105 +461,17 @@\n }\n \n /// Hash one tile of 1..=N distinct held stages on `platform` (with any SME2\n /// turn held by the caller across tiles). Keeps chunks and each parent level\n /// in a bounded `HeldWorkspace<N>` on the stack.\n // Keep the workspace frame out of empty turns and the other mode's caller.\n #[inline(never)]\n fn hash_cohort_on<const N: usize>(hashers: &mut [Hasher], alike: &[usize], platform: Platform) {\n-    use crate::{BLOCK_LEN, PARENT};\n-    let first = alike[0];\n-    #[cfg(test)]\n-    let _ = LAST_COHORT_TIER.try_with(|t| t.set(N));\n-    let domain = hashers[first].domain();\n-    let flags = domain.flags();\n-    // Plain cohorts hash under the constant IV directly (fault isolation),\n-    // while a keyed or derive-key hasher hashes alone here under its own key.\n-    let key = if domain.is_plain() { *crate::IV } else { *domain.key() };\n-    let mut work = HeldWorkspace::<N>::new();\n-    let (mut level, mut next) = work.buffers(alike.len());\n-    #[cfg(blake3_sme2)]\n-    let on_sme2 = matches!(platform, Platform::SME2);\n-    #[cfg(not(blake3_sme2))]\n-    let on_sme2 = false;\n-    {\n-        let mut refs = crate::stack_vec::StackVec::<[&[u8; CHUNK_LEN]; ALONE_CHUNKS], N>::new();\n-        refs.extend(alike.iter().map(|&i| {\n-            let hasher = &hashers[i];\n-            // The shared key serves plain hashers only. Check the public\n-            // mode as we take each stage, without comparing key bytes.\n-            assert!(alike.len() == 1 || hasher.is_plain(), \"only plain hashers share a cohort\");\n-            let stage = hasher.held_group().expect(\"a held group\").1;\n-            core::array::from_fn(|j| stage[j * CHUNK_LEN..(j + 1) * CHUNK_LEN].try_into().unwrap())\n-        }));\n-        let refs = refs.as_slice().as_flattened();\n-        let mut counters = crate::stack_vec::StackVec::<u64, N>::new();\n-        counters.extend(alike.iter().map(|&i| hashers[i].held_group().unwrap().0));\n-        if on_sme2 {\n-            #[cfg(blake3_sme2)]\n-            // Sound: the turn detects SME2. Borrowed stages and stack output\n-            // are disjoint, with one counter per full 16-chunk stage.\n-            unsafe {\n-                crate::sme2::hash_groups_at(refs, &counters, &key, flags, CHUNK_START, CHUNK_END, level.as_flattened_mut())\n-            };\n-        } else {\n-            for (k, &counter) in counters.iter().enumerate() {\n-                platform.hash_many(\n-                    &refs[k * ALONE_CHUNKS..(k + 1) * ALONE_CHUNKS],\n-                    &key,\n-                    counter,\n-                    IncrementCounter::Yes,\n-                    flags,\n-                    CHUNK_START,\n-                    CHUNK_END,\n-                    level[k * ALONE_CHUNKS..(k + 1) * ALONE_CHUNKS].as_flattened_mut(),\n-                );\n-            }\n-        }\n-    }\n-    let parent_flags = flags | PARENT;\n-    let mut per = ALONE_CHUNKS;\n-    while per > 1 {\n-        let count = alike.len() * per / 2;\n-        let bytes = level[..2 * count].as_flattened();\n-        if on_sme2 {\n-            // SME2's parent kernel reads a group of sixteen blocks through\n-            // one pointer: the level goes to it as the run of memory it\n-            // is, not as a table of sixteen borrows.\n-            #[cfg(blake3_sme2)]\n-            // Sound: the turn's platform is SME2 only where detection\n-            // found it.\n-            unsafe {\n-                crate::sme2::hash_block_run(bytes, &key, parent_flags, next[..count].as_flattened_mut())\n-            };\n-        } else {\n-            // Eight parent blocks per full stage. Derive descriptor rows\n-            // from that layout, including its readable final padding.\n-            let (full, tail) = bytes.as_chunks::<BLOCK_LEN>().0.as_chunks::<STAGE_PARENTS>();\n-            let mut rows = crate::stack_vec::StackVec::<_, N>::new();\n-            rows.extend(full.iter().map(|row| row.each_ref()));\n-            if let Some(first) = tail.first() {\n-                rows.push(core::array::from_fn(|i| tail.get(i).unwrap_or(first)));\n-            }\n-            platform.hash_many(&rows.as_slice().as_flattened()[..count], &key, 0, IncrementCounter::No, parent_flags, 0, 0, next[..count].as_flattened_mut());\n-        }\n-        core::mem::swap(&mut level, &mut next);\n-        per /= 2;\n-    }\n-    for (k, &i) in alike.iter().enumerate() {\n-        let (counter, _) = hashers[i].held_group().unwrap();\n-        let mut result = [0u8; BLOCK_LEN];\n-        if counter == 0 {\n-            result.copy_from_slice(next[2 * k..2 * k + 2].as_flattened());\n-        } else {\n-            result[..OUT_LEN].copy_from_slice(&level[k]);\n-        }\n-        hashers[i].take_held(&result);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Messages of this many chunks or more fill the lanes alone.\n const ALONE_CHUNKS: usize = 16;\n \n /// The hash of each message, of any lengths, on the calling thread:\n /// `out[i]` is [`hash`](crate::throughput::hash)`(mode, items[i].0,\n /// items[i].1)`, each item a message of `items[i].1` bytes starting its\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "hash_cohort_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 558
+        },
+        "start": {
+          "column": 1,
+          "line": 463
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:469:5: replace hash_cohort_on with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 557
+      },
+      "start": {
+        "column": 5,
+        "line": 469
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace by_blocks_at_once with ()\n@@ -609,175 +609,17 @@\n     assert_eq!(items.len(), out.len(), \"one digest per item\");\n     assert!(items.iter().all(|i| i.len() <= CHUNK_LEN), \"items of up to a chunk\");\n     for (items, out) in items.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {\n         by_blocks_at_once(items, key, counter, flags, flags_end, out, platform);\n     }\n }\n \n fn by_blocks_at_once(items: &[&[u8]], key: &CVWords, counter: u64, flags: u8, flags_end: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n-    const GROUP: usize = 16;\n-    // On SME2, a table of messages of one length, whole blocks, at counter 0,\n-    // with at least the work that pays for the SME2 turn: one call of the message\n-    // kernel for all of them (a turn's 1 KiB messages finishing together:\n-    // the NEON lanes took 30-64% longer on an Apple M4 Max, jobs 2016 and\n-    // 2019). A table of one-block messages never reaches the threshold\n-    // (BY_BLOCKS_AT_ONCE of 64 bytes is under SME2_SIZED_LEN).\n-    #[cfg(blake3_sme2)]\n-    {\n-        let len = items[0].len();\n-        if counter == 0\n-            && matches!(platform, Platform::SME2)\n-            && items.len() * len >= crate::SME2_SIZED_LEN\n-            && len % crate::BLOCK_LEN == 0\n-            && items.iter().all(|item| item.len() == len)\n-        {\n-            let turn = crate::platform::Sme2Turn::take(platform, true);\n-            if matches!(turn.platform(), Platform::SME2) {\n-                macro_rules! run {\n-                    ($n:expr) => {{\n-                        let mut lanes: crate::stack_vec::StackVec<&[u8; $n], BY_BLOCKS_AT_ONCE> =\n-                            items.iter().map(|item| (*item).try_into().expect(\"equal whole-block lengths\")).collect();\n-                        while lanes.len() % GROUP != 0 {\n-                            lanes.push(*lanes.last().unwrap());\n-                        }\n-                        crate::counted(crate::Counted::ByBlocksCall);\n-                        // Sound: detection and the turn provide SME2. Every\n-                        // typed lane holds its whole input; spare lanes\n-                        // repeat a valid input and write no output.\n-                        unsafe { crate::sme2::hash_messages(&lanes, key, flags, CHUNK_START, flags_end, crate::BLOCK_LEN, out.as_flattened_mut()) };\n-                    }};\n-                }\n-                match len {\n-                    128 => run!(128),\n-                    192 => run!(192),\n-                    256 => run!(256),\n-                    320 => run!(320),\n-                    384 => run!(384),\n-                    448 => run!(448),\n-                    512 => run!(512),\n-                    576 => run!(576),\n-                    640 => run!(640),\n-                    704 => run!(704),\n-                    768 => run!(768),\n-                    832 => run!(832),\n-                    896 => run!(896),\n-                    960 => run!(960),\n-                    1024 => run!(1024),\n-                    _ => unreachable!(\"an SME2-sized table of whole blocks of up to a chunk\"),\n-                }\n-                return;\n-            }\n-        }\n-    }\n-    let whole = |item: &[u8]| item.len().saturating_sub(1) / crate::BLOCK_LEN;\n-    let mut order: crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE> = (0..items.len()).collect();\n-    order.sort_unstable_by_key(|&i| whole(items[i]));\n-    // With SHA-3 the last block stays in the lanes too; other AArch64\n-    // CPUs keep the prefix kernels followed by scalar last blocks.\n-    #[cfg(blake3_neon)]\n-    let last_lanes = crate::neon_hybrid::sha3_detected();\n-    #[cfg(not(blake3_neon))]\n-    let last_lanes = false;\n-    let mut cvs = [*key; BY_BLOCKS_AT_ONCE];\n-    // chunk_by always advances and returns nonempty groups, even if a\n-    // changed predicate groups the wrong items; no mutable loop bound.\n-    for same_blocks in order.chunk_by(|&a, &b| whole(items[a]) == whole(items[b])) {\n-        let k = whole(items[same_blocks[0]]);\n-        #[cfg(blake3_neon)]\n-        if last_lanes {\n-            for group in same_blocks.chunks(GROUP) {\n-                let inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[i].as_ptr()).collect();\n-                let mut last_blocks = [[0u8; crate::BLOCK_LEN]; GROUP];\n-                let mut lengths = [0u32; GROUP];\n-                for ((&i, block), len) in group.iter().zip(&mut last_blocks).zip(&mut lengths) {\n-                    let tail = &items[i][k * crate::BLOCK_LEN..];\n-                    block[..tail.len()].copy_from_slice(tail);\n-                    *len = u32::from(tail.len().to_le_bytes()[0]);\n-                }\n-                let lasts: crate::stack_vec::StackVec<*const u8, GROUP> = last_blocks[..group.len()].iter().map(|b| b.as_ptr()).collect();\n-                let mut digests = [0u8; GROUP * OUT_LEN];\n-                crate::counted(crate::Counted::ByBlocksCall);\n-                // Sound: SHA-3 is present; these items share k whole blocks\n-                // before their separately padded last block, 0 to 64 bytes.\n-                unsafe {\n-                    crate::neon_hybrid::hash_last_lanes(\n-                        &inputs,\n-                        &lasts,\n-                        &lengths[..group.len()],\n-                        k + 1,\n-                        key,\n-                        counter,\n-                        flags,\n-                        CHUNK_START,\n-                        flags_end,\n-                        &mut digests[..group.len() * OUT_LEN],\n-                    );\n-                }\n-                for (&i, digest) in group.iter().zip(digests.chunks_exact(OUT_LEN)) {\n-                    out[i].copy_from_slice(digest);\n-                }\n-            }\n-            continue;\n-        }\n-        if k > 0 {\n-            for group in same_blocks.chunks(GROUP) {\n-                #[cfg_attr(not(all(target_arch = \"x86_64\", blake3_avx512_ffi, target_os = \"linux\")), allow(unused_mut))]\n-                let mut inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[i].as_ptr()).collect();\n-                #[cfg(all(target_arch = \"x86_64\", blake3_avx512_ffi, target_os = \"linux\"))]\n-                let padded = crate::ffi_output::pad_by_blocks_inputs(&mut inputs, platform);\n-                #[cfg(all(target_arch = \"x86_64\", not(all(blake3_avx512_ffi, target_os = \"linux\"))))]\n-                let padded = group.len();\n-                let mut lanes = [0u8; GROUP * OUT_LEN];\n-                crate::counted(crate::Counted::ByBlocksCall);\n-                // Sound: each item holds more than k whole blocks; the\n-                // caller selected this platform's block-group path.\n-                #[cfg(target_arch = \"x86_64\")]\n-                unsafe {\n-                    crate::pair::hash_many_blocks(platform, &inputs, k, key, counter, false, flags, CHUNK_START, 0, &mut lanes[..padded * OUT_LEN])\n-                };\n-                #[cfg(blake3_neon)]\n-                unsafe {\n-                    crate::neon_hybrid::hash_messages_raw(\n-                        inputs.as_ptr(),\n-                        group.len(),\n-                        k,\n-                        key,\n-                        counter,\n-                        flags,\n-                        CHUNK_START,\n-                        0,\n-                        crate::BLOCK_LEN,\n-                        &mut lanes[..group.len() * OUT_LEN],\n-                    )\n-                };\n-                for (n, &i) in group.iter().enumerate() {\n-                    cvs[i] = crate::platform::words_from_le_bytes_32(lanes[n * OUT_LEN..][..OUT_LEN].try_into().unwrap());\n-                }\n-            }\n-        }\n-    }\n-    if last_lanes {\n-        return;\n-    }\n-    #[cfg(all(target_arch = \"x86_64\", blake3_avx512_ffi, target_os = \"linux\"))]\n-    let serial_start = crate::ffi_output::finish_last_blocks_order(&order, items, &cvs, counter, flags, flags_end, out, platform);\n-    #[cfg(not(all(target_arch = \"x86_64\", blake3_avx512_ffi, target_os = \"linux\")))]\n-    let serial_start = 0usize;\n-    for &i in &order[serial_start..] {\n-        let item = items[i];\n-        let k = whole(item);\n-        let mut cv = cvs[i];\n-        let mut block = [0u8; crate::BLOCK_LEN];\n-        let last = item.len() - k * crate::BLOCK_LEN;\n-        block[..last].copy_from_slice(&item[k * crate::BLOCK_LEN..]);\n-        let start = if k == 0 { CHUNK_START } else { 0 };\n-        platform.compress_in_place(&mut cv, &block, last.to_le_bytes()[0], counter, flags | start | flags_end);\n-        out[i] = crate::hasher::le_bytes(&cv);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// An item of a collection, as hash_each_on reads it: its bytes. The\n /// public calls' items are messages in blocks; the pool's ranges, bytes.\n pub(crate) trait Item {\n     fn bytes(&self) -> &[u8];\n }\n \n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "by_blocks_at_once",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 776
+        },
+        "start": {
+          "column": 1,
+          "line": 616
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:617:5: replace by_blocks_at_once with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 775
+      },
+      "start": {
+        "column": 5,
+        "line": 617
+      }
+    }
+  },
+  {
+    "diff": "--- src/platform.rs\n+++ replace Platform::hash_many with ()\n@@ -397,46 +397,17 @@\n         increment_counter: IncrementCounter,\n         flags: u8,\n         flags_start: u8,\n         flags_end: u8,\n         out: &mut [u8],\n     ) {\n         // Every kernel hashes whole blocks: an input of another length\n         // would lose its tail, so it cannot compile.\n-        const { assert!(N > 0 && N % BLOCK_LEN == 0, \"hash_many inputs are whole blocks\") };\n-        // The shapes the crate makes, which every kernel takes: whole chunks\n-        // at counters counting up, or 1 to 16 whole blocks at one counter.\n-        assert!(\n-            if increment_counter.yes() { N == CHUNK_LEN } else { N <= CHUNK_LEN },\n-            \"hash_many takes whole chunks at incrementing counters, or 1 to 16 blocks at one counter\"\n-        );\n-        #[cfg(test)]\n-        {\n-            crate::counted(crate::Counted::HashManyCall);\n-            crate::record_hash_many_call(N / BLOCK_LEN, inputs.len());\n-        }\n-        match self {\n-            // Sound: `Platform::SSE41` is constructed only after CPUID or compile-time target-feature verification.\n-            #[cfg(blake3_sse41_ffi)]\n-            Platform::SSE41 => unsafe { crate::sse41::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-            // Sound: `Platform::AVX2` is constructed only after CPUID + XCR0 or compile-time target-feature verification.\n-            #[cfg(blake3_avx2_ffi)]\n-            Platform::AVX2 => unsafe { crate::avx2::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-            // Sound: `Platform::AVX512` is constructed only after CPUID + XCR0 or compile-time target-feature verification.\n-            #[cfg(blake3_avx512_ffi)]\n-            #[cfg(target_arch = \"x86_64\")]\n-            Platform::AVX512 => unsafe { crate::avx512::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-            // Sound: `Platform::NEON` is built only on AArch64 where NEON is baseline.\n-            #[cfg(blake3_neon)]\n-            Platform::NEON => unsafe { crate::neon_hybrid::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-            // Sound: startup verified FEAT_SME2; SME2 assembly checks the calling thread's SVL at entry and falls back to NEON if != 512 bits.\n-            #[cfg(blake3_sme2)]\n-            Platform::SME2 => unsafe { crate::sme2::hash_many(inputs, key, counter, increment_counter, flags, flags_start, flags_end, out) },\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[allow(unused_mut)]\n     pub(crate) fn xof_many(&self, cv: &CVWords, block: &[u8; BLOCK_LEN], block_len: u8, mut counter: u64, flags: u8, out: &mut [u8]) {\n         assert_eq!(0, out.len() % BLOCK_LEN, \"whole blocks only\");\n         if out.is_empty() {\n             // The current assembly implementation always outputs at least 1 block.\n             return;\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "Platform::hash_many",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 435
+        },
+        "start": {
+          "column": 5,
+          "line": 392
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:405:9: replace Platform::hash_many with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 434
+      },
+      "start": {
+        "column": 9,
+        "line": 405
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace sha3_detected -> bool with false\n@@ -638,17 +638,17 @@\n     }\n }\n \n /// True when the CPU has the SHA-3 extension that provides `xar`. Every\n /// Apple M-series core and every Armv8.2+ core with `FEAT_SHA3` does. The\n /// pair kernels rotate with `xar`; the scalar and quad kernels need no\n /// extension.\n pub fn sha3_detected() -> bool {\n-    std::arch::is_aarch64_feature_detected!(\"sha3\")\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// Compress `count` whole 64-byte blocks of one chunk into `cv`, all with\n /// the same counter: `flags | flags_start` on the first block, `flags` on\n /// the rest. This is `ChunkState::update`'s inner loop as one kernel call;\n /// the scalar kernel keeps the whole state in registers and runs at 13.3\n /// cycles per G-step against the portable compressor's 14.\n ///\n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "sha3_detected",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 647
+        },
+        "start": {
+          "column": 1,
+          "line": 641
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_neon_hybrid.rs:646:5: replace sha3_detected -> bool with false",
+    "package": "blake3-servil-core",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 52,
+        "line": 646
+      },
+      "start": {
+        "column": 5,
+        "line": 646
+      }
+    }
+  }
+]

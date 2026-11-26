@@ -1,0 +1,43 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::publish_open with ()
+@@ -2179,39 +2179,17 @@
+         match self.slots[front as usize].kind {
+             SlotKind::WaitSingle { group, .. } | SlotKind::WaitBatch { group, .. } | SlotKind::WaitAborted { group, .. } => group == open_g,
+             _ => false,
+         }
+     }
+ 
+     #[inline(never)]
+     fn publish_open(&mut self) {
+-        let Some((group_idx, epoch)) = self.open_group.take() else { return };
+-        let count = self.local_count;
+-        let storage = self.shared().storage;
+-        let group = &storage.groups[group_idx as usize];
+-        let custom_slot = self.local_custom_slot;
+-        // Sound: the group is not in flight (acquire_free_group gave it), so
+-        // its task, metas, and epoch are the owner's to write before the
+-        // dispatch below.
+-        unsafe {
+-            let task = &mut *group.task.get();
+-            task.batch = self.local_batch;
+-            task.len = self.local_bytes;
+-            task.members = count;
+-            task.member[..count].copy_from_slice(&self.bufs.local_members[..count]);
+-            let metas = &mut *group.metas.get();
+-            for i in 0..count {
+-                metas[i] = GroupMemberMeta { room: self.bufs.local_rooms[i] };
+-            }
+-            *group.epoch.get() = epoch;
+-        }
+-        self.assigned_group_epoch[group_idx as usize] = epoch;
+-        let arg = pack_arg(KIND_GROUP, group_idx, custom_slot, false);
+-        self.dispatch_one(arg);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline]
+     fn dispatch_one(&mut self, arg: u64) {
+         let ctx = self.shared as *const Shared as *const ();
+         match self.source_slot {
+             // Sound: this Pipeline exclusively publishes to its own action
+             // source, and `ctx` stays valid for the lifetime of `Shared`.
