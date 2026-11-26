@@ -1,0 +1,26 @@
+--- src/pipeline.rs
++++ replace <impl Drop for Rooms>::drop with ()
+@@ -327,22 +327,17 @@
+ // the 64-byte-aligned `count * ROOM_LEN` slice inside it) until `Rooms::drop`
+ // runs (after `PipeStorage`'s final holder drops and every worker task has
+ // published completion); what may touch which bytes is governed by `refs`.
+ unsafe impl Send for Rooms {}
+ unsafe impl Sync for Rooms {}
+ 
+ impl Drop for Rooms {
+     fn drop(&mut self) {
+-        if !self.raw.is_null() {
+-            // Sound: `raw` came from `std::alloc::alloc_zeroed(self.layout)`
+-            // with nonzero size, and `Rooms::drop` runs only once `PipeStorage`
+-            // has zero live holders and zero in-flight worker tasks.
+-            unsafe { std::alloc::dealloc(self.raw, self.layout) };
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl Rooms {
+     fn new(count: usize) -> Self {
+         let (buf, raw, layout) = if count == 0 {
+             (core::ptr::null_mut(), core::ptr::null_mut(), std::alloc::Layout::new::<u8>())
+         } else {

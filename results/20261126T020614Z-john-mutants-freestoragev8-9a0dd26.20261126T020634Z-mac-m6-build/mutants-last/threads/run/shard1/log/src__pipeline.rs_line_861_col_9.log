@@ -1,0 +1,105 @@
+
+*** src/pipeline.rs:861:9: replace PipeStorage::run_room_piece -> (&'static WakerSlot, *const AtomicBool) with (Box::leak(Box::new(Default::default())), Default::default())
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace PipeStorage::run_room_piece -> (&'static WakerSlot, *const AtomicBool) with (Box::leak(Box::new(Default::default())), Default::default())
+@@ -853,43 +853,17 @@
+         if cur_room != NONE {
+             self.rooms.release_n(cur_room, cur_n);
+         }
+         // Caller publishes `completed_epoch` after `&self` drops.
+         (&self.slot.get().waker, core::ptr::addr_of!(group.completed_epoch.0), epoch)
+     }
+ 
+     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) -> (&'static WakerSlot, *const AtomicBool) {
+-        let pnode = &self.pieces[pnode_idx];
+-        // Sound: the owner wrote the piece's fields before dispatching it
+-        // (commit_multi), and touches the node again only once `done` is set,
+-        // which is the caller's last store after `&self` drops.
+-        let slot = unsafe { *pnode.slot.get() } as usize;
+-        let room_idx = unsafe { *pnode.room.get() };
+-        let offset = unsafe { *pnode.offset.get() } as usize;
+-        let len = unsafe { *pnode.len.get() } as usize;
+-        let index = unsafe { *pnode.index.get() };
+-        let rooms = &self.rooms;
+-        assert!((room_idx as usize) < rooms.count && offset <= ROOM_LEN && len <= ROOM_LEN - offset, "a piece stays within its room");
+-        // Sound: these are just the committed bytes. The Room's credit keeps
+-        // them from being written again until this task releases them below.
+-        let ptr = unsafe { rooms.room_ptr(room_idx as usize).add(offset) };
+-        let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };
+-        let tree = self.slot_tree(slot);
+-        let value = if index == 0 {
+-            RoomValue::First(tree.subtree_halves_on(platform, ROOM_LEVEL, index, bytes))
+-        } else if len == ROOM_LEN {
+-            RoomValue::Whole(tree.subtree_cv_on(platform, ROOM_LEVEL, index, bytes))
+-        } else {
+-            RoomValue::Last(tree.last_cv_on(platform, index << ROOM_LEVEL, bytes))
+-        };
+-        // Sound: this piece's output is its worker's alone until `done`.
+-        unsafe { *pnode.out.0.get() = value };
+-        self.rooms.release_n(room_idx, 1);
+-        (&self.slot.get().waker, core::ptr::addr_of!(pnode.done.0))
++        (Box::leak(Box::new(Default::default())), Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) -> (*const AtomicUsize, bool) {
+         // Sound: the owner wrote the description before dispatching the slot's
+         // tasks (batch, submit_multi_slice), and writes it again only after
+         // `slot_done`.
+         let desc = unsafe { *self.multi[slot].get() };
+         assert!(piece_idx < desc.pieces, "the action names a piece of its submission");
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43785]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43806]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43774]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+warning: `blake3-servil` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+   Compiling blake3-servil v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/threads)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+error[E0277]: the trait bound `WakerSlot: Default` is not satisfied
+   --> src/pipeline.rs:861:29
+    |
+861 |         (Box::leak(Box::new(Default::default())), Default::default()) /* ~ changed by cargo-mutants ~ */
+    |                             ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `WakerSlot`
+   --> src/waker.rs:33:1
+    |
+ 33 | pub(crate) struct WakerSlot {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

@@ -1,0 +1,610 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for Pipeline<T, B, P>>::drop with ()\n@@ -2408,93 +2408,17 @@\n             }\n         }\n         false\n     }\n }\n \n impl<T, B, P> Drop for Pipeline<T, B, P> {\n     fn drop(&mut self) {\n-        if self.has_in_flight_work() {\n-            stop_process(\"blake3-servil: Pipeline dropped while worker tasks are still in flight\\n\");\n-        }\n-        // Release any credits held on uncommitted short rooms sitting in un-ended slots\n-        // (e.g. during panic unwind after a precondition check failed with zero workers running).\n-        for s in 0..self.slots.len() {\n-            if let SlotKind::OpenShort { room: room_idx, .. } = self.slots[s].kind {\n-                self.storage().rooms.release_n(room_idx, 1);\n-            }\n-        }\n-        if self.open_group.take().is_some() {\n-            for &r in &self.local_rooms[..self.local_count] {\n-                if r != NONE {\n-                    self.storage().rooms.release_n(r, 1);\n-                }\n-            }\n-        }\n-        if let Some(slot) = self.source_slot {\n-            Source::unregister(slot);\n-        }\n-        crate::lanes::sources::closed();\n-        let storage_ptr = self.storage;\n-        let storage = self.storage();\n-        let pipe_slot = storage.slot.get();\n-        // Pre-reserve one hold per room slot before stamping ROOM_CLOSING_BIT so\n-        // any surviving Room dropped concurrently on another thread cannot drop\n-        // `storage.holders` to 0 while this loop is still running.\n-        let room_count = storage.rooms.count;\n-        storage.holders.fetch_add(room_count, Ordering::Relaxed);\n-        let mut survivors = 0usize;\n-        for r in &storage.rooms.refs {\n-            let prev = r.fetch_or(ROOM_CLOSING_BIT, Ordering::SeqCst);\n-            if prev != 0 {\n-                survivors += 1;\n-            }\n-        }\n-        let release_holds = (room_count - survivors) + 1;\n-        struct ReleaseStorage(*mut PipeStorage, usize, &'static PipeSlot);\n-        impl Drop for ReleaseStorage {\n-            fn drop(&mut self) {\n-                PipeSlot::release(self.2);\n-                PipeStorage::release_n(self.0, self.1);\n-            }\n-        }\n-        struct DrainPending<'a, T, B, P>(&'a mut Pipeline<T, B, P>);\n-        impl<T, B, P> Drop for DrainPending<'_, T, B, P> {\n-            fn drop(&mut self) {\n-                while let Some(s_idx) = self.0.end_queue.pop_front() {\n-                    let s = s_idx as usize;\n-                    match core::mem::replace(&mut self.0.slots[s].kind, SlotKind::Free) {\n-                        SlotKind::WaitSingle { has_owner: true, .. } | SlotKind::WaitMulti { has_owner: true } => {\n-                            let ptr = self.0.owners.slot(s);\n-                            let _rest = DrainPending(&mut *self.0);\n-                            // Sound: a slot waiting with `has_owner` holds an owner no\n-                            // event took.\n-                            unsafe { (*ptr).assume_init_drop() };\n-                            core::mem::forget(_rest);\n-                        }\n-                        SlotKind::WaitBatch { .. } => {\n-                            let ptr = self.0.batches.slot(s);\n-                            let _rest = DrainPending(&mut *self.0);\n-                            // Sound: a WaitBatch slot holds its batch and digests.\n-                            unsafe { (*ptr).assume_init_drop() };\n-                            core::mem::forget(_rest);\n-                        }\n-                        _ => {}\n-                    }\n-                }\n-            }\n-        }\n-        // Guards run in LIFO order (`_drain` then `_release`), so even if\n-        // dropping the saved waker or one owner unwinds, every remaining owner\n-        // and batch still drops, `PipeSlot` returns to `FREE_PIPE_SLOTS`, and\n-        // `PipeStorage` is released cleanly.\n-        let _release = ReleaseStorage(storage_ptr, release_holds, pipe_slot);\n-        let _drain = DrainPending(self);\n-        pipe_slot.waker.clear();\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct MessageFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     tag: Option<T>,\n     registered: bool,\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Pipeline<T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2493
+        },
+        "start": {
+          "column": 5,
+          "line": 2415
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2416:9: replace <impl Drop for Pipeline<T, B, P>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 2492
+      },
+      "start": {
+        "column": 9,
+        "line": 2416
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace += with -= in <impl Drop for Pipeline<T, B, P>>::drop\n@@ -2441,17 +2441,17 @@\n         // any surviving Room dropped concurrently on another thread cannot drop\n         // `storage.holders` to 0 while this loop is still running.\n         let room_count = storage.rooms.count;\n         storage.holders.fetch_add(room_count, Ordering::Relaxed);\n         let mut survivors = 0usize;\n         for r in &storage.rooms.refs {\n             let prev = r.fetch_or(ROOM_CLOSING_BIT, Ordering::SeqCst);\n             if prev != 0 {\n-                survivors += 1;\n+                survivors -= /* ~ changed by cargo-mutants ~ */ 1;\n             }\n         }\n         let release_holds = (room_count - survivors) + 1;\n         struct ReleaseStorage(*mut PipeStorage, usize, &'static PipeSlot);\n         impl Drop for ReleaseStorage {\n             fn drop(&mut self) {\n                 PipeSlot::release(self.2);\n                 PipeStorage::release_n(self.0, self.1);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Pipeline<T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2493
+        },
+        "start": {
+          "column": 5,
+          "line": 2415
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2449:27: replace += with -= in <impl Drop for Pipeline<T, B, P>>::drop",
+    "package": "blake3-servil",
+    "replacement": "-=",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 2449
+      },
+      "start": {
+        "column": 27,
+        "line": 2449
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace + with - in <impl Drop for Pipeline<T, B, P>>::drop\n@@ -2444,17 +2444,17 @@\n         storage.holders.fetch_add(room_count, Ordering::Relaxed);\n         let mut survivors = 0usize;\n         for r in &storage.rooms.refs {\n             let prev = r.fetch_or(ROOM_CLOSING_BIT, Ordering::SeqCst);\n             if prev != 0 {\n                 survivors += 1;\n             }\n         }\n-        let release_holds = (room_count - survivors) + 1;\n+        let release_holds = (room_count - survivors) - /* ~ changed by cargo-mutants ~ */ 1;\n         struct ReleaseStorage(*mut PipeStorage, usize, &'static PipeSlot);\n         impl Drop for ReleaseStorage {\n             fn drop(&mut self) {\n                 PipeSlot::release(self.2);\n                 PipeStorage::release_n(self.0, self.1);\n             }\n         }\n         struct DrainPending<'a, T, B, P>(&'a mut Pipeline<T, B, P>);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Pipeline<T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2493
+        },
+        "start": {
+          "column": 5,
+          "line": 2415
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2452:54: replace + with - in <impl Drop for Pipeline<T, B, P>>::drop",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 55,
+        "line": 2452
+      },
+      "start": {
+        "column": 54,
+        "line": 2452
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace - with + in <impl Drop for Pipeline<T, B, P>>::drop\n@@ -2444,17 +2444,17 @@\n         storage.holders.fetch_add(room_count, Ordering::Relaxed);\n         let mut survivors = 0usize;\n         for r in &storage.rooms.refs {\n             let prev = r.fetch_or(ROOM_CLOSING_BIT, Ordering::SeqCst);\n             if prev != 0 {\n                 survivors += 1;\n             }\n         }\n-        let release_holds = (room_count - survivors) + 1;\n+        let release_holds = (room_count + /* ~ changed by cargo-mutants ~ */ survivors) + 1;\n         struct ReleaseStorage(*mut PipeStorage, usize, &'static PipeSlot);\n         impl Drop for ReleaseStorage {\n             fn drop(&mut self) {\n                 PipeSlot::release(self.2);\n                 PipeStorage::release_n(self.0, self.1);\n             }\n         }\n         struct DrainPending<'a, T, B, P>(&'a mut Pipeline<T, B, P>);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Pipeline<T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2493
+        },
+        "start": {
+          "column": 5,
+          "line": 2415
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2452:41: replace - with + in <impl Drop for Pipeline<T, B, P>>::drop",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 42,
+        "line": 2452
+      },
+      "start": {
+        "column": 41,
+        "line": 2452
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for Pipeline<T, B, P>>::drop::<impl Drop for ReleaseStorage>::drop with ()\n@@ -2448,18 +2448,17 @@\n             if prev != 0 {\n                 survivors += 1;\n             }\n         }\n         let release_holds = (room_count - survivors) + 1;\n         struct ReleaseStorage(*mut PipeStorage, usize, &'static PipeSlot);\n         impl Drop for ReleaseStorage {\n             fn drop(&mut self) {\n-                PipeSlot::release(self.2);\n-                PipeStorage::release_n(self.0, self.1);\n+                () /* ~ changed by cargo-mutants ~ */\n             }\n         }\n         struct DrainPending<'a, T, B, P>(&'a mut Pipeline<T, B, P>);\n         impl<T, B, P> Drop for DrainPending<'_, T, B, P> {\n             fn drop(&mut self) {\n                 while let Some(s_idx) = self.0.end_queue.pop_front() {\n                     let s = s_idx as usize;\n                     match core::mem::replace(&mut self.0.slots[s].kind, SlotKind::Free) {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Pipeline<T, B, P>>::drop::<impl Drop for ReleaseStorage>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 14,
+          "line": 2458
+        },
+        "start": {
+          "column": 13,
+          "line": 2455
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2456:17: replace <impl Drop for Pipeline<T, B, P>>::drop::<impl Drop for ReleaseStorage>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 56,
+        "line": 2457
+      },
+      "start": {
+        "column": 17,
+        "line": 2456
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for MessageFut<'_, T, B, P>>::drop with ()\n@@ -2498,19 +2498,17 @@\n     tag: Option<T>,\n     registered: bool,\n }\n \n impl<T, B, P> Unpin for MessageFut<'_, T, B, P> {}\n \n impl<T, B, P> Drop for MessageFut<'_, T, B, P> {\n     fn drop(&mut self) {\n-        if self.registered {\n-            self.pipe.storage().slot.get().waker.clear();\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P> Future for MessageFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for MessageFut<'_, T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2509
+        },
+        "start": {
+          "column": 5,
+          "line": 2505
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2506:9: replace <impl Drop for MessageFut<'_, T, B, P>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2508
+      },
+      "start": {
+        "column": 9,
+        "line": 2506
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Future for MessageFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new()\n@@ -2509,38 +2509,17 @@\n     }\n }\n \n impl<T, B, P> Future for MessageFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n-        let this = &mut *self;\n-        assert!(this.tag.is_some(), \"Pipeline::message future polled after completion\");\n-        let slot = match this.pipe.free_slots.pop_front() {\n-            Some(s) => s,\n-            None => match this.pipe.poll_message(cx) {\n-                Poll::Ready(s) => s,\n-                Poll::Pending => {\n-                    this.registered = true;\n-                    return Poll::Pending;\n-                }\n-            },\n-        };\n-        this.registered = false;\n-        // Sound: `slot` just came off `free_slots`, so no worker task reads\n-        // `slot_custom[slot]` until the owner dispatches work for this slot.\n-        unsafe { *this.pipe.storage().slot_custom[slot as usize].get() = false };\n-        let sm = &mut this.pipe.slots[slot as usize];\n-        sm.tag = this.tag.take();\n-        sm.kind = SlotKind::OpenEmpty;\n-        sm.mode = SlotMode::Default;\n-        this.pipe.open_messages += 1;\n-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })\n+        Poll::new() /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct MessageWithFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     tag: Option<T>,\n     tree: Option<TreeHasher>,\n     is_plain: bool,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Future for MessageFut<'_, T, B, P>>::poll",
+      "return_type": "-> Poll<Message>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2539
+        },
+        "start": {
+          "column": 5,
+          "line": 2515
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2517:9: replace <impl Future for MessageFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new()",
+    "package": "blake3-servil",
+    "replacement": "Poll::new()",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2538
+      },
+      "start": {
+        "column": 9,
+        "line": 2517
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Future for MessageFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::from_iter([Default::default()])\n@@ -2509,38 +2509,17 @@\n     }\n }\n \n impl<T, B, P> Future for MessageFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n-        let this = &mut *self;\n-        assert!(this.tag.is_some(), \"Pipeline::message future polled after completion\");\n-        let slot = match this.pipe.free_slots.pop_front() {\n-            Some(s) => s,\n-            None => match this.pipe.poll_message(cx) {\n-                Poll::Ready(s) => s,\n-                Poll::Pending => {\n-                    this.registered = true;\n-                    return Poll::Pending;\n-                }\n-            },\n-        };\n-        this.registered = false;\n-        // Sound: `slot` just came off `free_slots`, so no worker task reads\n-        // `slot_custom[slot]` until the owner dispatches work for this slot.\n-        unsafe { *this.pipe.storage().slot_custom[slot as usize].get() = false };\n-        let sm = &mut this.pipe.slots[slot as usize];\n-        sm.tag = this.tag.take();\n-        sm.kind = SlotKind::OpenEmpty;\n-        sm.mode = SlotMode::Default;\n-        this.pipe.open_messages += 1;\n-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })\n+        Poll::from_iter([Default::default()]) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct MessageWithFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     tag: Option<T>,\n     tree: Option<TreeHasher>,\n     is_plain: bool,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Future for MessageFut<'_, T, B, P>>::poll",
+      "return_type": "-> Poll<Message>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2539
+        },
+        "start": {
+          "column": 5,
+          "line": 2515
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2517:9: replace <impl Future for MessageFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::from_iter([Default::default()])",
+    "package": "blake3-servil",
+    "replacement": "Poll::from_iter([Default::default()])",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2538
+      },
+      "start": {
+        "column": 9,
+        "line": 2517
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Future for MessageFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new(Default::default())\n@@ -2509,38 +2509,17 @@\n     }\n }\n \n impl<T, B, P> Future for MessageFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n-        let this = &mut *self;\n-        assert!(this.tag.is_some(), \"Pipeline::message future polled after completion\");\n-        let slot = match this.pipe.free_slots.pop_front() {\n-            Some(s) => s,\n-            None => match this.pipe.poll_message(cx) {\n-                Poll::Ready(s) => s,\n-                Poll::Pending => {\n-                    this.registered = true;\n-                    return Poll::Pending;\n-                }\n-            },\n-        };\n-        this.registered = false;\n-        // Sound: `slot` just came off `free_slots`, so no worker task reads\n-        // `slot_custom[slot]` until the owner dispatches work for this slot.\n-        unsafe { *this.pipe.storage().slot_custom[slot as usize].get() = false };\n-        let sm = &mut this.pipe.slots[slot as usize];\n-        sm.tag = this.tag.take();\n-        sm.kind = SlotKind::OpenEmpty;\n-        sm.mode = SlotMode::Default;\n-        this.pipe.open_messages += 1;\n-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })\n+        Poll::new(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct MessageWithFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     tag: Option<T>,\n     tree: Option<TreeHasher>,\n     is_plain: bool,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Future for MessageFut<'_, T, B, P>>::poll",
+      "return_type": "-> Poll<Message>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2539
+        },
+        "start": {
+          "column": 5,
+          "line": 2515
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2517:9: replace <impl Future for MessageFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Poll::new(Default::default())",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2538
+      },
+      "start": {
+        "column": 9,
+        "line": 2517
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Future for MessageFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::from(Default::default())\n@@ -2509,38 +2509,17 @@\n     }\n }\n \n impl<T, B, P> Future for MessageFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n-        let this = &mut *self;\n-        assert!(this.tag.is_some(), \"Pipeline::message future polled after completion\");\n-        let slot = match this.pipe.free_slots.pop_front() {\n-            Some(s) => s,\n-            None => match this.pipe.poll_message(cx) {\n-                Poll::Ready(s) => s,\n-                Poll::Pending => {\n-                    this.registered = true;\n-                    return Poll::Pending;\n-                }\n-            },\n-        };\n-        this.registered = false;\n-        // Sound: `slot` just came off `free_slots`, so no worker task reads\n-        // `slot_custom[slot]` until the owner dispatches work for this slot.\n-        unsafe { *this.pipe.storage().slot_custom[slot as usize].get() = false };\n-        let sm = &mut this.pipe.slots[slot as usize];\n-        sm.tag = this.tag.take();\n-        sm.kind = SlotKind::OpenEmpty;\n-        sm.mode = SlotMode::Default;\n-        this.pipe.open_messages += 1;\n-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })\n+        Poll::from(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct MessageWithFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     tag: Option<T>,\n     tree: Option<TreeHasher>,\n     is_plain: bool,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Future for MessageFut<'_, T, B, P>>::poll",
+      "return_type": "-> Poll<Message>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2539
+        },
+        "start": {
+          "column": 5,
+          "line": 2515
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2517:9: replace <impl Future for MessageFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::from(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Poll::from(Default::default())",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2538
+      },
+      "start": {
+        "column": 9,
+        "line": 2517
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for MessageWithFut<'_, T, B, P>>::drop with ()\n@@ -2546,19 +2546,17 @@\n     is_plain: bool,\n     registered: bool,\n }\n \n impl<T, B, P> Unpin for MessageWithFut<'_, T, B, P> {}\n \n impl<T, B, P> Drop for MessageWithFut<'_, T, B, P> {\n     fn drop(&mut self) {\n-        if self.registered {\n-            self.pipe.storage().slot.get().waker.clear();\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P> Future for MessageWithFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for MessageWithFut<'_, T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2557
+        },
+        "start": {
+          "column": 5,
+          "line": 2553
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2554:9: replace <impl Drop for MessageWithFut<'_, T, B, P>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2556
+      },
+      "start": {
+        "column": 9,
+        "line": 2554
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new()\n@@ -2557,42 +2557,17 @@\n     }\n }\n \n impl<T, B, P> Future for MessageWithFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n-        let this = &mut *self;\n-        assert!(this.tag.is_some(), \"Pipeline::message_with future polled after completion\");\n-        let slot = match this.pipe.free_slots.pop_front() {\n-            Some(s) => s,\n-            None => match this.pipe.poll_message(cx) {\n-                Poll::Ready(s) => s,\n-                Poll::Pending => {\n-                    this.registered = true;\n-                    return Poll::Pending;\n-                }\n-            },\n-        };\n-        this.registered = false;\n-        let tree = this.tree.take().expect(\"message_with tree present before completion\");\n-        // Sound: `slot` just came off `free_slots`, so no worker task reads\n-        // `slot_trees[slot]` or `slot_custom[slot]` until work is dispatched.\n-        unsafe {\n-            *this.pipe.storage().slot_trees[slot as usize].get() = tree;\n-            *this.pipe.storage().slot_custom[slot as usize].get() = true;\n-        }\n-        let sm = &mut this.pipe.slots[slot as usize];\n-        sm.tag = this.tag.take();\n-        sm.kind = SlotKind::OpenEmpty;\n-        sm.mode = if this.is_plain { SlotMode::Plain } else { SlotMode::Custom };\n-        this.pipe.open_messages += 1;\n-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })\n+        Poll::new() /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct RoomFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     registered: bool,\n     done: bool,\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Future for MessageWithFut<'_, T, B, P>>::poll",
+      "return_type": "-> Poll<Message>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2591
+        },
+        "start": {
+          "column": 5,
+          "line": 2563
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2565:9: replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new()",
+    "package": "blake3-servil",
+    "replacement": "Poll::new()",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2590
+      },
+      "start": {
+        "column": 9,
+        "line": 2565
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::from_iter([Default::default()])\n@@ -2557,42 +2557,17 @@\n     }\n }\n \n impl<T, B, P> Future for MessageWithFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n-        let this = &mut *self;\n-        assert!(this.tag.is_some(), \"Pipeline::message_with future polled after completion\");\n-        let slot = match this.pipe.free_slots.pop_front() {\n-            Some(s) => s,\n-            None => match this.pipe.poll_message(cx) {\n-                Poll::Ready(s) => s,\n-                Poll::Pending => {\n-                    this.registered = true;\n-                    return Poll::Pending;\n-                }\n-            },\n-        };\n-        this.registered = false;\n-        let tree = this.tree.take().expect(\"message_with tree present before completion\");\n-        // Sound: `slot` just came off `free_slots`, so no worker task reads\n-        // `slot_trees[slot]` or `slot_custom[slot]` until work is dispatched.\n-        unsafe {\n-            *this.pipe.storage().slot_trees[slot as usize].get() = tree;\n-            *this.pipe.storage().slot_custom[slot as usize].get() = true;\n-        }\n-        let sm = &mut this.pipe.slots[slot as usize];\n-        sm.tag = this.tag.take();\n-        sm.kind = SlotKind::OpenEmpty;\n-        sm.mode = if this.is_plain { SlotMode::Plain } else { SlotMode::Custom };\n-        this.pipe.open_messages += 1;\n-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })\n+        Poll::from_iter([Default::default()]) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct RoomFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     registered: bool,\n     done: bool,\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Future for MessageWithFut<'_, T, B, P>>::poll",
+      "return_type": "-> Poll<Message>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2591
+        },
+        "start": {
+          "column": 5,
+          "line": 2563
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2565:9: replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::from_iter([Default::default()])",
+    "package": "blake3-servil",
+    "replacement": "Poll::from_iter([Default::default()])",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2590
+      },
+      "start": {
+        "column": 9,
+        "line": 2565
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new(Default::default())\n@@ -2557,42 +2557,17 @@\n     }\n }\n \n impl<T, B, P> Future for MessageWithFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n-        let this = &mut *self;\n-        assert!(this.tag.is_some(), \"Pipeline::message_with future polled after completion\");\n-        let slot = match this.pipe.free_slots.pop_front() {\n-            Some(s) => s,\n-            None => match this.pipe.poll_message(cx) {\n-                Poll::Ready(s) => s,\n-                Poll::Pending => {\n-                    this.registered = true;\n-                    return Poll::Pending;\n-                }\n-            },\n-        };\n-        this.registered = false;\n-        let tree = this.tree.take().expect(\"message_with tree present before completion\");\n-        // Sound: `slot` just came off `free_slots`, so no worker task reads\n-        // `slot_trees[slot]` or `slot_custom[slot]` until work is dispatched.\n-        unsafe {\n-            *this.pipe.storage().slot_trees[slot as usize].get() = tree;\n-            *this.pipe.storage().slot_custom[slot as usize].get() = true;\n-        }\n-        let sm = &mut this.pipe.slots[slot as usize];\n-        sm.tag = this.tag.take();\n-        sm.kind = SlotKind::OpenEmpty;\n-        sm.mode = if this.is_plain { SlotMode::Plain } else { SlotMode::Custom };\n-        this.pipe.open_messages += 1;\n-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })\n+        Poll::new(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct RoomFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     registered: bool,\n     done: bool,\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Future for MessageWithFut<'_, T, B, P>>::poll",
+      "return_type": "-> Poll<Message>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2591
+        },
+        "start": {
+          "column": 5,
+          "line": 2563
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2565:9: replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::new(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Poll::new(Default::default())",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2590
+      },
+      "start": {
+        "column": 9,
+        "line": 2565
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::from(Default::default())\n@@ -2557,42 +2557,17 @@\n     }\n }\n \n impl<T, B, P> Future for MessageWithFut<'_, T, B, P> {\n     type Output = Message;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {\n-        let this = &mut *self;\n-        assert!(this.tag.is_some(), \"Pipeline::message_with future polled after completion\");\n-        let slot = match this.pipe.free_slots.pop_front() {\n-            Some(s) => s,\n-            None => match this.pipe.poll_message(cx) {\n-                Poll::Ready(s) => s,\n-                Poll::Pending => {\n-                    this.registered = true;\n-                    return Poll::Pending;\n-                }\n-            },\n-        };\n-        this.registered = false;\n-        let tree = this.tree.take().expect(\"message_with tree present before completion\");\n-        // Sound: `slot` just came off `free_slots`, so no worker task reads\n-        // `slot_trees[slot]` or `slot_custom[slot]` until work is dispatched.\n-        unsafe {\n-            *this.pipe.storage().slot_trees[slot as usize].get() = tree;\n-            *this.pipe.storage().slot_custom[slot as usize].get() = true;\n-        }\n-        let sm = &mut this.pipe.slots[slot as usize];\n-        sm.tag = this.tag.take();\n-        sm.kind = SlotKind::OpenEmpty;\n-        sm.mode = if this.is_plain { SlotMode::Plain } else { SlotMode::Custom };\n-        this.pipe.open_messages += 1;\n-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })\n+        Poll::from(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct RoomFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     registered: bool,\n     done: bool,\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Future for MessageWithFut<'_, T, B, P>>::poll",
+      "return_type": "-> Poll<Message>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2591
+        },
+        "start": {
+          "column": 5,
+          "line": 2563
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2565:9: replace <impl Future for MessageWithFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::from(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Poll::from(Default::default())",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2590
+      },
+      "start": {
+        "column": 9,
+        "line": 2565
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for RoomFut<'_, T, B, P>>::drop with ()\n@@ -2596,19 +2596,17 @@\n     registered: bool,\n     done: bool,\n }\n \n impl<T, B, P> Unpin for RoomFut<'_, T, B, P> {}\n \n impl<T, B, P> Drop for RoomFut<'_, T, B, P> {\n     fn drop(&mut self) {\n-        if self.registered {\n-            self.pipe.storage().slot.get().waker.clear();\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P> Future for RoomFut<'_, T, B, P> {\n     type Output = Room;\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Room> {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for RoomFut<'_, T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2607
+        },
+        "start": {
+          "column": 5,
+          "line": 2603
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2604:9: replace <impl Drop for RoomFut<'_, T, B, P>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2606
+      },
+      "start": {
+        "column": 9,
+        "line": 2604
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for ReadyFut<'_, T, B, P>>::drop with ()\n@@ -2636,19 +2636,17 @@\n     pipe: &'a mut Pipeline<T, B, P>,\n     registered: bool,\n }\n \n impl<T, B, P> Unpin for ReadyFut<'_, T, B, P> {}\n \n impl<T, B, P> Drop for ReadyFut<'_, T, B, P> {\n     fn drop(&mut self) {\n-        if self.registered {\n-            self.pipe.storage().slot.get().waker.clear();\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P> Future for ReadyFut<'_, T, B, P> {\n     type Output = ();\n \n     #[inline(always)]\n     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for ReadyFut<'_, T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2647
+        },
+        "start": {
+          "column": 5,
+          "line": 2643
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2644:9: replace <impl Drop for ReadyFut<'_, T, B, P>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2646
+      },
+      "start": {
+        "column": 9,
+        "line": 2644
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace test::message_in_flight -> usize with 0\n@@ -3850,22 +3850,17 @@\n         assert!(poll_once(pipe.room()).is_pending());\n         std::thread::spawn(move || drop(held)).join().unwrap();\n         assert_eq!(block_on(pipe.room()).index, index);\n     }\n \n     /// A message of `p` ended and, for all `p` can see, still being\n     /// hashed: its slot.\n     fn message_in_flight(p: &mut Pipeline<u32>) -> usize {\n-        let (_, s) = block_on(p.message(7, None)).take();\n-        p.open_messages -= 1;\n-        p.slots[s].kind = SlotKind::WaitMulti { has_owner: false };\n-        p.storage().slot_done[s].store(false, Ordering::SeqCst);\n-        p.end_queue.push_back(s as u32);\n-        s\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[test]\n     fn every_pending_wait_registers_its_waker_even_during_block_on_spin() {\n         struct Count(AtomicUsize);\n         impl std::task::Wake for Count {\n             fn wake(self: Arc<Self>) {\n                 self.0.fetch_add(1, Ordering::SeqCst);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "test::message_in_flight",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3864
+        },
+        "start": {
+          "column": 5,
+          "line": 3855
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:3858:9: replace test::message_in_flight -> usize with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3863
+      },
+      "start": {
+        "column": 9,
+        "line": 3858
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace test::message_in_flight -> usize with 1\n@@ -3850,22 +3850,17 @@\n         assert!(poll_once(pipe.room()).is_pending());\n         std::thread::spawn(move || drop(held)).join().unwrap();\n         assert_eq!(block_on(pipe.room()).index, index);\n     }\n \n     /// A message of `p` ended and, for all `p` can see, still being\n     /// hashed: its slot.\n     fn message_in_flight(p: &mut Pipeline<u32>) -> usize {\n-        let (_, s) = block_on(p.message(7, None)).take();\n-        p.open_messages -= 1;\n-        p.slots[s].kind = SlotKind::WaitMulti { has_owner: false };\n-        p.storage().slot_done[s].store(false, Ordering::SeqCst);\n-        p.end_queue.push_back(s as u32);\n-        s\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[test]\n     fn every_pending_wait_registers_its_waker_even_during_block_on_spin() {\n         struct Count(AtomicUsize);\n         impl std::task::Wake for Count {\n             fn wake(self: Arc<Self>) {\n                 self.0.fetch_add(1, Ordering::SeqCst);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "test::message_in_flight",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3864
+        },
+        "start": {
+          "column": 5,
+          "line": 3855
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:3858:9: replace test::message_in_flight -> usize with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3863
+      },
+      "start": {
+        "column": 9,
+        "line": 3858
+      }
+    }
+  }
+]

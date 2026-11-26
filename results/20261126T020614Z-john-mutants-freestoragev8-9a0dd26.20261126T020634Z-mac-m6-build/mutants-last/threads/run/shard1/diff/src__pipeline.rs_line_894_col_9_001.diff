@@ -1,0 +1,58 @@
+--- src/pipeline.rs
++++ replace PipeStorage::run_multi_piece -> (*const AtomicUsize, bool) with (Default::default(), false)
+@@ -886,54 +886,17 @@
+         self.rooms.release_n(room_idx, 1);
+         (&self.slot.get().waker, core::ptr::addr_of!(pnode.done.0))
+     }
+ 
+     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) -> (*const AtomicUsize, bool) {
+         // Sound: the owner wrote the description before dispatching the slot's
+         // tasks (batch, submit_multi_slice), and writes it again only after
+         // `slot_done`.
+-        let desc = unsafe { *self.multi[slot].get() };
+-        assert!(piece_idx < desc.pieces, "the action names a piece of its submission");
+-        if let Some((message_len, slot_len, per_part)) = desc.batch {
+-            let first = piece_idx * per_part;
+-            let count = (desc.total_len - first).min(per_part);
+-            // Sound: the batch and its digests stay in the slot (`batches[s]`)
+-            // until the slot's event, which waits for `slot_done`; this task's
+-            // messages and digests are its own range of them (`first`,
+-            // `count`).
+-            let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };
+-            let digests = unsafe { core::slice::from_raw_parts_mut(desc.digests.add(first), count) };
+-            // Sound: `desc.batch` came from a validated `Prepared` batch
+-            // (including zero-length messages padded to `BLOCK_LEN`) held alive
+-            // in `Pipeline::batches[slot]` until `slot_done`.
+-            let part = unsafe { crate::throughput::Part::from_checked_slots(bytes, message_len, slot_len) };
+-            self.slot_tree(slot).hash_many_on(platform, &part, digests);
+-            return (core::ptr::addr_of!(self.tasks_left[slot].0), true);
+-        }
+-
+-        // Sound: the owner, or the Lent guard, keeps all the message's
+-        // bytes in place until the slot is done. The chunks of this slice
+-        // are the same partition the submitter put in the action list.
+-        let input = unsafe { core::slice::from_raw_parts(desc.input, desc.total_len) };
+-        let level = desc.piece_level;
+-        let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect("a piece within its message");
+-        let values = self.cvs[slot].get();
+-        let tree = self.slot_tree(slot);
+-        if piece_idx + 1 == desc.pieces {
+-            let value = tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);
+-            // Sound: only the last piece writes this field.
+-            unsafe { (*values).last = Some(value) };
+-        } else {
+-            let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);
+-            // Sound: a separate slot for each index (submit_multi_slice
+-            // limits the count); form no borrow of other workers' slots.
+-            unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };
+-        }
+-        (core::ptr::addr_of!(self.tasks_left[slot].0), false)
++        (Default::default(), false) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn finish_multi_slot(&self, slot: usize, is_batch: bool) -> (&'static WakerSlot, *const AtomicBool) {
+         if !is_batch {
+             // Sound: this is the slot's last task (`tasks_left` reached zero),
+             // so every piece's value is written and no one else reads or
+             // writes the slot's values or hash until `slot_done` below.
+             let desc = unsafe { *self.multi[slot].get() };

@@ -1,0 +1,102 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::create -> Self with Default::default()
+@@ -1467,98 +1467,17 @@
+     #[inline(always)]
+     fn storage(&self) -> &PipeStorage {
+         // Sound: this `Pipeline` holds a `PipeStorage::holders` reference
+         // keeping `*self.storage` live until `Pipeline::drop`.
+         unsafe { &*self.storage }
+     }
+ 
+     fn create(mode: Mode, limits: Limits) -> Self {
+-        crate::lanes::require();
+-        prepare_thread();
+-        assert!(limits.messages > 0, "Pipeline Limits.messages must be at least 1");
+-        let tree = TreeHasher::new(mode);
+-        let m = limits.messages;
+-        // Each limit alone first: their sum, next, could wrap round to a
+-        // small one (`rooms: usize::MAX` passed the check below so).
+-        assert!(m < 1 << 29 && limits.rooms < 1 << 29, "Pipeline Limits beyond what an action can name");
+-        let p_cap = limits.rooms + m + 1;
+-        let g_cap = m.clamp(4, 256);
+-        let actions_cap = m * MAX_SLOT_PIECES + p_cap + g_cap;
+-        // An action names a slot, a piece or a group in 29 bits (pack_arg).
+-        assert!(m < 1 << 29 && p_cap < 1 << 29, "Pipeline Limits beyond what an action can name");
+-        // Reserve a non-wrapping identity before acquiring storage or a source
+-        // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot
+-        // wrap back to previously issued IDs.
+-        let id = loop {
+-            let cur = NEXT_PIPELINE_ID.load(Ordering::Relaxed);
+-            assert!(cur < u64::MAX, "Pipeline ID counter exhausted");
+-            if NEXT_PIPELINE_ID.compare_exchange(cur, cur + 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+-                break cur;
+-            }
+-        };
+-
+-        let pipe_slot = PipeSlot::acquire(actions_cap);
+-        let storage = PipeStorage::alloc(pipe_slot, tree, m, limits.rooms, p_cap, g_cap);
+-        // A pool of one thread has no worker to take a published action,
+-        // and only this crate's block_on would run it: an outside executor
+-        // waited for ever. Unregistered, every action runs where it is
+-        // dispatched, as when no slot is free.
+-        let source_slot = if crate::lanes::pool_has_workers() { pipe_slot.source.register() } else { None };
+-        crate::lanes::sources::opened();
+-
+-        let mut local_free_rooms = Ring::new(limits.rooms.max(1));
+-        for i in 0..limits.rooms {
+-            local_free_rooms.push_back(u32::try_from(i).expect("room index fits u32"));
+-        }
+-
+-        let mut free_slots = Ring::new(m);
+-        for i in 0..m {
+-            free_slots.push_back(u32::try_from(i).expect("slot index fits u32"));
+-        }
+-        let mut free_pieces = Ring::new(p_cap);
+-        for i in 0..p_cap {
+-            free_pieces.push_back(u32::try_from(i).expect("piece index fits u32"));
+-        }
+-
+-        Pipeline {
+-            id,
+-            limits,
+-            group_count: g_cap,
+-            source_slot,
+-            storage,
+-            slots: (0..m).map(|_| SlotMeta { tag: None, kind: SlotKind::Free, mode: SlotMode::Default }).collect(),
+-            room_streams: vec![RoomStream::EMPTY; m].into_boxed_slice(),
+-            owners: RawSlots::new(m),
+-            batches: RawSlots::new(m),
+-            batch_plans: vec![None; m].into_boxed_slice(),
+-            batches_in_flight: 0,
+-            free_slots,
+-            open_messages: 0,
+-            end_queue: Ring::new(m),
+-            events: Ring::new(m),
+-            local_free_rooms,
+-            room_cursor: 0,
+-            free_pieces,
+-            piece_slots: Vec::with_capacity(if limits.rooms == 0 { 0 } else { m }),
+-            group_cursor: 0,
+-            open_group: None,
+-            local_count: 0,
+-            local_bytes: 0,
+-            local_batch: None,
+-            local_group_mode: SlotMode::Default,
+-            local_custom_tree: None,
+-            local_members: Box::new([Member { input: core::ptr::null(), len: 0, out: core::ptr::null_mut() }; MEMBERS]),
+-            local_rooms: Box::new([NONE; MEMBERS]),
+-            next_loan_epoch: 1,
+-            next_group_epoch: 1,
+-            assigned_group_epoch: vec![0u64; g_cap].into_boxed_slice(),
+-            seen_group_epoch: vec![0u64; g_cap].into_boxed_slice(),
+-            action_buf: [0; MAX_SLOT_PIECES],
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Wait for a free message slot and open a [`Message`] in this pipeline's
+     /// default [`Mode`].
+     ///
+     /// # Panics
+     ///
+     /// If no slot is free and waiting cannot free one: as many messages
