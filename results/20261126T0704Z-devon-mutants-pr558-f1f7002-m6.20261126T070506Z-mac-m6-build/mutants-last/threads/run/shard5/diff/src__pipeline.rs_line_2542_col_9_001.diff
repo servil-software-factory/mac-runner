@@ -1,0 +1,39 @@
+--- src/pipeline.rs
++++ replace <impl Future for MessageFut<'_, T, B, P>>::poll -> Poll<Message> with Poll::from_iter([Default::default()])
+@@ -2534,35 +2534,17 @@
+     }
+ }
+ 
+ impl<T, B, P> Future for MessageFut<'_, T, B, P> {
+     type Output = Message;
+ 
+     #[inline(always)]
+     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Message> {
+-        let this = &mut *self;
+-        assert!(this.tag.is_some(), "Pipeline::message future polled after completion");
+-        let slot = match this.pipe.free_slots.pop_front() {
+-            Some(s) => s,
+-            None => match this.pipe.poll_message(cx) {
+-                Poll::Ready(s) => s,
+-                Poll::Pending => {
+-                    this.registered = true;
+-                    return Poll::Pending;
+-                }
+-            },
+-        };
+-        this.registered = false;
+-        let sm = &mut this.pipe.slots[slot as usize];
+-        sm.tag = this.tag.take();
+-        sm.kind = SlotKind::OpenEmpty;
+-        sm.mode = SlotMode::Default;
+-        this.pipe.open_messages += 1;
+-        Poll::Ready(Message { pipeline_id: this.pipe.id, slot })
++        Poll::from_iter([Default::default()]) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ struct MessageWithFut<'a, T, B, P> {
+     pipe: &'a mut Pipeline<T, B, P>,
+     tag: Option<T>,
+     tree: Option<TreeHasher>,
+     is_plain: bool,
