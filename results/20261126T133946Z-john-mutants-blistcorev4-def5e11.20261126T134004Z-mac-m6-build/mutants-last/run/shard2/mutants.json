@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace -= with += in by_blocks_at_once\n@@ -673,17 +673,17 @@\n         let mut sum = 0u8;\n         for end in &mut ends {\n             sum += *end;\n             *end = sum;\n         }\n         let n_u8 = u8::try_from(n).expect(\"chunk <= BY_BLOCKS_AT_ONCE\");\n         for i in (0..n_u8).rev() {\n             let bin = whole(items[usize::from(i)]);\n-            ends[bin] -= 1;\n+            ends[bin] += /* ~ changed by cargo-mutants ~ */ 1;\n             order[usize::from(ends[bin])] = i;\n         }\n     }\n     let order = &order[..n];\n     // With SHA-3 the last block stays in the lanes too; other AArch64\n     // CPUs keep the prefix kernels followed by scalar last blocks.\n     #[cfg(blake3_neon)]\n     let last_lanes = crate::neon_hybrid::sha3_detected();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "by_blocks_at_once",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 789
+        },
+        "start": {
+          "column": 1,
+          "line": 600
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:681:23: replace -= with += in by_blocks_at_once",
+    "package": "blake3-servil-core",
+    "replacement": "+=",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 681
+      },
+      "start": {
+        "column": 23,
+        "line": 681
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace == with != in by_blocks_at_once\n@@ -687,17 +687,17 @@\n     // CPUs keep the prefix kernels followed by scalar last blocks.\n     #[cfg(blake3_neon)]\n     let last_lanes = crate::neon_hybrid::sha3_detected();\n     #[cfg(not(blake3_neon))]\n     let last_lanes = false;\n     let mut cvs = [*key; BY_BLOCKS_AT_ONCE];\n     // chunk_by always advances and returns nonempty groups, even if a\n     // changed predicate groups the wrong items; no mutable loop bound.\n-    for same_blocks in order.chunk_by(|&a, &b| whole(items[usize::from(a)]) == whole(items[usize::from(b)])) {\n+    for same_blocks in order.chunk_by(|&a, &b| whole(items[usize::from(a)]) != /* ~ changed by cargo-mutants ~ */ whole(items[usize::from(b)])) {\n         let k = whole(items[usize::from(same_blocks[0])]);\n         #[cfg(blake3_neon)]\n         if last_lanes {\n             for group in same_blocks.chunks(GROUP) {\n                 let inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[usize::from(i)].as_ptr()).collect();\n                 let mut last_blocks = [[0u8; crate::BLOCK_LEN]; GROUP];\n                 let mut lengths = [0u32; GROUP];\n                 for ((&i, block), len) in group.iter().zip(&mut last_blocks).zip(&mut lengths) {\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "by_blocks_at_once",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 789
+        },
+        "start": {
+          "column": 1,
+          "line": 600
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:695:77: replace == with != in by_blocks_at_once",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 79,
+        "line": 695
+      },
+      "start": {
+        "column": 77,
+        "line": 695
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_many_on with ()\n@@ -72,104 +72,17 @@\n /// plain hashing), on `platform`: messages of up to a chunk go to\n /// the kernels TABLE at a time, 2 to 15 chunks side by side on SME2, others\n /// through the one-message path. Requires `input.len() == slot *\n /// outputs.len()` and every slot's bytes past `len` zero (a Batch's, or\n /// the crate's own).\n pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n     // One-block messages first, on the path they took before slots (a\n     // shared entry cost 64 B x 3 7% in the regression check).\n-    if len == BLOCK_LEN && outputs.len() >= 2 {\n-        crate::ran(crate::Ran::BlockRun);\n-        assert_slots(input, len, slot, outputs.len());\n-        for (messages, digests) in input.chunks(BLOCK_LEN * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-            hash_run(messages, key, flags, digests, platform);\n-        }\n-        return;\n-    }\n-    assert_slots(input, len, slot, outputs.len());\n-    if packed(len, slot) {\n-        return hash_packed(input, len, key, flags, outputs, platform);\n-    }\n-    // Empty messages: the NEON plans take a last block of 1 to 64 bytes\n-    // (hash_many_in's contract), so without this arm a batch of them stops\n-    // there (#251: CI's Cortex-A72, and every NEON machine since the pair\n-    // kernels left).\n-    if len == 0 {\n-        outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());\n-        return;\n-    }\n-    #[cfg(blake3_sme2)]\n-    if chunked(len) && platform_is_sme2(platform) && (outputs.len() >= 16 || outputs.len() >= sme2_chunked_min(len)) {\n-        return hash_chunked(input, len, key, flags, outputs, platform);\n-    }\n-    #[cfg(blake3_neon)]\n-    if (CHUNK_LEN + 1..=2 * CHUNK_LEN).contains(&len) && outputs.len() >= 2 && neon_plans() {\n-        return hash_two_chunks(input, len, key, flags, outputs);\n-    }\n-    if outputs.len() < 2 || len > CHUNK_LEN {\n-        #[cfg(target_arch = \"x86_64\")]\n-        return hash_long_or_single(input, len, key, flags, outputs, platform);\n-        #[cfg(not(target_arch = \"x86_64\"))]\n-        {\n-            for (i, output) in outputs.iter_mut().enumerate() {\n-                *output = *crate::hash_serial_on(&input[i * slot..][..len], key, flags, platform).as_bytes();\n-            }\n-            return;\n-        }\n-    }\n-    crate::ran(crate::Ran::ShortRun);\n-    let plans = neon_plans();\n-    let last_len = len - (slot - BLOCK_LEN);\n-    #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n-        let width = crate::ffi_output::lanes(platform);\n-        if width != 0 {\n-            multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n-            return;\n-        }\n-    }\n-    for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-        let blocks = slot / BLOCK_LEN;\n-        match blocks {\n-            1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(blake3_sse41_ffi)]\n-            2..=15 => crate::sse41::hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            5 => hash_blocks::<{ 5 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            6 => hash_blocks::<{ 6 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            7 => hash_blocks::<{ 7 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            8 => hash_blocks::<{ 8 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            9 => hash_blocks::<{ 9 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            10 => hash_blocks::<{ 10 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            11 => hash_blocks::<{ 11 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            12 => hash_blocks::<{ 12 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            13 => hash_blocks::<{ 13 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            14 => hash_blocks::<{ 14 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            15 => hash_blocks::<{ 15 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            16 => hash_blocks::<{ 16 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            _ => unreachable!(\"messages of up to a chunk\"),\n-        }\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Packed messages (`len` bytes each, at a stride of `len`): full SIMD\n /// groups run directly on the zero-padding-free packed kernels in\n /// `ffi_packed` (#501) across SME2, AVX-512, AVX2, and NEON `8+3`; any\n /// short remainder (or SSE4.1 fallback) expands up to 16 messages at a\n /// time into a 1 KiB zero-padded stack buffer.\n #[inline(never)]\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 168
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:80:5: replace hash_many_on with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 167
+      },
+      "start": {
+        "column": 5,
+        "line": 80
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace * with + in hash_many_on\n@@ -122,17 +122,17 @@\n     #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n     if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n         let width = crate::ffi_output::lanes(platform);\n         if width != 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n-    for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n+    for (messages, digests) in input.chunks(slot + /* ~ changed by cargo-mutants ~ */ TABLE).zip(outputs.chunks_mut(TABLE)) {\n         let blocks = slot / BLOCK_LEN;\n         match blocks {\n             1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(blake3_sse41_ffi)]\n             2..=15 => crate::sse41::hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 168
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:130:50: replace * with + in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 51,
+        "line": 130
+      },
+      "start": {
+        "column": 50,
+        "line": 130
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace / with % in hash_many_on\n@@ -123,17 +123,17 @@\n     if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n         let width = crate::ffi_output::lanes(platform);\n         if width != 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-        let blocks = slot / BLOCK_LEN;\n+        let blocks = slot % /* ~ changed by cargo-mutants ~ */ BLOCK_LEN;\n         match blocks {\n             1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(blake3_sse41_ffi)]\n             2..=15 => crate::sse41::hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 168
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:131:27: replace / with % in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 131
+      },
+      "start": {
+        "column": 27,
+        "line": 131
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ delete match arm 2 in hash_many_on\n@@ -128,18 +128,17 @@\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         let blocks = slot / BLOCK_LEN;\n         match blocks {\n             1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(blake3_sse41_ffi)]\n             2..=15 => crate::sse41::hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n+             /* ~ changed by cargo-mutants ~ */\n             #[cfg(not(blake3_sse41_ffi))]\n             3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             5 => hash_blocks::<{ 5 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             6 => hash_blocks::<{ 6 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 168
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/many.rs:136:13: delete match arm 2 in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 109,
+        "line": 137
+      },
+      "start": {
+        "column": 13,
+        "line": 136
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ delete match arm 3 in hash_many_on\n@@ -130,18 +130,17 @@\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         let blocks = slot / BLOCK_LEN;\n         match blocks {\n             1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(blake3_sse41_ffi)]\n             2..=15 => crate::sse41::hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            #[cfg(not(blake3_sse41_ffi))]\n-            3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n+             /* ~ changed by cargo-mutants ~ */\n             #[cfg(not(blake3_sse41_ffi))]\n             4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             5 => hash_blocks::<{ 5 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             6 => hash_blocks::<{ 6 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             #[cfg(not(blake3_sse41_ffi))]\n             7 => hash_blocks::<{ 7 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 168
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/many.rs:138:13: delete match arm 3 in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 109,
+        "line": 139
+      },
+      "start": {
+        "column": 13,
+        "line": 138
+      }
+    }
+  }
+]
