@@ -1,0 +1,49 @@
+--- src/many.rs
++++ replace hash_four_at_a_time with ()
+@@ -1106,45 +1106,17 @@
+ /// The arrangement for messages of whole blocks (`2..=16` blocks) where the
+ /// NEON plans are absent: on x86-64, whole chunks (`1024 B`) delegate to
+ /// Whole-block message dispatch on `plans == false`: full-chunk (`1024 B`)
+ /// x86-64 batches go through `hash_many_rounded` (including Zen 5 `hash32` for
+ /// `17..=31`), while portable (non-x86, non-NEON) targets run groups of four
+ /// plus a padded fourth lane for remainders of three.
+ #[inline(never)]
+ fn hash_four_at_a_time<const N: usize>(lanes: &[&[u8; N]], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+-    #[cfg(target_arch = "x86_64")]
+-    {
+-        const { assert!(N == CHUNK_LEN, "x86_64 routes 2..=15-block batches through hash_blocks_x86") };
+-        noted_lanes(lanes.len());
+-        crate::hash_many_rounded(platform, lanes, key, 0, IncrementCounter::No, flags, CHUNK_START, CHUNK_END | ROOT, outputs.as_flattened_mut());
+-        return;
+-    }
+-    #[cfg(not(target_arch = "x86_64"))]
+-    {
+-        let fours = lanes.len() / 4 * 4;
+-        if fours > 0 {
+-            noted_lanes(fours);
+-            whole_messages(&lanes[..fours], key, flags, &mut outputs[..fours], platform);
+-        }
+-        match lanes.len() - fours {
+-            3 => {
+-                let spare = [lanes[fours], lanes[fours + 1], lanes[fours + 2], lanes[fours + 2]];
+-                let mut digests = [[0u8; OUT_LEN]; 4];
+-                noted_lanes(4);
+-                whole_messages(&spare, key, flags, &mut digests, platform);
+-                outputs[fours..].copy_from_slice(&digests[..3]);
+-            }
+-            _ => {
+-                for (output, message) in outputs[fours..].iter_mut().zip(&lanes[fours..]) {
+-                    *output = *crate::hash_serial_on(&message[..], key, flags, platform).as_bytes();
+-                }
+-            }
+-        }
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ std::thread_local! {
+     /// The lanes of each hash_many call hash_four_at_a_time made on this
+     /// thread, for the test of its arrangement (BLAKE3 #219).
+     pub(crate) static FOUR_AT_A_TIME_LANES: core::cell::RefCell<std::vec::Vec<usize>> = const { core::cell::RefCell::new(std::vec::Vec::new()) };
+ }
