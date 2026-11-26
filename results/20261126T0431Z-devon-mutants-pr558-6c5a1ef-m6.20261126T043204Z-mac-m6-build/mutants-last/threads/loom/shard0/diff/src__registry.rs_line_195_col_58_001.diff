@@ -1,0 +1,21 @@
+--- src/registry.rs
++++ replace + with * in EpochRegistry<T, SLOTS>::find_from
+@@ -187,17 +187,17 @@
+     }
+ 
+     /// Visit registered live slots starting at `start` (wrapping around),
+     /// returning the first slot for which `f` returns `true`.
+     #[inline(always)]
+     pub(crate) fn find_from(&self, _guard: &ReaderGuard<'_>, start: usize, mut f: impl FnMut(&T) -> bool) -> Option<usize> {
+         let mut active = self.active.load(Ordering::Acquire).rotate_right(u32::from(start.to_le_bytes()[0]));
+         while active != 0 {
+-            let slot = (active.trailing_zeros() as usize + start) % SLOTS;
++            let slot = (active.trailing_zeros() as usize * /* ~ changed by cargo-mutants ~ */ start) % SLOTS;
+             active &= active - 1;
+             let ptr = self.slots[slot].load(Ordering::Acquire);
+             // Sound: `_guard` guarantees this thread published a nonzero epoch
+             // with `Release` store + `SeqCst` fence before this `Acquire` load,
+             // so `*ptr` remains live until `_guard` drops.
+             if Self::is_live(ptr) && f(unsafe { &*ptr }) {
+                 return Some(slot);
+             }

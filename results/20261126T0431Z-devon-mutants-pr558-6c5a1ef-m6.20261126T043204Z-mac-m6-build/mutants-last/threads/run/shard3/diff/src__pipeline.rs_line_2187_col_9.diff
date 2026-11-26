@@ -1,0 +1,32 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::open_new_group -> (u32, u64) with (0, 0)
+@@ -2179,28 +2179,17 @@
+         if slot_mode == SlotMode::Custom {
+             self.publish_open();
+         }
+         pair
+     }
+ 
+     #[inline(never)]
+     fn open_new_group(&mut self, slot: usize, batch: Option<(usize, usize)>) -> (u32, u64) {
+-        let g = self.acquire_free_group();
+-        let epoch = self.next_group_epoch;
+-        self.next_group_epoch = epoch.checked_add(1).expect("Pipeline group epoch counter exhausted");
+-        self.local_count = 0;
+-        self.local_bytes = 0;
+-        self.local_batch = batch;
+-        if self.live_custom_slots != 0 {
+-            let slot_mode = self.slots[slot].mode;
+-            self.local_custom_slot = if slot_mode == SlotMode::Default { NONE } else { u32::try_from(slot).expect("slot fits u32") };
+-        }
+-        self.open_group = Some((g, epoch));
+-        (g, epoch)
++        (0, 0) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline]
+     fn front_uses_open_group(&self) -> bool {
+         let Some((open_g, _)) = self.open_group else { return false };
+         let Some(&front) = self.end_queue.front() else { return false };
+         match self.slots[front as usize].kind {
+             SlotKind::WaitSingle { group, .. } | SlotKind::WaitBatch { group, .. } | SlotKind::WaitAborted { group, .. } => group == open_g,

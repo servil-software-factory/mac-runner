@@ -1,0 +1,47 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::submit_multi_slice with ()
+@@ -2061,43 +2061,17 @@
+             self.slots[s].kind = SlotKind::WaitSingle { has_owner, group, epoch };
+             return;
+         }
+         self.submit_multi_slice(s, ptr, len, has_owner, 0);
+     }
+ 
+     #[inline(never)]
+     fn submit_multi_slice(&mut self, s: usize, ptr: *const u8, len: usize, has_owner: bool, loan_epoch: u64) {
+-        let mut piece_len = TASK_LEN;
+-        while len.div_ceil(piece_len) > MAX_SLOT_PIECES {
+-            piece_len *= 2;
+-        }
+-        let pieces = len.div_ceil(piece_len);
+-        assert!((2..=MAX_SLOT_PIECES).contains(&pieces), "a split message fits its piece slots");
+-        self.shared().slot_done[s].store(false, Ordering::Relaxed);
+-        self.shared().tasks_left[s].store(pieces, Ordering::Relaxed);
+-        // Sound: as `batch`'s, above.
+-        unsafe {
+-            *self.shared().multi[s].get() = MultiDesc {
+-                input: ptr,
+-                total_len: len,
+-                piece_level: level_of(piece_len as u64),
+-                pieces,
+-                batch: None,
+-                digests: core::ptr::null_mut(),
+-                loan_epoch,
+-            }
+-        };
+-        self.slots[s].kind = SlotKind::WaitMulti { has_owner };
+-        let s32 = u32::try_from(s).expect("slot fits u32");
+-        let custom_bit = if self.slots[s].mode != SlotMode::Default { MULTI_CUSTOM_BIT } else { 0 };
+-        for p in 0..pieces {
+-            self.bufs.action_buf[p] = pack_arg(KIND_MULTI, s32, u32::try_from(p).expect("piece fits u32") | custom_bit, true);
+-        }
+-        self.dispatch_many(pieces, false);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn flush_sealed_short_rooms(&mut self) {
+         for s in 0..self.slots.len() {
+             if let SlotKind::OpenShort { room: room_idx, offset, len } = self.slots[s].kind {
+                 // Sound: as in `end`.
+                 let ptr = unsafe { self.shared().storage.rooms.room_ptr(room_idx as usize).add(offset as usize) };
+                 let out = self.shared().hashes[s].get() as *mut u8;

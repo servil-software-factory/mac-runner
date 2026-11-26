@@ -1,0 +1,437 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace - with + in places::Plan::done\n@@ -1306,17 +1306,17 @@\n         }\n \n         /// The job is done: the thread learns from it.\n         pub(crate) fn done(&self) {\n             if let Some((kind, len, reach, started)) = self.learning {\n                 let ended = now();\n                 let cls = class(len);\n                 let nanos = cost(\n-                    ended - started,\n+                    ended + /* ~ changed by cargo-mutants ~ */ started,\n                     LAST.with(|l| l.replace(Some((kind, cls, ended)))).filter(|&(k, c, _)| k == kind && c == cls).map(|(_, _, last)| ended - last),\n                     self.in_flight.max(1),\n                 );\n                 LEARNED.with(|l| {\n                     let cell = &l[kind as usize][cls];\n                     let mut cur = cell.get();\n                     cur.record_for(reach, nanos, len);\n                     cell.set(cur);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Plan::done",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1325
+        },
+        "start": {
+          "column": 9,
+          "line": 1308
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1314:27: replace - with + in places::Plan::done",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 1314
+      },
+      "start": {
+        "column": 27,
+        "line": 1314
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace - with + in places::Plan::done\n@@ -1307,17 +1307,17 @@\n \n         /// The job is done: the thread learns from it.\n         pub(crate) fn done(&self) {\n             if let Some((kind, len, reach, started)) = self.learning {\n                 let ended = now();\n                 let cls = class(len);\n                 let nanos = cost(\n                     ended - started,\n-                    LAST.with(|l| l.replace(Some((kind, cls, ended)))).filter(|&(k, c, _)| k == kind && c == cls).map(|(_, _, last)| ended - last),\n+                    LAST.with(|l| l.replace(Some((kind, cls, ended)))).filter(|&(k, c, _)| k == kind && c == cls).map(|(_, _, last)| ended + /* ~ changed by cargo-mutants ~ */ last),\n                     self.in_flight.max(1),\n                 );\n                 LEARNED.with(|l| {\n                     let cell = &l[kind as usize][cls];\n                     let mut cur = cell.get();\n                     cur.record_for(reach, nanos, len);\n                     cell.set(cur);\n                 });\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "places::Plan::done",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 1325
+        },
+        "start": {
+          "column": 9,
+          "line": 1308
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:1315:140: replace - with + in places::Plan::done",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 141,
+        "line": 1315
+      },
+      "start": {
+        "column": 140,
+        "line": 1315
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace << with >>\n@@ -58,17 +58,17 @@\n const NONE: u32 = u32::MAX;\n \n const KIND_GROUP: u64 = 0;\n const KIND_ROOM_PIECE: u64 = 1;\n const KIND_MULTI: u64 = 2;\n \n /// High bit of `KIND_MULTI`'s 32-bit `b` payload: selects `Shared::slot_trees[slot]`\n /// instead of `Shared::tree` without a worker-visible per-slot mode table.\n-const MULTI_CUSTOM_BIT: u32 = 1u32 << 31;\n+const MULTI_CUSTOM_BIT: u32 = 1u32 >> /* ~ changed by cargo-mutants ~ */ 31;\n \n /// Fixed-capacity FIFO ring buffer over pre-allocated `Box<[MaybeUninit<X>]>`;\n /// never reallocates after construction.\n struct Ring<X> {\n     buf: Box<[MaybeUninit<X>]>,\n     head: usize,\n     len: usize,\n }\n",
+    "file": "src/pipeline.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:66:36: replace << with >>",
+    "package": "blake3-servil",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 38,
+        "line": 66
+      },
+      "start": {
+        "column": 36,
+        "line": 66
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))\n@@ -465,56 +465,17 @@\n         }\n     }\n \n     fn release(st: &'static PipeStorage) {\n         Self::release_n(st, 1);\n     }\n \n     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize) -> &'static PipeStorage {\n-        let chosen = {\n-            let mut free = FREE_STORAGES.lock().unwrap();\n-            let fits = |st: &&'static PipeStorage| {\n-                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups\n-            };\n-            free.iter().position(fits).map(|at| free.swap_remove(at))\n-        };\n-        if let Some(st) = chosen {\n-            st.holders.store(1, Ordering::Release);\n-            return st;\n-        }\n-        let actions = actions.max(1024);\n-        let messages = messages.max(64);\n-        let groups = groups.max(64);\n-        let dummy = GroupMemberMeta { room: NONE };\n-        #[cfg(any(test, shuttle))]\n-        STORAGES_MADE.fetch_add(1, Ordering::Relaxed);\n-        let raw = Box::into_raw(Box::new(PipeStorage {\n-            source: Source::with_actions(actions),\n-            waker: WakerSlot::new(),\n-            rooms: Rooms::new(rooms),\n-            groups: (0..groups)\n-                .map(|_| MemberGroup {\n-                    task: UnsafeCell::new(Task::members(None)),\n-                    metas: UnsafeCell::new([dummy; MEMBERS]),\n-                    epoch: UnsafeCell::new(0),\n-                    completed_epoch: OwnLine(AtomicU64::new(0)),\n-                })\n-                .collect(),\n-            loan_completed: (0..messages).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            saved_loan_epoch: UnsafeCell::new(1),\n-            saved_group_epoch: UnsafeCell::new(1),\n-            shared: UnsafeCell::new(core::ptr::null_mut()),\n-            holders: OwnLine(AtomicUsize::new(1)),\n-        }));\n-        #[cfg(shuttle)]\n-        MODEL_OWNED_STORAGES.lock().unwrap().push(OwnedStoragePtr(raw));\n-        // Sound: `raw` is a valid leaked allocation (freed only after all\n-        // Shuttle workers join in `model_storages::free_storages_for_model`).\n-        unsafe { &*raw }\n+        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.\n ///\n /// # Trait implementations\n ///\n /// - `Drop` returns the unused credits; workers retain access to committed\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::acquire",
+      "return_type": "-> &'static PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 513
+        },
+        "start": {
+          "column": 5,
+          "line": 472
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:473:9: replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 512
+      },
+      "start": {
+        "column": 9,
+        "line": 473
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::tree_for -> &TreeHasher with Box::leak(Box::new(Default::default()))\n@@ -706,24 +706,17 @@\n         unsafe { &*self.tree.get() }\n     }\n \n     /// Prepared mode selected by `custom`: either `slot_trees[slot]` (written\n     /// by `MessageWithFut::poll` before dispatch and immutable until completion)\n     /// or the Pipeline's default `tree`.\n     #[inline(always)]\n     fn tree_for(&self, slot: usize, custom: bool) -> &TreeHasher {\n-        if custom {\n-            // Sound: the action (or owner-side `SlotMeta::mode`) selects\n-            // `slot_trees[slot]` only for a slot opened via `message_with`,\n-            // whose tree stays read-only until all work for `slot` finishes.\n-            unsafe { &*self.slot_trees[slot].get() }\n-        } else {\n-            self.tree()\n-        }\n+        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */\n     }\n \n     unsafe fn run_action(ctx: *const (), arg: u64, platform: Platform) {\n         // Sound: `ctx` is the `*const Shared` its Pipeline dispatched with\n         // (dispatch_one, dispatch_many), and a Shared is never freed.\n         let shared = unsafe { &*(ctx as *const Shared) };\n         let (kind, a, b) = unpack_arg(arg);\n         match kind {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::tree_for",
+      "return_type": "-> &TreeHasher",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 722
+        },
+        "start": {
+          "column": 5,
+          "line": 709
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:714:9: replace Shared::tree_for -> &TreeHasher with Box::leak(Box::new(Default::default()))",
+    "package": "blake3-servil",
+    "replacement": "Box::leak(Box::new(Default::default()))",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 721
+      },
+      "start": {
+        "column": 9,
+        "line": 714
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_group with ()\n@@ -733,57 +733,17 @@\n                 let b32 = u32::try_from(b).expect(\"multi arg fits u32\");\n                 shared.run_multi_piece(a, (b32 & !MULTI_CUSTOM_BIT) as usize, (b32 & MULTI_CUSTOM_BIT) != 0, platform);\n             }\n             _ => unreachable!(),\n         }\n     }\n \n     fn run_group(&self, group_idx: usize, custom_slot: u32, platform: Platform) {\n-        let storage = self.storage;\n-        let group = &storage.groups[group_idx];\n-        // Sound: the owner wrote this group's task, epoch, and metas before\n-        // dispatching the group (publish_open), and carried `custom_slot` in\n-        // the action argument. When `custom_slot != NONE`, that slot belongs\n-        // to this group and cannot be reaped or overwritten until\n-        // `completed_epoch` reaches this epoch.\n-        let task = unsafe { &*group.task.get() };\n-        let tree = if custom_slot == NONE { self.tree() } else { self.tree_for(custom_slot as usize, true) };\n-        let count = task.members;\n-        // Sound: the owner wrote `group.epoch` and each member's input/output pointers\n-        // before dispatch and keeps them valid until `completed_epoch` reaches `epoch`.\n-        let epoch = unsafe { *group.epoch.get() };\n-        unsafe { task.run_members(tree, platform) };\n-        // Sound: `metas` was written before dispatch and stays read-only until `completed_epoch` publishes.\n-        let metas = unsafe { &*group.metas.get() };\n-\n-        // Coalesce consecutive members sharing a Room into a single atomic subtraction.\n-        let mut cur_room = NONE;\n-        let mut cur_n = 0usize;\n-        for meta in &metas[..count] {\n-            if meta.room != NONE {\n-                if meta.room == cur_room {\n-                    cur_n += 1;\n-                } else {\n-                    if cur_room != NONE {\n-                        self.storage.rooms.release_n(cur_room, cur_n);\n-                    }\n-                    cur_room = meta.room;\n-                    cur_n = 1;\n-                }\n-            }\n-        }\n-        if cur_room != NONE {\n-            self.storage.rooms.release_n(cur_room, cur_n);\n-        }\n-\n-        // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n-        finished(storage, || {\n-            group.completed_epoch.swap(epoch, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, custom: bool, platform: Platform) {\n         let pnode = &self.pieces[pnode_idx];\n         // Sound: the owner wrote the piece's fields before dispatching it\n         // (commit_multi), and touches the node again only once `done` is set,\n         // which is this function's last store.\n         let slot = unsafe { *pnode.slot.get() } as usize;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_group",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 782
+        },
+        "start": {
+          "column": 5,
+          "line": 740
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:741:9: replace Shared::run_group with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 781
+      },
+      "start": {
+        "column": 9,
+        "line": 741
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Shared::run_group\n@@ -741,17 +741,17 @@\n         let storage = self.storage;\n         let group = &storage.groups[group_idx];\n         // Sound: the owner wrote this group's task, epoch, and metas before\n         // dispatching the group (publish_open), and carried `custom_slot` in\n         // the action argument. When `custom_slot != NONE`, that slot belongs\n         // to this group and cannot be reaped or overwritten until\n         // `completed_epoch` reaches this epoch.\n         let task = unsafe { &*group.task.get() };\n-        let tree = if custom_slot == NONE { self.tree() } else { self.tree_for(custom_slot as usize, true) };\n+        let tree = if custom_slot != /* ~ changed by cargo-mutants ~ */ NONE { self.tree() } else { self.tree_for(custom_slot as usize, true) };\n         let count = task.members;\n         // Sound: the owner wrote `group.epoch` and each member's input/output pointers\n         // before dispatch and keeps them valid until `completed_epoch` reaches `epoch`.\n         let epoch = unsafe { *group.epoch.get() };\n         unsafe { task.run_members(tree, platform) };\n         // Sound: `metas` was written before dispatch and stays read-only until `completed_epoch` publishes.\n         let metas = unsafe { &*group.metas.get() };\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_group",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 782
+        },
+        "start": {
+          "column": 5,
+          "line": 740
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:749:35: replace == with != in Shared::run_group",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 749
+      },
+      "start": {
+        "column": 35,
+        "line": 749
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_room_piece with ()\n@@ -777,46 +777,17 @@\n \n         // Single SeqCst swap completes all 64 events AND all 64 short `Lent` guards!\n         finished(storage, || {\n             group.completed_epoch.swap(epoch, Ordering::SeqCst);\n         });\n     }\n \n     fn run_room_piece(&self, pnode_idx: usize, custom: bool, platform: Platform) {\n-        let pnode = &self.pieces[pnode_idx];\n-        // Sound: the owner wrote the piece's fields before dispatching it\n-        // (commit_multi), and touches the node again only once `done` is set,\n-        // which is this function's last store.\n-        let slot = unsafe { *pnode.slot.get() } as usize;\n-        let room_idx = unsafe { *pnode.room.get() };\n-        let offset = unsafe { *pnode.offset.get() } as usize;\n-        let len = unsafe { *pnode.len.get() } as usize;\n-        let index = unsafe { *pnode.index.get() };\n-        let rooms = &self.storage.rooms;\n-        assert!((room_idx as usize) < rooms.count && offset <= ROOM_LEN && len <= ROOM_LEN - offset, \"a piece stays within its room\");\n-        // Sound: these are just the committed bytes. The Room's credit keeps\n-        // them from being written again until this task releases them below.\n-        let ptr = unsafe { rooms.room_ptr(room_idx as usize).add(offset) };\n-        let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };\n-        let tree = self.tree_for(slot, custom);\n-        let value = if index == 0 {\n-            RoomValue::First(tree.subtree_halves_on(platform, ROOM_LEVEL, index, bytes))\n-        } else if len == ROOM_LEN {\n-            RoomValue::Whole(tree.subtree_cv_on(platform, ROOM_LEVEL, index, bytes))\n-        } else {\n-            RoomValue::Last(tree.last_cv_on(platform, index << ROOM_LEVEL, bytes))\n-        };\n-        // Sound: this piece's output is its worker's alone until `done`.\n-        unsafe { *pnode.out.0.get() = value };\n-        let storage = self.storage;\n-        storage.rooms.release_n(room_idx, 1);\n-        finished(storage, || {\n-            pnode.done.swap(true, Ordering::SeqCst);\n-        });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, custom: bool, platform: Platform) {\n         // Sound: the owner wrote the description before dispatching the slot's\n         // tasks (batch, submit_multi_slice), and writes it again only after\n         // `slot_done`.\n         let desc = unsafe { *self.multi[slot].get() };\n         assert!(piece_idx < desc.pieces, \"the action names a piece of its submission\");\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_room_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 815
+        },
+        "start": {
+          "column": 5,
+          "line": 784
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:785:9: replace Shared::run_room_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 814
+      },
+      "start": {
+        "column": 9,
+        "line": 785
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Shared::run_multi_piece with ()\n@@ -813,76 +813,17 @@\n             pnode.done.swap(true, Ordering::SeqCst);\n         });\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, custom: bool, platform: Platform) {\n         // Sound: the owner wrote the description before dispatching the slot's\n         // tasks (batch, submit_multi_slice), and writes it again only after\n         // `slot_done`.\n-        let desc = unsafe { *self.multi[slot].get() };\n-        assert!(piece_idx < desc.pieces, \"the action names a piece of its submission\");\n-        let tree = self.tree_for(slot, custom);\n-        if let Some((message_len, slot_len, per_part)) = desc.batch {\n-            let first = piece_idx * per_part;\n-            let count = (desc.total_len - first).min(per_part);\n-            // Sound: the batch and its digests stay in the slot (`batches[s]`)\n-            // until the slot's event, which waits for `slot_done`; this task's\n-            // messages and digests are its own range of them (`first`,\n-            // `count`).\n-            let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };\n-            let digests = unsafe { core::slice::from_raw_parts_mut(desc.digests.add(first), count) };\n-            // Sound: `desc.batch` came from a validated `Prepared` batch\n-            // (including zero-length messages padded to `BLOCK_LEN`) held alive\n-            // in `Pipeline::batches[slot]` until `slot_done`.\n-            let part = unsafe { crate::throughput::Part::from_checked_slots(bytes, message_len, slot_len) };\n-            tree.hash_many_on(platform, &part, digests);\n-            let storage = self.storage;\n-            if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-                finished(storage, || {\n-                    self.slot_done[slot].swap(true, Ordering::SeqCst);\n-                });\n-            }\n-            return;\n-        }\n-\n-        // Sound: the owner, or the Lent guard, keeps all the message's\n-        // bytes in place until the slot is done. The chunks of this slice\n-        // are the same partition the submitter put in the action list.\n-        let input = unsafe { core::slice::from_raw_parts(desc.input, desc.total_len) };\n-        let level = desc.piece_level;\n-        let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect(\"a piece within its message\");\n-        let values = self.cvs[slot].get();\n-        if piece_idx + 1 == desc.pieces {\n-            let value = tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);\n-            // Sound: only the last piece writes this field.\n-            unsafe { (*values).last = Some(value) };\n-        } else {\n-            let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);\n-            // Sound: a separate slot for each index (submit_multi_slice\n-            // limits the count); form no borrow of other workers' slots.\n-            unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n-        }\n-\n-        let storage = self.storage;\n-        if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {\n-            // Sound: this is the slot's last task (`tasks_left` reached zero),\n-            // so every piece's value is written and no one else reads or\n-            // writes the slot's values or hash until `slot_done` below.\n-            let values = unsafe { &mut *values };\n-            let last = values.last.take().expect(\"the last piece supplied its value\");\n-            let hash = fold_multi_cvs(tree, &values.whole[..desc.pieces - 1], last, desc.total_len as u64);\n-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };\n-            if desc.loan_epoch != 0 {\n-                self.storage.loan_completed[slot].0.store(desc.loan_epoch, Ordering::Release);\n-            }\n-            finished(storage, || {\n-                self.slot_done[slot].swap(true, Ordering::SeqCst);\n-            });\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     let merges = used.saturating_sub(count.count_ones() as usize);\n     for _ in 0..merges {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 881
+        },
+        "start": {
+          "column": 5,
+          "line": 817
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:821:9: replace Shared::run_multi_piece with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 880
+      },
+      "start": {
+        "column": 9,
+        "line": 821
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Shared::run_multi_piece\n@@ -846,17 +846,17 @@\n \n         // Sound: the owner, or the Lent guard, keeps all the message's\n         // bytes in place until the slot is done. The chunks of this slice\n         // are the same partition the submitter put in the action list.\n         let input = unsafe { core::slice::from_raw_parts(desc.input, desc.total_len) };\n         let level = desc.piece_level;\n         let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect(\"a piece within its message\");\n         let values = self.cvs[slot].get();\n-        if piece_idx + 1 == desc.pieces {\n+        if piece_idx + 1 != /* ~ changed by cargo-mutants ~ */ desc.pieces {\n             let value = tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);\n             // Sound: only the last piece writes this field.\n             unsafe { (*values).last = Some(value) };\n         } else {\n             let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);\n             // Sound: a separate slot for each index (submit_multi_slice\n             // limits the count); form no borrow of other workers' slots.\n             unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 881
+        },
+        "start": {
+          "column": 5,
+          "line": 817
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:854:26: replace == with != in Shared::run_multi_piece",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 854
+      },
+      "start": {
+        "column": 26,
+        "line": 854
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace + with - in Shared::run_multi_piece\n@@ -846,17 +846,17 @@\n \n         // Sound: the owner, or the Lent guard, keeps all the message's\n         // bytes in place until the slot is done. The chunks of this slice\n         // are the same partition the submitter put in the action list.\n         let input = unsafe { core::slice::from_raw_parts(desc.input, desc.total_len) };\n         let level = desc.piece_level;\n         let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect(\"a piece within its message\");\n         let values = self.cvs[slot].get();\n-        if piece_idx + 1 == desc.pieces {\n+        if piece_idx - /* ~ changed by cargo-mutants ~ */ 1 == desc.pieces {\n             let value = tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);\n             // Sound: only the last piece writes this field.\n             unsafe { (*values).last = Some(value) };\n         } else {\n             let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);\n             // Sound: a separate slot for each index (submit_multi_slice\n             // limits the count); form no borrow of other workers' slots.\n             unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Shared::run_multi_piece",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 881
+        },
+        "start": {
+          "column": 5,
+          "line": 817
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:854:22: replace + with - in Shared::run_multi_piece",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 854
+      },
+      "start": {
+        "column": 22,
+        "line": 854
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::batch with ()\n@@ -1327,90 +1327,17 @@\n     /// [`Pipeline::with_owners_and_batches`]).\n     ///\n     /// # Panics\n     ///\n     /// If `message` is another Pipeline's, or has had a commit from a\n     /// Room already (even one of no bytes); or if `digests` has not one place\n     /// for each message of `batch`.\n     pub fn batch(&mut self, message: Message, batch: P, digests: Box<[[u8; OUT_LEN]]>) {\n-        assert_eq!(message.pipeline_id, self.id, \"Message belongs to a different Pipeline\");\n-        let (_, s) = message.take();\n-        self.require_uncommitted(s);\n-        struct AbortOnUnwind<'a, T, B, P> {\n-            pipe: &'a mut Pipeline<T, B, P>,\n-            s: usize,\n-        }\n-        impl<T, B, P> Drop for AbortOnUnwind<'_, T, B, P> {\n-            fn drop(&mut self) {\n-                self.pipe.abort_slot(self.s);\n-            }\n-        }\n-        let guard = AbortOnUnwind { pipe: self, s };\n-        crate::assert_slots(batch.bytes(), batch.message_len(), batch.slot(), digests.len());\n-        core::mem::forget(guard);\n-        self.open_messages -= 1;\n-\n-        // Sound: the slot is open and holds no batch (require_uncommitted); the\n-        // batch and digests stay in the move-insensitive raw slot until its\n-        // event reads them out or the Pipeline's drop drops them.\n-        let hold = unsafe { (*self.batches.slot(s)).write((batch, digests)) };\n-        let msg_len = hold.0.message_len();\n-        let slot_len = hold.0.slot();\n-        let bytes = hold.0.bytes();\n-        let count = hold.1.len();\n-        let digests_ptr = hold.1.as_mut_ptr();\n-        let work_slot = slot_len.max(crate::BLOCK_LEN);\n-        let work_bytes = count.saturating_mul(work_slot);\n-\n-        if count == 0 {\n-            self.shared().slot_done[s].store(true, Ordering::Relaxed);\n-            self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };\n-        } else if work_bytes < TASK_LEN {\n-            let (group, epoch) = self.push_member(s, bytes.as_ptr(), bytes.len(), digests_ptr as *mut u8, NONE, Some((msg_len, slot_len)));\n-            self.slots[s].kind = SlotKind::WaitBatch { group, epoch };\n-        } else {\n-            self.slots[s].kind = SlotKind::WaitBatch { group: NONE, epoch: 0 };\n-            let per_part = (TASK_LEN / work_slot).max(1).max(count.div_ceil(MAX_SLOT_PIECES));\n-            let pieces = count.div_ceil(per_part);\n-            debug_assert!((1..=MAX_SLOT_PIECES).contains(&pieces));\n-            self.shared().slot_done[s].store(false, Ordering::Relaxed);\n-            self.shared().tasks_left[s].store(pieces, Ordering::Relaxed);\n-            // Sound: no task of this slot is in flight (it was open), so its\n-            // description is the owner's to write before the dispatch below.\n-            unsafe {\n-                *self.shared().multi[s].get() = MultiDesc {\n-                    input: bytes.as_ptr(),\n-                    total_len: count,\n-                    piece_level: 0,\n-                    pieces,\n-                    batch: Some((msg_len, slot_len, per_part)),\n-                    digests: digests_ptr,\n-                    loan_epoch: 0,\n-                }\n-            };\n-            let s32 = u32::try_from(s).expect(\"slot fits u32\");\n-            let custom_bit = if self.slots[s].mode != SlotMode::Default { MULTI_CUSTOM_BIT } else { 0 };\n-            for p in 0..pieces {\n-                let first = p.saturating_mul(per_part);\n-                let piece_n = (count - first).min(per_part);\n-                let sme2 = piece_n.saturating_mul(work_slot) >= SME2_MIN_LEN;\n-                self.bufs.action_buf[p] = pack_arg(KIND_MULTI, s32, u32::try_from(p).expect(\"piece fits u32\") | custom_bit, sme2);\n-            }\n-            let near = if self.source_slot.is_some() {\n-                let plan = Plan::new(PlaceKind::PipelineBatch, work_bytes, 1);\n-                let near = plan.near();\n-                self.record_batch_plan(s, plan);\n-                near\n-            } else {\n-                false\n-            };\n-            self.dispatch_many(pieces, near);\n-        }\n-        self.end_queue.push_back(u32::try_from(s).expect(\"slot fits u32\"));\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P> Pipeline<T, B, P> {\n     #[inline(always)]\n     fn shared(&self) -> &Shared {\n         // Sound: `shared` is this Pipeline's Shared (create), never freed.\n         unsafe { &*self.shared }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::batch",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1409
+        },
+        "start": {
+          "column": 5,
+          "line": 1321
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1335:9: replace Pipeline<T, B, P>::batch with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 76,
+        "line": 1408
+      },
+      "start": {
+        "column": 9,
+        "line": 1335
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace != with == in Pipeline<T, B, P>::batch\n@@ -1383,17 +1383,17 @@\n                     piece_level: 0,\n                     pieces,\n                     batch: Some((msg_len, slot_len, per_part)),\n                     digests: digests_ptr,\n                     loan_epoch: 0,\n                 }\n             };\n             let s32 = u32::try_from(s).expect(\"slot fits u32\");\n-            let custom_bit = if self.slots[s].mode != SlotMode::Default { MULTI_CUSTOM_BIT } else { 0 };\n+            let custom_bit = if self.slots[s].mode == /* ~ changed by cargo-mutants ~ */ SlotMode::Default { MULTI_CUSTOM_BIT } else { 0 };\n             for p in 0..pieces {\n                 let first = p.saturating_mul(per_part);\n                 let piece_n = (count - first).min(per_part);\n                 let sme2 = piece_n.saturating_mul(work_slot) >= SME2_MIN_LEN;\n                 self.bufs.action_buf[p] = pack_arg(KIND_MULTI, s32, u32::try_from(p).expect(\"piece fits u32\") | custom_bit, sme2);\n             }\n             let near = if self.source_slot.is_some() {\n                 let plan = Plan::new(PlaceKind::PipelineBatch, work_bytes, 1);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::batch",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1409
+        },
+        "start": {
+          "column": 5,
+          "line": 1321
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1391:52: replace != with == in Pipeline<T, B, P>::batch",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 54,
+        "line": 1391
+      },
+      "start": {
+        "column": 52,
+        "line": 1391
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace >= with < in Pipeline<T, B, P>::batch\n@@ -1387,17 +1387,17 @@\n                     loan_epoch: 0,\n                 }\n             };\n             let s32 = u32::try_from(s).expect(\"slot fits u32\");\n             let custom_bit = if self.slots[s].mode != SlotMode::Default { MULTI_CUSTOM_BIT } else { 0 };\n             for p in 0..pieces {\n                 let first = p.saturating_mul(per_part);\n                 let piece_n = (count - first).min(per_part);\n-                let sme2 = piece_n.saturating_mul(work_slot) >= SME2_MIN_LEN;\n+                let sme2 = piece_n.saturating_mul(work_slot) < /* ~ changed by cargo-mutants ~ */ SME2_MIN_LEN;\n                 self.bufs.action_buf[p] = pack_arg(KIND_MULTI, s32, u32::try_from(p).expect(\"piece fits u32\") | custom_bit, sme2);\n             }\n             let near = if self.source_slot.is_some() {\n                 let plan = Plan::new(PlaceKind::PipelineBatch, work_bytes, 1);\n                 let near = plan.near();\n                 self.record_batch_plan(s, plan);\n                 near\n             } else {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::batch",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1409
+        },
+        "start": {
+          "column": 5,
+          "line": 1321
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1395:62: replace >= with < in Pipeline<T, B, P>::batch",
+    "package": "blake3-servil",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 64,
+        "line": 1395
+      },
+      "start": {
+        "column": 62,
+        "line": 1395
+      }
+    }
+  }
+]
