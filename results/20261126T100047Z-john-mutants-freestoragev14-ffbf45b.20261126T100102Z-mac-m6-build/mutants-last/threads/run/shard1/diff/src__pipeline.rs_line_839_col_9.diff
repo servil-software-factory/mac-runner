@@ -1,0 +1,59 @@
+--- src/pipeline.rs
++++ replace PipeStorage::run_group -> (&'static WakerSlot, &'static AtomicU64, u64) with (Box::leak(Box::new(Default::default())), Box::leak(Box::new(Default::default())), 0)
+@@ -831,55 +831,17 @@
+                     });
+                 }
+             }
+             _ => unreachable!(),
+         }
+     }
+ 
+     fn run_group(&self, group_idx: usize, custom_slot: u32, platform: Platform) -> (&'static WakerSlot, &'static AtomicU64, u64) {
+-        let group = &self.groups[group_idx];
+-        // Sound: the owner wrote this group's task, epoch, and metas before
+-        // dispatching the group (publish_open), and carried `custom_slot` in
+-        // the action argument. When `custom_slot != NONE`, that slot belongs
+-        // to this group and cannot be reaped or overwritten until
+-        // `group_completed[group_idx]` reaches this epoch.
+-        let task = unsafe { &*group.task.get() };
+-        let tree = if custom_slot == NONE { &self.tree } else { self.tree_for(custom_slot as usize, true) };
+-        let count = task.members;
+-        // Sound: the owner wrote `group.epoch` and each member's input/output pointers
+-        // before dispatch and keeps them valid until `completed_epoch` reaches `epoch`.
+-        let epoch = unsafe { *group.epoch.get() };
+-        unsafe { task.run_members(tree, platform) };
+-        // Sound: `metas` was written before dispatch and stays read-only until `group_completed` publishes.
+-        let metas = unsafe { &*group.metas.get() };
+-
+-        // Coalesce consecutive members sharing a Room into a single atomic subtraction.
+-        let mut cur_room = NONE;
+-        let mut cur_n = 0usize;
+-        for meta in &metas[..count] {
+-            if meta.room != NONE {
+-                if meta.room == cur_room {
+-                    cur_n += 1;
+-                } else {
+-                    if cur_room != NONE {
+-                        self.rooms.release_n(cur_room, cur_n);
+-                    }
+-                    cur_room = meta.room;
+-                    cur_n = 1;
+-                }
+-            }
+-        }
+-        if cur_room != NONE {
+-            self.rooms.release_n(cur_room, cur_n);
+-        }
+-        // Caller publishes `group_completed[group_idx]` (in `&'static PipeSlot`)
+-        // after `&self` drops.
+-        let slot = self.slot.get();
+-        (&slot.waker, &slot.group_completed[group_idx].0, epoch)
++        (Box::leak(Box::new(Default::default())), Box::leak(Box::new(Default::default())), 0) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn run_room_piece(&self, pnode_idx: usize, custom: bool, platform: Platform) -> (&'static WakerSlot, *const AtomicBool) {
+         let pnode = &self.pieces[pnode_idx];
+         // Sound: the owner wrote the piece's fields before dispatching it
+         // (commit_multi), and touches the node again only once `done` is set,
+         // which is the caller's last store after `&self` drops.
+         let slot = unsafe { *pnode.slot.get() } as usize;

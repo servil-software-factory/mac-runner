@@ -1,0 +1,35 @@
+--- src/pipeline.rs
++++ replace PipeStorage::finish_multi_slot -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) with (Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 0)))
+@@ -947,31 +947,17 @@
+             // Sound: a separate slot for each index (submit_multi_slice
+             // limits the count); form no borrow of other workers' slots.
+             unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };
+         }
+         (core::ptr::addr_of!(self.tasks_left[slot].0), false)
+     }
+ 
+     fn finish_multi_slot(&self, slot: usize, is_batch: bool, custom: bool) -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) {
+-        let mut loan_mark = None;
+-        if !is_batch {
+-            // Sound: this is the slot's last task (`tasks_left` reached zero),
+-            // so every piece's value is written and no one else reads or
+-            // writes the slot's values or hash until `slot_done` below.
+-            let desc = unsafe { *self.multi[slot].get() };
+-            let values = unsafe { &mut *self.cvs[slot].get() };
+-            let last = values.last.take().expect("the last piece supplied its value");
+-            let hash = fold_multi_cvs(self.tree_for(slot, custom), &values.whole[..desc.pieces - 1], last, desc.total_len as u64);
+-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };
+-            if desc.loan_epoch != 0 {
+-                loan_mark = Some((&self.slot.get().loan_completed[slot].0, desc.loan_epoch));
+-            }
+-        }
+-        (&self.slot.get().waker, core::ptr::addr_of!(self.slot_done[slot].0), loan_mark)
++        (Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 0))) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of
+ /// `count` name the whole subtrees left on the stack, largest first.
+ fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {
+     let merges = used.saturating_sub(count.count_ones() as usize);
+     for _ in 0..merges {
