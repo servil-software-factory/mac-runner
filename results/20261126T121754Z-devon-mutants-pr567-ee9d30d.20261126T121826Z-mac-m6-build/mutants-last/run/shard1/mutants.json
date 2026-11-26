@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/block.rs\n+++ replace <impl core::ops::DerefMut for Packed<N>>::deref_mut -> &mut[[u8; N]] with Vec::leak(vec![[0; N]])\n@@ -263,17 +263,17 @@\n         unsafe { core::slice::from_raw_parts(self.lines.as_ptr().cast(), self.count) }\n     }\n }\n \n impl<const N: usize> core::ops::DerefMut for Packed<N> {\n     #[inline]\n     fn deref_mut(&mut self) -> &mut [[u8; N]] {\n         // Sound: as in `deref`, with exclusive access to `self.lines`.\n-        unsafe { core::slice::from_raw_parts_mut(self.lines.as_mut_ptr().cast(), self.count) }\n+        Vec::leak(vec![[0; N]]) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// The batch calls' input: messages of one length, prepared so that a\n /// call reads them as they are. [`Batch`] holds them in blocks, any\n /// length; `Packed`, owned `Vec<[u8; N]>` / `Box<[[u8; N]]>`\n /// and borrowed `&[[u8; N]]` slices (`N` = 16, 32, or 48)\n /// hold fixed-width messages end to end. Sealed: the crate's types and\n",
+    "file": "src/block.rs",
+    "function": {
+      "function_name": "<impl core::ops::DerefMut for Packed<N>>::deref_mut",
+      "return_type": "-> &mut[[u8; N]]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 272
+        },
+        "start": {
+          "column": 5,
+          "line": 268
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/block.rs:271:9: replace <impl core::ops::DerefMut for Packed<N>>::deref_mut -> &mut[[u8; N]] with Vec::leak(vec![[0; N]])",
+    "package": "blake3-servil-core",
+    "replacement": "Vec::leak(vec![[0; N]])",
+    "span": {
+      "end": {
+        "column": 95,
+        "line": 271
+      },
+      "start": {
+        "column": 9,
+        "line": 271
+      }
+    }
+  },
+  {
+    "diff": "--- src/block.rs\n+++ replace <impl core::ops::DerefMut for Packed<N>>::deref_mut -> &mut[[u8; N]] with Vec::leak(vec![[1; N]])\n@@ -263,17 +263,17 @@\n         unsafe { core::slice::from_raw_parts(self.lines.as_ptr().cast(), self.count) }\n     }\n }\n \n impl<const N: usize> core::ops::DerefMut for Packed<N> {\n     #[inline]\n     fn deref_mut(&mut self) -> &mut [[u8; N]] {\n         // Sound: as in `deref`, with exclusive access to `self.lines`.\n-        unsafe { core::slice::from_raw_parts_mut(self.lines.as_mut_ptr().cast(), self.count) }\n+        Vec::leak(vec![[1; N]]) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// The batch calls' input: messages of one length, prepared so that a\n /// call reads them as they are. [`Batch`] holds them in blocks, any\n /// length; `Packed`, owned `Vec<[u8; N]>` / `Box<[[u8; N]]>`\n /// and borrowed `&[[u8; N]]` slices (`N` = 16, 32, or 48)\n /// hold fixed-width messages end to end. Sealed: the crate's types and\n",
+    "file": "src/block.rs",
+    "function": {
+      "function_name": "<impl core::ops::DerefMut for Packed<N>>::deref_mut",
+      "return_type": "-> &mut[[u8; N]]",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 272
+        },
+        "start": {
+          "column": 5,
+          "line": 268
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/block.rs:271:9: replace <impl core::ops::DerefMut for Packed<N>>::deref_mut -> &mut[[u8; N]] with Vec::leak(vec![[1; N]])",
+    "package": "blake3-servil-core",
+    "replacement": "Vec::leak(vec![[1; N]])",
+    "span": {
+      "end": {
+        "column": 95,
+        "line": 271
+      },
+      "start": {
+        "column": 9,
+        "line": 271
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace by_blocks_at_once with ()\n@@ -593,204 +593,17 @@\n     assert_eq!(items.len(), out.len(), \"one digest per item\");\n     assert!(items.iter().all(|i| i.len() <= CHUNK_LEN), \"items of up to a chunk\");\n     for (items, out) in items.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {\n         by_blocks_at_once(items, key, counter, flags, flags_end, out, platform);\n     }\n }\n \n fn by_blocks_at_once(items: &[&[u8]], key: &CVWords, counter: u64, flags: u8, flags_end: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n-    const GROUP: usize = 16;\n-    const BINS: usize = crate::CHUNK_LEN / crate::BLOCK_LEN;\n-    const { assert!(BY_BLOCKS_AT_ONCE <= u8::MAX as usize) };\n-    let n = items.len();\n-    if n == 0 {\n-        return;\n-    }\n-    // On SME2, a table of messages of one length, whole blocks, at counter 0,\n-    // with at least the work that pays for the SME2 turn: one call of the message\n-    // kernel for all of them (a turn's 1 KiB messages finishing together:\n-    // the NEON lanes took 30-64% longer on an Apple M4 Max, jobs 2016 and\n-    // 2019). A table of one-block messages never reaches the threshold\n-    // (BY_BLOCKS_AT_ONCE of 64 bytes is under SME2_SIZED_LEN).\n-    #[cfg(blake3_sme2)]\n-    {\n-        let len = items[0].len();\n-        if counter == 0\n-            && matches!(platform, Platform::SME2)\n-            && items.len() * len >= crate::SME2_SIZED_LEN\n-            && len % crate::BLOCK_LEN == 0\n-            && items.iter().all(|item| item.len() == len)\n-        {\n-            let turn = crate::platform::Sme2Turn::take(platform, true);\n-            if matches!(turn.platform(), Platform::SME2) {\n-                macro_rules! run {\n-                    ($n:expr) => {{\n-                        let mut lanes: crate::stack_vec::StackVec<&[u8; $n], BY_BLOCKS_AT_ONCE> =\n-                            items.iter().map(|item| (*item).try_into().expect(\"equal whole-block lengths\")).collect();\n-                        while lanes.len() % GROUP != 0 {\n-                            lanes.push(*lanes.last().unwrap());\n-                        }\n-                        crate::counted(crate::Counted::ByBlocksCall);\n-                        // Sound: detection and the turn provide SME2. Every\n-                        // typed lane holds its whole input; spare lanes\n-                        // repeat a valid input and write no output.\n-                        unsafe { crate::sme2::hash_messages(&lanes, key, flags, CHUNK_START, flags_end, crate::BLOCK_LEN, out.as_flattened_mut()) };\n-                    }};\n-                }\n-                match len {\n-                    128 => run!(128),\n-                    192 => run!(192),\n-                    256 => run!(256),\n-                    320 => run!(320),\n-                    384 => run!(384),\n-                    448 => run!(448),\n-                    512 => run!(512),\n-                    576 => run!(576),\n-                    640 => run!(640),\n-                    704 => run!(704),\n-                    768 => run!(768),\n-                    832 => run!(832),\n-                    896 => run!(896),\n-                    960 => run!(960),\n-                    1024 => run!(1024),\n-                    _ => unreachable!(\"an SME2-sized table of whole blocks of up to a chunk\"),\n-                }\n-                return;\n-            }\n-        }\n-    }\n-    let whole = |item: &[u8]| item.len().saturating_sub(1) / crate::BLOCK_LEN;\n-    let mut order = [0u8; BY_BLOCKS_AT_ONCE];\n-    let first = whole(items[0]);\n-    if items[1..].iter().all(|item| whole(item) == first) {\n-        for (slot, i) in order[..n].iter_mut().zip(0u8..) {\n-            *slot = i;\n-        }\n-    } else {\n-        let mut ends = [0u8; BINS];\n-        for item in items {\n-            ends[whole(item)] += 1;\n-        }\n-        let mut sum = 0u8;\n-        for end in &mut ends {\n-            sum += *end;\n-            *end = sum;\n-        }\n-        let n_u8 = u8::try_from(n).expect(\"chunk <= BY_BLOCKS_AT_ONCE\");\n-        for i in (0..n_u8).rev() {\n-            let bin = whole(items[usize::from(i)]);\n-            ends[bin] -= 1;\n-            order[usize::from(ends[bin])] = i;\n-        }\n-    }\n-    let order = &order[..n];\n-    // With SHA-3 the last block stays in the lanes too; other AArch64\n-    // CPUs keep the prefix kernels followed by scalar last blocks.\n-    #[cfg(blake3_neon)]\n-    let last_lanes = crate::neon_hybrid::sha3_detected();\n-    #[cfg(not(blake3_neon))]\n-    let last_lanes = false;\n-    let mut cvs = [*key; BY_BLOCKS_AT_ONCE];\n-    // chunk_by always advances and returns nonempty groups, even if a\n-    // changed predicate groups the wrong items; no mutable loop bound.\n-    for same_blocks in order.chunk_by(|&a, &b| whole(items[usize::from(a)]) == whole(items[usize::from(b)])) {\n-        let k = whole(items[usize::from(same_blocks[0])]);\n-        #[cfg(blake3_neon)]\n-        if last_lanes {\n-            for group in same_blocks.chunks(GROUP) {\n-                let inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[usize::from(i)].as_ptr()).collect();\n-                let mut last_blocks = [[0u8; crate::BLOCK_LEN]; GROUP];\n-                let mut lengths = [0u32; GROUP];\n-                for ((&i, block), len) in group.iter().zip(&mut last_blocks).zip(&mut lengths) {\n-                    let tail = &items[usize::from(i)][k * crate::BLOCK_LEN..];\n-                    block[..tail.len()].copy_from_slice(tail);\n-                    *len = u32::from(tail.len().to_le_bytes()[0]);\n-                }\n-                let lasts: crate::stack_vec::StackVec<*const u8, GROUP> = last_blocks[..group.len()].iter().map(|b| b.as_ptr()).collect();\n-                let mut digests = [0u8; GROUP * OUT_LEN];\n-                crate::counted(crate::Counted::ByBlocksCall);\n-                // Sound: SHA-3 is present; these items share k whole blocks\n-                // before their separately padded last block, 0 to 64 bytes.\n-                unsafe {\n-                    crate::neon_hybrid::hash_last_lanes(\n-                        &inputs,\n-                        &lasts,\n-                        &lengths[..group.len()],\n-                        k + 1,\n-                        key,\n-                        counter,\n-                        flags,\n-                        CHUNK_START,\n-                        flags_end,\n-                        &mut digests[..group.len() * OUT_LEN],\n-                    );\n-                }\n-                for (&i, digest) in group.iter().zip(digests.chunks_exact(OUT_LEN)) {\n-                    out[usize::from(i)].copy_from_slice(digest);\n-                }\n-            }\n-            continue;\n-        }\n-        if k > 0 {\n-            for group in same_blocks.chunks(GROUP) {\n-                #[cfg_attr(not(all(target_arch = \"x86_64\", blake3_avx512_ffi, target_os = \"linux\")), allow(unused_mut))]\n-                let mut inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[usize::from(i)].as_ptr()).collect();\n-                #[cfg(all(target_arch = \"x86_64\", blake3_avx512_ffi, target_os = \"linux\"))]\n-                let padded = crate::ffi_output::pad_by_blocks_inputs(&mut inputs, platform);\n-                #[cfg(all(target_arch = \"x86_64\", not(all(blake3_avx512_ffi, target_os = \"linux\"))))]\n-                let padded = group.len();\n-                let mut lanes = [0u8; GROUP * OUT_LEN];\n-                crate::counted(crate::Counted::ByBlocksCall);\n-                // Sound: each item holds more than k whole blocks; the\n-                // caller selected this platform's block-group path.\n-                #[cfg(target_arch = \"x86_64\")]\n-                unsafe {\n-                    crate::pair::hash_many_blocks(platform, &inputs, k, key, counter, false, flags, CHUNK_START, 0, &mut lanes[..padded * OUT_LEN])\n-                };\n-                #[cfg(blake3_neon)]\n-                unsafe {\n-                    crate::neon_hybrid::hash_messages_raw(\n-                        inputs.as_ptr(),\n-                        group.len(),\n-                        k,\n-                        key,\n-                        counter,\n-                        flags,\n-                        CHUNK_START,\n-                        0,\n-                        crate::BLOCK_LEN,\n-                        &mut lanes[..group.len() * OUT_LEN],\n-                    )\n-                };\n-                for (n, &i) in group.iter().enumerate() {\n-                    cvs[usize::from(i)] = crate::platform::words_from_le_bytes_32(lanes[n * OUT_LEN..][..OUT_LEN].try_into().unwrap());\n-                }\n-            }\n-        }\n-    }\n-    if last_lanes {\n-        return;\n-    }\n-    #[cfg(all(target_arch = \"x86_64\", blake3_avx512_ffi, target_os = \"linux\"))]\n-    let serial_start = crate::ffi_output::finish_last_blocks_order(&order, items, &cvs, counter, flags, flags_end, out, platform);\n-    #[cfg(not(all(target_arch = \"x86_64\", blake3_avx512_ffi, target_os = \"linux\")))]\n-    let serial_start = 0usize;\n-    for &i in &order[serial_start..] {\n-        let i = usize::from(i);\n-        let item = items[i];\n-        let k = whole(item);\n-        let mut cv = cvs[i];\n-        let mut block = [0u8; crate::BLOCK_LEN];\n-        let last = item.len() - k * crate::BLOCK_LEN;\n-        block[..last].copy_from_slice(&item[k * crate::BLOCK_LEN..]);\n-        let start = if k == 0 { CHUNK_START } else { 0 };\n-        platform.compress_in_place(&mut cv, &block, last.to_le_bytes()[0], counter, flags | start | flags_end);\n-        out[i] = crate::hasher::le_bytes(&cv);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// An item of a collection, as hash_each_on reads it: its bytes. The\n /// public calls' items are messages in blocks; the pool's ranges, bytes.\n pub(crate) trait Item {\n     fn bytes(&self) -> &[u8];\n }\n \n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "by_blocks_at_once",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 789
+        },
+        "start": {
+          "column": 1,
+          "line": 600
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:601:5: replace by_blocks_at_once with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 788
+      },
+      "start": {
+        "column": 5,
+        "line": 601
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace / with % in by_blocks_at_once\n@@ -594,17 +594,17 @@\n     assert!(items.iter().all(|i| i.len() <= CHUNK_LEN), \"items of up to a chunk\");\n     for (items, out) in items.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {\n         by_blocks_at_once(items, key, counter, flags, flags_end, out, platform);\n     }\n }\n \n fn by_blocks_at_once(items: &[&[u8]], key: &CVWords, counter: u64, flags: u8, flags_end: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n     const GROUP: usize = 16;\n-    const BINS: usize = crate::CHUNK_LEN / crate::BLOCK_LEN;\n+    const BINS: usize = crate::CHUNK_LEN % /* ~ changed by cargo-mutants ~ */ crate::BLOCK_LEN;\n     const { assert!(BY_BLOCKS_AT_ONCE <= u8::MAX as usize) };\n     let n = items.len();\n     if n == 0 {\n         return;\n     }\n     // On SME2, a table of messages of one length, whole blocks, at counter 0,\n     // with at least the work that pays for the SME2 turn: one call of the message\n     // kernel for all of them (a turn's 1 KiB messages finishing together:\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "by_blocks_at_once",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 789
+        },
+        "start": {
+          "column": 1,
+          "line": 600
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:602:42: replace / with % in by_blocks_at_once",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 43,
+        "line": 602
+      },
+      "start": {
+        "column": 42,
+        "line": 602
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace == with != in by_blocks_at_once\n@@ -597,17 +597,17 @@\n     }\n }\n \n fn by_blocks_at_once(items: &[&[u8]], key: &CVWords, counter: u64, flags: u8, flags_end: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n     const GROUP: usize = 16;\n     const BINS: usize = crate::CHUNK_LEN / crate::BLOCK_LEN;\n     const { assert!(BY_BLOCKS_AT_ONCE <= u8::MAX as usize) };\n     let n = items.len();\n-    if n == 0 {\n+    if n != /* ~ changed by cargo-mutants ~ */ 0 {\n         return;\n     }\n     // On SME2, a table of messages of one length, whole blocks, at counter 0,\n     // with at least the work that pays for the SME2 turn: one call of the message\n     // kernel for all of them (a turn's 1 KiB messages finishing together:\n     // the NEON lanes took 30-64% longer on an Apple M4 Max, jobs 2016 and\n     // 2019). A table of one-block messages never reaches the threshold\n     // (BY_BLOCKS_AT_ONCE of 64 bytes is under SME2_SIZED_LEN).\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "by_blocks_at_once",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 789
+        },
+        "start": {
+          "column": 1,
+          "line": 600
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:605:10: replace == with != in by_blocks_at_once",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 605
+      },
+      "start": {
+        "column": 10,
+        "line": 605
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace / with % in by_blocks_at_once\n@@ -653,17 +653,17 @@\n                     960 => run!(960),\n                     1024 => run!(1024),\n                     _ => unreachable!(\"an SME2-sized table of whole blocks of up to a chunk\"),\n                 }\n                 return;\n             }\n         }\n     }\n-    let whole = |item: &[u8]| item.len().saturating_sub(1) / crate::BLOCK_LEN;\n+    let whole = |item: &[u8]| item.len().saturating_sub(1) % /* ~ changed by cargo-mutants ~ */ crate::BLOCK_LEN;\n     let mut order = [0u8; BY_BLOCKS_AT_ONCE];\n     let first = whole(items[0]);\n     if items[1..].iter().all(|item| whole(item) == first) {\n         for (slot, i) in order[..n].iter_mut().zip(0u8..) {\n             *slot = i;\n         }\n     } else {\n         let mut ends = [0u8; BINS];\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "by_blocks_at_once",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 789
+        },
+        "start": {
+          "column": 1,
+          "line": 600
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:661:60: replace / with % in by_blocks_at_once",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 61,
+        "line": 661
+      },
+      "start": {
+        "column": 60,
+        "line": 661
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace == with != in by_blocks_at_once\n@@ -656,17 +656,17 @@\n                 }\n                 return;\n             }\n         }\n     }\n     let whole = |item: &[u8]| item.len().saturating_sub(1) / crate::BLOCK_LEN;\n     let mut order = [0u8; BY_BLOCKS_AT_ONCE];\n     let first = whole(items[0]);\n-    if items[1..].iter().all(|item| whole(item) == first) {\n+    if items[1..].iter().all(|item| whole(item) != /* ~ changed by cargo-mutants ~ */ first) {\n         for (slot, i) in order[..n].iter_mut().zip(0u8..) {\n             *slot = i;\n         }\n     } else {\n         let mut ends = [0u8; BINS];\n         for item in items {\n             ends[whole(item)] += 1;\n         }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "by_blocks_at_once",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 789
+        },
+        "start": {
+          "column": 1,
+          "line": 600
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:664:49: replace == with != in by_blocks_at_once",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 51,
+        "line": 664
+      },
+      "start": {
+        "column": 49,
+        "line": 664
+      }
+    }
+  }
+]
