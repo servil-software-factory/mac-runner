@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/many.rs\n+++ replace / with % in hash_many_on\n@@ -124,17 +124,17 @@\n         let width = crate::ffi_output::lanes(platform);\n         if width != 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         #[cfg(target_arch = \"x86_64\")]\n-        match slot / BLOCK_LEN {\n+        match slot % /* ~ changed by cargo-mutants ~ */ BLOCK_LEN {\n             1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n             blocks @ 2..=15 => hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len),\n             16 => hash_blocks::<{ 16 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             _ => unreachable!(\"messages of up to a chunk\"),\n         }\n         #[cfg(not(target_arch = \"x86_64\"))]\n         match slot / BLOCK_LEN {\n             1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 159
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:132:20: replace / with % in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 132
+      },
+      "start": {
+        "column": 20,
+        "line": 132
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace * with + in hash_many_on\n@@ -127,17 +127,17 @@\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         #[cfg(target_arch = \"x86_64\")]\n         match slot / BLOCK_LEN {\n             1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n             blocks @ 2..=15 => hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len),\n-            16 => hash_blocks::<{ 16 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n+            16 => hash_blocks::<{ 16 + /* ~ changed by cargo-mutants ~ */ BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             _ => unreachable!(\"messages of up to a chunk\"),\n         }\n         #[cfg(not(target_arch = \"x86_64\"))]\n         match slot / BLOCK_LEN {\n             1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n             2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 159
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:135:38: replace * with + in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 39,
+        "line": 135
+      },
+      "start": {
+        "column": 38,
+        "line": 135
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_blocks_x86 with ()\n@@ -934,67 +934,17 @@\n \n /// Single non-generic x86-64 helper for 2..=15-block messages (`128..=960 B`),\n /// eliminating 14 monomorphized copies of `hash_blocks` + `hash_four_at_a_time`\n /// while preserving the 4-lane fast path for `count == 3` and SSE4.1/AVX2/AVX-512\n /// dispatch.\n #[cfg(target_arch = \"x86_64\")]\n #[inline(never)]\n fn hash_blocks_x86(messages: &[u8], blocks: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n-    let count = outputs.len();\n-    if count == 0 {\n-        return;\n-    }\n-    let slot = blocks * BLOCK_LEN;\n-    if last_len != BLOCK_LEN {\n-        let len = slot - BLOCK_LEN + last_len;\n-        for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(slot)) {\n-            *output = *crate::hash_serial_on(&message[..len], key, flags, platform).as_bytes();\n-        }\n-        return;\n-    }\n-    if count == 3 {\n-        let base = messages.as_ptr();\n-        // Sound: `assert_slots` verified `messages.len() >= 3 * slot`.\n-        let (second, last) = unsafe { (base.add(slot), base.add(2 * slot)) };\n-        let spare = [base, second, last, last];\n-        let mut scratch = [[0u8; OUT_LEN]; 4];\n-        noted_lanes(4);\n-        // Sound: each pointer reaches `blocks` whole blocks inside `messages`, and `platform` is detected.\n-        unsafe { hash_many_blocks_any_x86(platform, &spare, blocks, key, flags, scratch.as_flattened_mut()) };\n-        outputs.copy_from_slice(&scratch[..3]);\n-        return;\n-    }\n-    let mut ptrs = crate::stack_vec::StackVec::<*const u8, TABLE>::new();\n-    ptrs.extend(messages.chunks_exact(slot).map(|m| m.as_ptr()));\n-    assert_eq!(ptrs.len(), count, \"one message per output\");\n-    if crate::pair::takes_platform(platform) {\n-        noted_lanes(count);\n-        // Sound: every pointer in `ptrs` reaches `blocks` whole blocks inside `messages`.\n-        unsafe { hash_blocks_rounded_x86(&ptrs, blocks, key, flags, outputs, platform) };\n-        return;\n-    }\n-    if count % 4 != 3 {\n-        noted_lanes(count);\n-        // Sound: as above.\n-        unsafe { hash_many_blocks_any_x86(platform, &ptrs, blocks, key, flags, outputs.as_flattened_mut()) };\n-        return;\n-    }\n-    // `count == 3` returned above, so `count % 4 == 3` implies `count >= 7` and `fours >= 4`.\n-    let fours = count / 4 * 4;\n-    noted_lanes(fours);\n-    // Sound: as above.\n-    unsafe { hash_many_blocks_any_x86(platform, &ptrs[..fours], blocks, key, flags, outputs[..fours].as_flattened_mut()) };\n-    let last = ptrs[fours + 2];\n-    let spare = [ptrs[fours], ptrs[fours + 1], last, last];\n-    let mut scratch = [[0u8; OUT_LEN]; 4];\n-    noted_lanes(4);\n-    // Sound: as above.\n-    unsafe { hash_many_blocks_any_x86(platform, &spare, blocks, key, flags, scratch.as_flattened_mut()) };\n-    outputs[fours..].copy_from_slice(&scratch[..3]);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Dispatch runtime `blocks` (`2..=15`) across AVX-512, AVX2, and SSE4.1.\n #[cfg(target_arch = \"x86_64\")]\n #[inline(always)]\n unsafe fn hash_many_blocks_any_x86(platform: Platform, ptrs: &[*const u8], blocks: usize, key: &CVWords, flags: u8, out: &mut [u8]) {\n     #[cfg(blake3_sse41_ffi)]\n     if matches!(platform, Platform::SSE41) {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_blocks_x86",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 993
+        },
+        "start": {
+          "column": 1,
+          "line": 935
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:942:5: replace hash_blocks_x86 with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 992
+      },
+      "start": {
+        "column": 5,
+        "line": 942
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace == with != in hash_blocks_x86\n@@ -935,17 +935,17 @@\n /// Single non-generic x86-64 helper for 2..=15-block messages (`128..=960 B`),\n /// eliminating 14 monomorphized copies of `hash_blocks` + `hash_four_at_a_time`\n /// while preserving the 4-lane fast path for `count == 3` and SSE4.1/AVX2/AVX-512\n /// dispatch.\n #[cfg(target_arch = \"x86_64\")]\n #[inline(never)]\n fn hash_blocks_x86(messages: &[u8], blocks: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n     let count = outputs.len();\n-    if count == 0 {\n+    if count != /* ~ changed by cargo-mutants ~ */ 0 {\n         return;\n     }\n     let slot = blocks * BLOCK_LEN;\n     if last_len != BLOCK_LEN {\n         let len = slot - BLOCK_LEN + last_len;\n         for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(slot)) {\n             *output = *crate::hash_serial_on(&message[..len], key, flags, platform).as_bytes();\n         }\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_blocks_x86",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 993
+        },
+        "start": {
+          "column": 1,
+          "line": 935
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:943:14: replace == with != in hash_blocks_x86",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 16,
+        "line": 943
+      },
+      "start": {
+        "column": 14,
+        "line": 943
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace * with + in hash_blocks_x86\n@@ -938,17 +938,17 @@\n /// dispatch.\n #[cfg(target_arch = \"x86_64\")]\n #[inline(never)]\n fn hash_blocks_x86(messages: &[u8], blocks: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n     let count = outputs.len();\n     if count == 0 {\n         return;\n     }\n-    let slot = blocks * BLOCK_LEN;\n+    let slot = blocks + /* ~ changed by cargo-mutants ~ */ BLOCK_LEN;\n     if last_len != BLOCK_LEN {\n         let len = slot - BLOCK_LEN + last_len;\n         for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(slot)) {\n             *output = *crate::hash_serial_on(&message[..len], key, flags, platform).as_bytes();\n         }\n         return;\n     }\n     if count == 3 {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_blocks_x86",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 993
+        },
+        "start": {
+          "column": 1,
+          "line": 935
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:946:23: replace * with + in hash_blocks_x86",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 946
+      },
+      "start": {
+        "column": 23,
+        "line": 946
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace != with == in hash_blocks_x86\n@@ -939,17 +939,17 @@\n #[cfg(target_arch = \"x86_64\")]\n #[inline(never)]\n fn hash_blocks_x86(messages: &[u8], blocks: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n     let count = outputs.len();\n     if count == 0 {\n         return;\n     }\n     let slot = blocks * BLOCK_LEN;\n-    if last_len != BLOCK_LEN {\n+    if last_len == /* ~ changed by cargo-mutants ~ */ BLOCK_LEN {\n         let len = slot - BLOCK_LEN + last_len;\n         for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(slot)) {\n             *output = *crate::hash_serial_on(&message[..len], key, flags, platform).as_bytes();\n         }\n         return;\n     }\n     if count == 3 {\n         let base = messages.as_ptr();\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_blocks_x86",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 993
+        },
+        "start": {
+          "column": 1,
+          "line": 935
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:947:17: replace != with == in hash_blocks_x86",
+    "package": "blake3-servil-core",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 947
+      },
+      "start": {
+        "column": 17,
+        "line": 947
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace + with - in hash_blocks_x86\n@@ -940,17 +940,17 @@\n #[inline(never)]\n fn hash_blocks_x86(messages: &[u8], blocks: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n     let count = outputs.len();\n     if count == 0 {\n         return;\n     }\n     let slot = blocks * BLOCK_LEN;\n     if last_len != BLOCK_LEN {\n-        let len = slot - BLOCK_LEN + last_len;\n+        let len = slot - BLOCK_LEN - /* ~ changed by cargo-mutants ~ */ last_len;\n         for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(slot)) {\n             *output = *crate::hash_serial_on(&message[..len], key, flags, platform).as_bytes();\n         }\n         return;\n     }\n     if count == 3 {\n         let base = messages.as_ptr();\n         // Sound: `assert_slots` verified `messages.len() >= 3 * slot`.\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_blocks_x86",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 993
+        },
+        "start": {
+          "column": 1,
+          "line": 935
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:948:36: replace + with - in hash_blocks_x86",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 948
+      },
+      "start": {
+        "column": 36,
+        "line": 948
+      }
+    }
+  }
+]

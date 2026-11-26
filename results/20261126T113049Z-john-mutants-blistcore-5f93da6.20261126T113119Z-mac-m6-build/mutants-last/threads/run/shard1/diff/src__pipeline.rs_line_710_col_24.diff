@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace == with != in <impl Drop for Room>::drop
+@@ -702,17 +702,17 @@
+         // which stays live until this `SeqCst` subtraction completes.
+         let prev = unsafe { (*ref_ptr).fetch_sub(unused, Ordering::SeqCst) };
+         if prev & ROOM_CLOSING_BIT != 0 {
+             // `Pipeline::drop` stamped `ROOM_CLOSING_BIT` after all worker
+             // tasks finished and reserved a `holders` ref for this Room; drop
+             // that hold so the last survivor frees `PipeStorage` cleanly.
+             assert_eq!(prev & !ROOM_CLOSING_BIT, unused, "surviving room ref count");
+             PipeStorage::release(self.storage.as_ptr());
+-        } else if prev == unused {
++        } else if prev != /* ~ changed by cargo-mutants ~ */ unused {
+             // Even if `Pipeline::drop` raced right after `fetch_sub` and freed
+             // `PipeStorage`, `waker` lives in `&'static PipeSlot` and waking it
+             // is benign.
+             waker.notify_after_seqcst();
+         }
+     }
+ }
+ 
