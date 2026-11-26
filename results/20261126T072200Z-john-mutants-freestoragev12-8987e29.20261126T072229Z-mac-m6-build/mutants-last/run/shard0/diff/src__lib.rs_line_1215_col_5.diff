@@ -1,0 +1,31 @@
+--- src/lib.rs
++++ replace hash_serial_from -> Hash with Default::default()
+@@ -1207,27 +1207,17 @@
+ /// the startup self-test's way in, which has not run `Platform::detect`'s
+ /// check (it is that check). Always inlined, so each entry point has its
+ /// own copy with `cold` a constant, as hash_serial alone did before cold
+ /// calls had their path (one out-of-line copy taking `cold` as an argument
+ /// made convenience::hash of 512 B after other work 11.5% slower, the VM's
+ /// check).
+ #[inline(always)]
+ fn hash_serial_from(platform: Platform, input: &[u8], key: &CVWords, flags: u8, cold: bool) -> Hash {
+-    let turn = platform::Sme2Turn::take(platform, input.len() >= SME2_SIZED_LEN);
+-    // One comparison on the path of a chunk or less: everything else is
+-    // out of line, so that path's code stays as small as it was (a call
+-    // after other work fetches every line of it from DRAM).
+-    #[cfg(blake3_neon)]
+-    if cold && (CHUNK_LEN + 1..PREFETCH_BELOW).contains(&input.len()) {
+-        prefetch_cold(input.len(), turn.platform(), false);
+-    }
+-    #[cfg(not(blake3_neon))]
+-    let _ = cold;
+-    hash_serial_on(input, key, flags, turn.platform())
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Below this length a call now and then (`convenience`'s, and a fresh
+ /// Hasher's first update) prefetches its kernels' code: after other work
+ /// the call then fetches it from DRAM in parallel, not one miss at a time
+ /// (M4 Max, after other work: 4 KiB x0.61, 8 KiB x0.51, 16 KiB x0.66;
+ /// 32 KiB and up level, the hashing's own time dwarfing it; jobs
+ /// 971-975). It costs a call whose code is near 2-4%, which is why the
