@@ -1,0 +1,60 @@
+--- src/pipeline.rs
++++ replace PipeStorage::acquire -> &'static PipeStorage with Box::leak(Box::new(Default::default()))
+@@ -461,56 +461,17 @@
+         }
+     }
+ 
+     fn release(st: &'static PipeStorage) {
+         Self::release_n(st, 1);
+     }
+ 
+     fn acquire(actions: usize, messages: usize, rooms: usize, groups: usize) -> &'static PipeStorage {
+-        let chosen = {
+-            let mut free = FREE_STORAGES.lock().unwrap();
+-            let fits = |st: &&'static PipeStorage| {
+-                st.source.actions_len() >= actions && st.loan_completed.len() >= messages && st.rooms.count == rooms && st.groups.len() >= groups
+-            };
+-            free.iter().position(fits).map(|at| free.swap_remove(at))
+-        };
+-        if let Some(st) = chosen {
+-            st.holders.store(1, Ordering::Release);
+-            return st;
+-        }
+-        let actions = actions.max(1024);
+-        let messages = messages.max(64);
+-        let groups = groups.max(64);
+-        let dummy = GroupMemberMeta { room: NONE };
+-        #[cfg(any(test, shuttle))]
+-        STORAGES_MADE.fetch_add(1, Ordering::Relaxed);
+-        let raw = Box::into_raw(Box::new(PipeStorage {
+-            source: Source::with_actions(actions),
+-            waker: WakerSlot::new(),
+-            rooms: Rooms::new(rooms),
+-            groups: (0..groups)
+-                .map(|_| MemberGroup {
+-                    task: UnsafeCell::new(Task::members(None)),
+-                    metas: UnsafeCell::new([dummy; MEMBERS]),
+-                    epoch: UnsafeCell::new(0),
+-                    completed_epoch: OwnLine(AtomicU64::new(0)),
+-                })
+-                .collect(),
+-            loan_completed: (0..messages).map(|_| OwnLine(AtomicU64::new(0))).collect(),
+-            saved_loan_epoch: UnsafeCell::new(1),
+-            saved_group_epoch: UnsafeCell::new(1),
+-            shared: UnsafeCell::new(core::ptr::null_mut()),
+-            holders: OwnLine(AtomicUsize::new(1)),
+-        }));
+-        #[cfg(shuttle)]
+-        MODEL_OWNED_STORAGES.lock().unwrap().push(OwnedStoragePtr(raw));
+-        // Sound: `raw` is a valid leaked allocation (freed only after all
+-        // Shuttle workers join in `model_storages::free_storages_for_model`).
+-        unsafe { &*raw }
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.
+ ///
+ /// # Trait implementations
+ ///
+ /// - `Drop` returns the unused credits; workers retain access to committed
