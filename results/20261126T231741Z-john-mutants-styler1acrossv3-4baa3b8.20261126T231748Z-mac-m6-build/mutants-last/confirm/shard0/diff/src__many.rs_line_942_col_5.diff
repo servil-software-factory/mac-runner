@@ -1,0 +1,71 @@
+--- src/many.rs
++++ replace hash_blocks_x86 with ()
+@@ -934,67 +934,17 @@
+ 
+ /// Single non-generic x86-64 helper for 2..=15-block messages (`128..=960 B`),
+ /// eliminating 14 monomorphized copies of `hash_blocks` + `hash_four_at_a_time`
+ /// while preserving the 4-lane fast path for `count == 3` and SSE4.1/AVX2/AVX-512
+ /// dispatch.
+ #[cfg(target_arch = "x86_64")]
+ #[inline(never)]
+ fn hash_blocks_x86(messages: &[u8], blocks: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {
+-    let count = outputs.len();
+-    if count == 0 {
+-        return;
+-    }
+-    let slot = blocks * BLOCK_LEN;
+-    if last_len != BLOCK_LEN {
+-        let len = slot - BLOCK_LEN + last_len;
+-        for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(slot)) {
+-            *output = *crate::hash_serial_on(&message[..len], key, flags, platform).as_bytes();
+-        }
+-        return;
+-    }
+-    if count == 3 {
+-        let base = messages.as_ptr();
+-        // Sound: `assert_slots` verified `messages.len() >= 3 * slot`.
+-        let (second, last) = unsafe { (base.add(slot), base.add(2 * slot)) };
+-        let spare = [base, second, last, last];
+-        let mut scratch = [[0u8; OUT_LEN]; 4];
+-        noted_lanes(4);
+-        // Sound: each pointer reaches `blocks` whole blocks inside `messages`, and `platform` is detected.
+-        unsafe { hash_many_blocks_any_x86(platform, &spare, blocks, key, flags, scratch.as_flattened_mut()) };
+-        outputs.copy_from_slice(&scratch[..3]);
+-        return;
+-    }
+-    let mut ptrs = crate::stack_vec::StackVec::<*const u8, TABLE>::new();
+-    ptrs.extend(messages.chunks_exact(slot).map(|m| m.as_ptr()));
+-    assert_eq!(ptrs.len(), count, "one message per output");
+-    if crate::pair::takes_platform(platform) {
+-        noted_lanes(count);
+-        // Sound: every pointer in `ptrs` reaches `blocks` whole blocks inside `messages`.
+-        unsafe { hash_blocks_rounded_x86(&ptrs, blocks, key, flags, outputs, platform) };
+-        return;
+-    }
+-    if count % 4 != 3 {
+-        noted_lanes(count);
+-        // Sound: as above.
+-        unsafe { hash_many_blocks_any_x86(platform, &ptrs, blocks, key, flags, outputs.as_flattened_mut()) };
+-        return;
+-    }
+-    // `count == 3` returned above, so `count % 4 == 3` implies `count >= 7` and `fours >= 4`.
+-    let fours = count / 4 * 4;
+-    noted_lanes(fours);
+-    // Sound: as above.
+-    unsafe { hash_many_blocks_any_x86(platform, &ptrs[..fours], blocks, key, flags, outputs[..fours].as_flattened_mut()) };
+-    let last = ptrs[fours + 2];
+-    let spare = [ptrs[fours], ptrs[fours + 1], last, last];
+-    let mut scratch = [[0u8; OUT_LEN]; 4];
+-    noted_lanes(4);
+-    // Sound: as above.
+-    unsafe { hash_many_blocks_any_x86(platform, &spare, blocks, key, flags, scratch.as_flattened_mut()) };
+-    outputs[fours..].copy_from_slice(&scratch[..3]);
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Dispatch runtime `blocks` (`2..=15`) across AVX-512, AVX2, and SSE4.1.
+ #[cfg(target_arch = "x86_64")]
+ #[inline(always)]
+ unsafe fn hash_many_blocks_any_x86(platform: Platform, ptrs: &[*const u8], blocks: usize, key: &CVWords, flags: u8, out: &mut [u8]) {
+     #[cfg(blake3_sse41_ffi)]
+     if matches!(platform, Platform::SSE41) {
