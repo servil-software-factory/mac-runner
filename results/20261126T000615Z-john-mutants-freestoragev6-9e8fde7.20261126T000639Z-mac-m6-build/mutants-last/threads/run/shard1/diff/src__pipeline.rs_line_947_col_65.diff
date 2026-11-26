@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace == with != in PipeStorage::run_multi_piece
+@@ -939,17 +939,17 @@
+             unsafe { (*values).last = Some(value) };
+         } else {
+             let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);
+             // Sound: a separate slot for each index (submit_multi_slice
+             // limits the count); form no borrow of other workers' slots.
+             unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };
+         }
+ 
+-        if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) == 1 {
++        if self.tasks_left[slot].fetch_sub(1, Ordering::AcqRel) != /* ~ changed by cargo-mutants ~ */ 1 {
+             // Sound: this is the slot's last task (`tasks_left` reached zero),
+             // so every piece's value is written and no one else reads or
+             // writes the slot's values or hash until `slot_done` below.
+             let values = unsafe { &mut *values };
+             let last = values.last.take().expect("the last piece supplied its value");
+             let hash = fold_multi_cvs(tree, &values.whole[..desc.pieces - 1], last, desc.total_len as u64);
+             unsafe { *self.hashes[slot].get() = *hash.as_bytes() };
+             if desc.loan_epoch != 0 {

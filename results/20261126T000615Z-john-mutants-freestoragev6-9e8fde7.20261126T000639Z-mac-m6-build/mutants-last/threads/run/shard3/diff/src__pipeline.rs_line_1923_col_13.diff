@@ -1,0 +1,34 @@
+--- src/pipeline.rs
++++ delete match arm SlotKind::OpenShort{room:room_idx, ..} in Pipeline<T, B, P>::abort_slot
+@@ -1915,30 +1915,17 @@
+ 
+     fn abort_slot(&mut self, s: usize) {
+         self.open_messages -= 1;
+ 
+         match self.slots[s].kind {
+             SlotKind::OpenEmpty => {
+                 self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };
+             }
+-            SlotKind::OpenShort { room: room_idx, .. } => {
+-                // The record first, whole, and the wake last: the wake runs
+-                // the program's waker in the middle of this call. (A waker
+-                // that panics ends the process, in the waker slot's wake.
+-                // Until it did, such a panic, caught, could leave a slot
+-                // that still said it held the room's credit, to be given
+-                // back a second time.)
+-                self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };
+-                self.end_queue.push_back(u32::try_from(s).expect("slot fits u32"));
+-                if self.storage().rooms.release_n(room_idx, 1) {
+-                    self.storage().slot.waker.notify_after_seqcst();
+-                }
+-                return;
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             SlotKind::OpenShortDispatched { group, epoch } => {
+                 self.slots[s].kind = SlotKind::WaitAborted { group, epoch };
+             }
+             SlotKind::OpenRooms { .. } => {
+                 self.slots[s].kind = SlotKind::WaitAborted { group: NONE, epoch: 0 };
+                 self.drain_slot_pieces(s);
+             }
+             _ => unreachable!(),

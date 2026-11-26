@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace == with != in PipeStorage::release_n
+@@ -528,17 +528,17 @@
+         // allocations until run teardown so `retired` stays readable to detect
+         // any double-free or use-after-release without UB.
+         assert_storage_live!(unsafe { &*st });
+         // Sound: the caller holds `n` references in `holders`, keeping `*st`
+         // live until this `fetch_sub`. When `fetch_sub(n, AcqRel)` returns `n`,
+         // every worker task has already published completion (leaving zero
+         // references into `*st`), and no `Pipeline`, `Room`, or `Lent` retains
+         // any pointer to `*st`.
+-        if unsafe { (*st).holders.fetch_sub(n, Ordering::AcqRel) } == n {
++        if unsafe { (*st).holders.fetch_sub(n, Ordering::AcqRel) } != /* ~ changed by cargo-mutants ~ */ n {
+             // Sound: `retired` is quarantined under Shuttle until run teardown.
+             #[cfg(shuttle)]
+             {
+                 let st_ref = unsafe { &*st };
+                 assert!(!st_ref.retired.swap(true, Ordering::AcqRel), "PipeStorage double free");
+             }
+             #[cfg(any(test, shuttle))]
+             LIVE_STORAGES.fetch_sub(1, Ordering::Relaxed);

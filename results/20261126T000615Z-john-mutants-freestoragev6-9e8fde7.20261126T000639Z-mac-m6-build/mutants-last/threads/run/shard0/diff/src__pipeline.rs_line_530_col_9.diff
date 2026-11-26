@@ -1,0 +1,37 @@
+--- src/pipeline.rs
++++ replace PipeStorage::release_n with ()
+@@ -522,33 +522,17 @@
+ impl PipeStorage {
+     /// Give up `n` holds on `st` (`Pipeline::drop`, surviving `Room::drop`, or
+     /// `Lent::drop`): when `holders` reaches 0, free `PipeStorage` cleanly.
+     #[inline(never)]
+     fn release_n(st: *mut PipeStorage, n: usize) {
+         // Sound: under Shuttle, `retire_storage!` quarantines retired
+         // allocations until run teardown so `retired` stays readable to detect
+         // any double-free or use-after-release without UB.
+-        assert_storage_live!(unsafe { &*st });
+-        // Sound: the caller holds `n` references in `holders`, keeping `*st`
+-        // live until this `fetch_sub`. When `fetch_sub(n, AcqRel)` returns `n`,
+-        // every worker task has already published completion (leaving zero
+-        // references into `*st`), and no `Pipeline`, `Room`, or `Lent` retains
+-        // any pointer to `*st`.
+-        if unsafe { (*st).holders.fetch_sub(n, Ordering::AcqRel) } == n {
+-            // Sound: `retired` is quarantined under Shuttle until run teardown.
+-            #[cfg(shuttle)]
+-            {
+-                let st_ref = unsafe { &*st };
+-                assert!(!st_ref.retired.swap(true, Ordering::AcqRel), "PipeStorage double free");
+-            }
+-            #[cfg(any(test, shuttle))]
+-            LIVE_STORAGES.fetch_sub(1, Ordering::Relaxed);
+-            crate::pipeline_sync::retire_storage!(st);
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline]
+     fn release(st: *mut PipeStorage) {
+         Self::release_n(st, 1);
+     }
+ 
+     fn alloc(slot: &'static PipeSlot, tree: TreeHasher, messages: usize, rooms: usize, pieces: usize, groups: usize) -> *mut PipeStorage {

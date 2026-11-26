@@ -1,0 +1,23 @@
+--- src/pipeline.rs
++++ replace Room::storage -> &PipeStorage with Box::leak(Box::new(Default::default()))
+@@ -634,19 +634,17 @@
+ unsafe impl Sync for Room {}
+ 
+ #[allow(clippy::len_without_is_empty)]
+ impl Room {
+     #[inline(always)]
+     fn storage(&self) -> &PipeStorage {
+         // Sound: this Room's live credit (or `ROOM_CLOSING_BIT` hold after
+         // `Pipeline::drop`) keeps `*self.storage` live until `Room::drop`.
+-        let st = unsafe { &*self.storage };
+-        assert_storage_live!(st);
+-        st
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Remaining writable bytes in this room, starting on a 64-byte boundary.
+     #[inline(always)]
+     pub fn bytes_mut(&mut self) -> &mut [u8] {
+         let rem = ROOM_LEN - self.offset as usize;
+         // Sound: the bytes from `offset` to the room's end are this Room's
+         // alone: committed bytes lie before `offset`, and no other Room has

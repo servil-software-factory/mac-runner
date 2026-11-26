@@ -1,0 +1,49 @@
+--- src/pipeline.rs
++++ replace PipeStorage::run_room_piece -> (&'static WakerSlot, *const AtomicBool) with (Box::leak(Box::new(Default::default())), Default::default())
+@@ -861,45 +861,17 @@
+             self.rooms.release_n(cur_room, cur_n);
+         }
+         assert_storage_live!(self);
+         // Caller publishes `completed_epoch` after `&self` drops.
+         (&self.slot.waker, core::ptr::addr_of!(group.completed_epoch.0), epoch)
+     }
+ 
+     fn run_room_piece(&self, pnode_idx: usize, platform: Platform) -> (&'static WakerSlot, *const AtomicBool) {
+-        assert_storage_live!(self);
+-        let pnode = &self.pieces[pnode_idx];
+-        // Sound: the owner wrote the piece's fields before dispatching it
+-        // (commit_multi), and touches the node again only once `done` is set,
+-        // which is the caller's last store after `&self` drops.
+-        let slot = unsafe { *pnode.slot.get() } as usize;
+-        let room_idx = unsafe { *pnode.room.get() };
+-        let offset = unsafe { *pnode.offset.get() } as usize;
+-        let len = unsafe { *pnode.len.get() } as usize;
+-        let index = unsafe { *pnode.index.get() };
+-        let rooms = &self.rooms;
+-        assert!((room_idx as usize) < rooms.count && offset <= ROOM_LEN && len <= ROOM_LEN - offset, "a piece stays within its room");
+-        // Sound: these are just the committed bytes. The Room's credit keeps
+-        // them from being written again until this task releases them below.
+-        let ptr = unsafe { rooms.room_ptr(room_idx as usize).add(offset) };
+-        let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };
+-        let tree = self.slot_tree(slot);
+-        let value = if index == 0 {
+-            RoomValue::First(tree.subtree_halves_on(platform, ROOM_LEVEL, index, bytes))
+-        } else if len == ROOM_LEN {
+-            RoomValue::Whole(tree.subtree_cv_on(platform, ROOM_LEVEL, index, bytes))
+-        } else {
+-            RoomValue::Last(tree.last_cv_on(platform, index << ROOM_LEVEL, bytes))
+-        };
+-        // Sound: this piece's output is its worker's alone until `done`.
+-        unsafe { *pnode.out.0.get() = value };
+-        self.rooms.release_n(room_idx, 1);
+-        assert_storage_live!(self);
+-        (&self.slot.waker, core::ptr::addr_of!(pnode.done.0))
++        (Box::leak(Box::new(Default::default())), Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn run_multi_piece(&self, slot: usize, piece_idx: usize, platform: Platform) -> Option<(&'static WakerSlot, *const AtomicBool)> {
+         assert_storage_live!(self);
+         // Sound: the owner wrote the description before dispatching the slot's
+         // tasks (batch, submit_multi_slice), and writes it again only after
+         // `slot_done`.
+         let desc = unsafe { *self.multi[slot].get() };
