@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace != with == in <impl Drop for Room>::drop
+@@ -688,17 +688,17 @@
+         // `holders` ref keeping `*self.storage` live until `PipeStorage::release`.
+         let (waker, ref_ptr) = {
+             let st = self.storage();
+             (&st.slot.get().waker, core::ptr::addr_of!(st.rooms.refs[self.index as usize]))
+         };
+         // Sound: `ref_ptr` points to `rooms.refs[self.index]` inside `*self.storage`,
+         // which stays live until this `SeqCst` subtraction completes.
+         let prev = unsafe { (*ref_ptr).fetch_sub(unused, Ordering::SeqCst) };
+-        if prev & ROOM_CLOSING_BIT != 0 {
++        if prev & ROOM_CLOSING_BIT == /* ~ changed by cargo-mutants ~ */ 0 {
+             // `Pipeline::drop` stamped `ROOM_CLOSING_BIT` after all worker
+             // tasks finished and reserved a `holders` ref for this Room; drop
+             // that hold so the last survivor frees `PipeStorage` cleanly.
+             assert_eq!(prev & !ROOM_CLOSING_BIT, unused, "surviving room ref count");
+             PipeStorage::release(self.storage.as_ptr());
+         } else if prev == unused {
+             // Even if `Pipeline::drop` raced right after `fetch_sub` and freed
+             // `PipeStorage`, `waker` lives in `&'static PipeSlot` and waking it

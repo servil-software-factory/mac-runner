@@ -1,0 +1,29 @@
+--- src/pipeline.rs
++++ replace PipeStorage::release_n with ()
+@@ -514,25 +514,17 @@
+     /// when `holders` reaches 0, free `PipeStorage` cleanly.
+     #[inline(never)]
+     fn release_n(st: *mut PipeStorage, n: usize) {
+         // Sound: the caller holds `n` references in `holders`, keeping `*st`
+         // live until this `fetch_sub`. When `fetch_sub(n, AcqRel)` returns `n`,
+         // every worker task has already published completion (leaving zero
+         // references into `*st`), and no `Pipeline` or `Room` retains any
+         // pointer to `*st`.
+-        if unsafe { (*st).holders.fetch_sub(n, Ordering::AcqRel) } == n {
+-            // Sound: `holders` reached 0, so no other holder or worker retains
+-            // access to `*st`. Under Shuttle, poison `slot` before quarantine so
+-            // any late worker access panics deterministically.
+-            unsafe { (*st).slot.poison() };
+-            #[cfg(any(test, shuttle))]
+-            LIVE_STORAGES.fetch_sub(1, Ordering::Relaxed);
+-            crate::pipeline_sync::retire_storage!(st);
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline]
+     fn release(st: *mut PipeStorage) {
+         Self::release_n(st, 1);
+     }
+ 
+     fn alloc(slot: &'static PipeSlot, tree: TreeHasher, messages: usize, rooms: usize, pieces: usize, groups: usize) -> *mut PipeStorage {
