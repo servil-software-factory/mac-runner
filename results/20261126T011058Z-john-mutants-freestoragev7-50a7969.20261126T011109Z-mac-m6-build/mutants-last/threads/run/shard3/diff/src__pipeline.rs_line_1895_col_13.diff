@@ -1,0 +1,27 @@
+--- src/pipeline.rs
++++ delete match arm SlotKind::OpenEmpty in Pipeline<T, B, P>::end_slow
+@@ -1887,23 +1887,17 @@
+             }
+             _ => self.end_slow(s),
+         }
+     }
+ 
+     #[inline(never)]
+     fn end_slow(&mut self, s: usize) {
+         match self.slots[s].kind {
+-            SlotKind::OpenEmpty => {
+-                let empty_hash = self.storage().slot_tree(s).hash(&[]);
+-                // Sound: no task runs for an empty message, so the slot's hash
+-                // is the owner's to write.
+-                unsafe { *self.storage().hashes[s].get() = *empty_hash.as_bytes() };
+-                self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group: NONE, epoch: 0 };
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             SlotKind::OpenShortDispatched { group, epoch } => {
+                 self.slots[s].kind = SlotKind::WaitSingle { has_owner: false, group, epoch };
+             }
+             SlotKind::OpenRooms { .. } => {
+                 self.storage().slot_done[s].store(false, Ordering::Relaxed);
+                 self.slots[s].kind = SlotKind::WaitRoomMulti;
+                 self.drain_slot_pieces(s);
+             }

@@ -1,0 +1,33 @@
+--- src/hasher.rs
++++ replace fill -> &'a[u8] with Vec::leak(vec![0])
+@@ -425,29 +425,17 @@
+ pub fn push<H: Hooks>(k: &Kernels<'_, H>, stack: &mut CvStack, initial: u64, cv: Cv, counter: u64) {
+     stack.merge(k, ones(counter - initial));
+     stack.push(cv);
+ }
+ 
+ /// The partial chunk filled from `input`; when more input follows, the full
+ /// chunk goes onto the stack and a new chunk begins. Returns the rest.
+ pub fn fill<'a, H: Hooks>(k: &Kernels<'_, H>, chunk: &mut ChunkState, stack: &mut CvStack, initial: u64, input: &'a [u8]) -> &'a [u8] {
+-    if chunk.count() == 0 {
+-        return input;
+-    }
+-    let take = (CHUNK_LEN - chunk.count()).min(input.len());
+-    chunk.update(&input[..take]);
+-    let rest = &input[take..];
+-    if rest.is_empty() {
+-        return rest;
+-    }
+-    let counter = chunk.chunk_counter();
+-    push(k, stack, initial, chunk.output().chaining_value(), counter);
+-    *chunk = k.new_chunk(counter + 1);
+-    rest
++    Vec::leak(vec![0]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// `input` after an empty chunk: whole subtrees onto the stack, then at most
+ /// a chunk into the chunk, and the stack merged behind it.
+ pub fn feed<H: Hooks>(k: &Kernels<'_, H>, chunk: &mut ChunkState, stack: &mut CvStack, initial: u64, input: &[u8]) {
+     let mut input = input;
+     while input.len() > CHUNK_LEN {
+         let counter = chunk.chunk_counter();

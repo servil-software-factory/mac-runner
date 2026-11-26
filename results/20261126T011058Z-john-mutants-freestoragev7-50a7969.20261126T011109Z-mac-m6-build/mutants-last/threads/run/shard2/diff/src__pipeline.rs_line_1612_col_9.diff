@@ -1,0 +1,50 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::poll_message -> Poll<u32> with Poll::from(0)
+@@ -1604,46 +1604,17 @@
+     #[inline(always)]
+     pub fn message_with<'p>(&'p mut self, mode: Mode<'_>, tag: T, length_hint: Option<u64>) -> impl Future<Output = Message> + use<'p, T, B, P> {
+         let _ = length_hint;
+         let is_plain = matches!(mode, Mode::Plain);
+         MessageWithFut { pipe: self, tag: Some(tag), tree: Some(TreeHasher::new(mode)), is_plain, registered: false }
+     }
+ 
+     fn poll_message(&mut self, cx: &mut Context<'_>) -> Poll<u32> {
+-        if let Some(slot) = self.free_slots.pop_front() {
+-            return Poll::Ready(slot);
+-        }
+-        self.reap();
+-        if let Some(slot) = self.free_slots.pop_front() {
+-            return Poll::Ready(slot);
+-        }
+-        self.assert_message_can_progress();
+-        if self.front_uses_open_group() {
+-            self.publish_open();
+-        }
+-        if in_block_on() {
+-            while self.storage().slot.get().source.run_waiting_action() {
+-                self.reap();
+-                if let Some(slot) = self.free_slots.pop_front() {
+-                    return Poll::Ready(slot);
+-                }
+-            }
+-        }
+-        self.storage().slot.get().waker.register(cx);
+-        self.reap();
+-        if let Some(slot) = self.free_slots.pop_front() {
+-            self.storage().slot.get().waker.clear();
+-            return Poll::Ready(slot);
+-        }
+-        self.assert_message_can_progress();
+-        if self.source_slot.is_some() {
+-            self.storage().slot.get().source.wake_for_waiting();
+-        }
+-        Poll::Pending
++        Poll::from(0) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn assert_message_can_progress(&self) {
+         assert!(
+             self.events.len() < self.limits.messages,
+             "Pipeline::message cannot make progress: {} finished events wait to be pulled (call next_event)",
+             self.limits.messages
+         );

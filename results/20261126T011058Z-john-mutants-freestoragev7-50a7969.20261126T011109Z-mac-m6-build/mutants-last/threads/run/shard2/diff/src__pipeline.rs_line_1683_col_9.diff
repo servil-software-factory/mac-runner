@@ -1,0 +1,33 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::try_take_room -> Option<Room> with None
+@@ -1675,29 +1675,17 @@
+         let idx = self.local_free_rooms.pop_front()?;
+         self.room_cursor = (idx as usize + 1) % self.limits.rooms;
+         self.storage().rooms.init_taken(idx);
+         Some(self.make_room(idx))
+     }
+ 
+     #[inline]
+     fn try_take_room(&mut self) -> Option<Room> {
+-        if self.local_free_rooms.is_empty() {
+-            // Sound: as `storage()`.
+-            let st = unsafe { &*self.storage };
+-            let count = st.rooms.count;
+-            let start = self.room_cursor;
+-            for step in 0..count {
+-                let i = (start + step) % count;
+-                if st.rooms.refs[i].load(Ordering::Acquire) == 0 {
+-                    self.local_free_rooms.push_back(u32::try_from(i).expect("room index fits u32"));
+-                }
+-            }
+-        }
+-        self.pop_cached_room()
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn poll_room(&mut self, cx: &mut Context<'_>) -> Poll<Room> {
+         if let Some(r) = self.try_take_room() {
+             return Poll::Ready(r);
+         }
+         self.reap();
+         self.flush_sealed_short_rooms();

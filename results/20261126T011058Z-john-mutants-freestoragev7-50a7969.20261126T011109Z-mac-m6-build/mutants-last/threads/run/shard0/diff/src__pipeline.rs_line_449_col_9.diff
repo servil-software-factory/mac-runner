@@ -1,0 +1,37 @@
+--- src/pipeline.rs
++++ replace PipeSlot::acquire -> &'static PipeSlot with Box::leak(Box::new(Default::default()))
+@@ -441,33 +441,17 @@
+ /// were freed and frees the run's `PipeSlot`s at its end.
+ #[cfg(shuttle)]
+ #[allow(dead_code)]
+ #[path = "../tests/model/storages.rs"]
+ pub(crate) mod model_storages;
+ 
+ impl PipeSlot {
+     fn acquire(actions: usize) -> &'static PipeSlot {
+-        let chosen = {
+-            let mut free = FREE_PIPE_SLOTS.lock().unwrap();
+-            let at = free.iter().enumerate().filter(|(_, s)| s.source.actions_len() >= actions).min_by_key(|(_, s)| s.source.actions_len()).map(|(at, _)| at);
+-            at.map(|at| free.swap_remove(at))
+-        };
+-        if let Some(slot) = chosen {
+-            return slot;
+-        }
+-        let cap = actions.max(1024).checked_next_multiple_of(1024).unwrap_or(actions);
+-        #[cfg(any(test, shuttle))]
+-        PIPE_SLOTS_MADE.fetch_add(1, Ordering::Relaxed);
+-        let raw = Box::into_raw(Box::new(PipeSlot { source: Source::with_actions(cap), waker: WakerSlot::new() }));
+-        #[cfg(shuttle)]
+-        MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));
+-        // Sound: `raw` stays live for the process (freed only after all Shuttle
+-        // worker threads join in `model_storages::free_storages_for_model`).
+-        unsafe { &*raw }
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn release(slot: &'static PipeSlot) {
+         FREE_PIPE_SLOTS.lock().unwrap().push(slot);
+     }
+ }
+ 
+ /// Per-`Pipeline` heap-allocated backing storage (`Rooms`, short-message

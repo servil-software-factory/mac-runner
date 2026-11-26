@@ -1,0 +1,30 @@
+--- src/registry.rs
++++ replace EpochRegistry<T, SLOTS>::drain_readers with ()
+@@ -156,26 +156,17 @@
+         self.slots[slot].store(core::ptr::null_mut(), Ordering::SeqCst);
+     }
+ 
+     /// Fence any prior pointer unpublication before sampling `readers`, then
+     /// wait until every reader holding a nonzero pre-fence epoch has cleared
+     /// its cell to `0` or advanced to a newer epoch.
+     #[inline]
+     pub(crate) fn drain_readers(readers: &[ReaderCell]) {
+-        fence(Ordering::SeqCst);
+-        for reader in readers {
+-            let initial = reader.0.0.load(Ordering::Acquire);
+-            if initial != 0 {
+-                let mut spins = 0u32;
+-                while reader.0.0.load(Ordering::Acquire) == initial {
+-                    drain_pause_with(&mut spins, spin, pause_slow);
+-                }
+-            }
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Unregister `slot` and wait until every reader in `readers` that could
+     /// have observed `slot` before `DRAINING` was published has exited that
+     /// [`ReaderGuard`]. Pass `None` only when no reader threads exist (e.g.,
+     /// in a forked child process).
+     pub(crate) fn unregister_and_drain(&self, slot: usize, readers: Option<&[ReaderCell]>) {
+         self.active.fetch_and(!(1 << slot), Ordering::SeqCst);

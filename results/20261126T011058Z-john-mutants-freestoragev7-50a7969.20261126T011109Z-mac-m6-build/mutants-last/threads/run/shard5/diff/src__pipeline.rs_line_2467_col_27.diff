@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace += with -= in <impl Drop for Pipeline<T, B, P>>::drop
+@@ -2459,17 +2459,17 @@
+         // any surviving Room dropped concurrently on another thread cannot drop
+         // `storage.holders` to 0 while this loop is still running.
+         let room_count = storage.rooms.count;
+         storage.holders.fetch_add(room_count, Ordering::Relaxed);
+         let mut survivors = 0usize;
+         for r in &storage.rooms.refs {
+             let prev = r.fetch_or(ROOM_CLOSING_BIT, Ordering::SeqCst);
+             if prev != 0 {
+-                survivors += 1;
++                survivors -= /* ~ changed by cargo-mutants ~ */ 1;
+             }
+         }
+         let release_holds = (room_count - survivors) + 1;
+         struct ReleaseStorage(*mut PipeStorage, usize, &'static PipeSlot);
+         impl Drop for ReleaseStorage {
+             fn drop(&mut self) {
+                 PipeSlot::release(self.2);
+                 PipeStorage::release_n(self.0, self.1);

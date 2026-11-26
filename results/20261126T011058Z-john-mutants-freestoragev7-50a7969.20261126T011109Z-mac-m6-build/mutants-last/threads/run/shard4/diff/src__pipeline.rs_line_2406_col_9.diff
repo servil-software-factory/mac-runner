@@ -1,0 +1,43 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::has_in_flight_work -> bool with true
+@@ -2398,39 +2398,17 @@
+     fn reap(&mut self) {
+         while self.events.len() < self.limits.messages {
+             let Some(ev) = self.try_reap_one() else { break };
+             self.events.push_back(ev);
+         }
+     }
+ 
+     fn has_in_flight_work(&self) -> bool {
+-        let st = self.storage();
+-        for g in 0..self.group_count {
+-            let assigned = self.assigned_group_epoch[g];
+-            if assigned != 0 && st.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {
+-                return true;
+-            }
+-        }
+-        for p in &st.pieces {
+-            if !p.done.load(Ordering::Acquire) {
+-                return true;
+-            }
+-        }
+-        for s in 0..self.slots.len() {
+-            match self.slots[s].kind {
+-                SlotKind::WaitMulti { .. } | SlotKind::WaitBatch { group: NONE, .. } => {
+-                    if !st.slot_done[s].load(Ordering::Acquire) {
+-                        return true;
+-                    }
+-                }
+-                _ => {}
+-            }
+-        }
+-        false
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl<T, B, P> Drop for Pipeline<T, B, P> {
+     fn drop(&mut self) {
+         if self.has_in_flight_work() {
+             stop_process("blake3-servil: Pipeline dropped while worker tasks are still in flight\n");
+         }

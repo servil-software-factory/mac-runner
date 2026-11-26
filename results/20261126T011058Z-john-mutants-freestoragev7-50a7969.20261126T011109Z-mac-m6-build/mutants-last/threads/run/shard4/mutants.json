@@ -1,0 +1,706 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::publish_open with ()\n@@ -2191,39 +2191,17 @@\n         match self.slots[front as usize].kind {\n             SlotKind::WaitSingle { group, .. } | SlotKind::WaitBatch { group, .. } | SlotKind::WaitAborted { group, .. } => group == open_g,\n             _ => false,\n         }\n     }\n \n     #[inline(never)]\n     fn publish_open(&mut self) {\n-        let Some((group_idx, epoch)) = self.open_group.take() else { return };\n-        let count = self.local_count;\n-        let custom_tree = self.local_custom_tree.take();\n-        let group = &self.storage().groups[group_idx as usize];\n-        // Sound: the group is not in flight (acquire_free_group gave it), so\n-        // its task, metas and epoch are the owner's to write before the\n-        // dispatch below.\n-        unsafe {\n-            let task = &mut *group.task.get();\n-            task.batch = self.local_batch;\n-            task.len = self.local_bytes;\n-            task.members = count;\n-            task.member[..count].copy_from_slice(&self.local_members[..count]);\n-            let metas = &mut *group.metas.get();\n-            for i in 0..count {\n-                metas[i] = GroupMemberMeta { room: self.local_rooms[i] };\n-            }\n-            *group.custom_tree.get() = custom_tree;\n-            *group.epoch.get() = epoch;\n-        }\n-        self.assigned_group_epoch[group_idx as usize] = epoch;\n-        let arg = pack_arg(KIND_GROUP, group_idx, 0, false);\n-        self.dispatch_one(arg);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline]\n     fn dispatch_one(&mut self, arg: u64) {\n         let ctx = self.storage as *const PipeStorage as *const ();\n         match self.source_slot {\n             // Sound: this Pipeline exclusively publishes to its `PipeSlot`'s\n             // source, and `*self.storage` stays live until this action\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::publish_open",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2222
+        },
+        "start": {
+          "column": 5,
+          "line": 2197
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2199:9: replace Pipeline<T, B, P>::publish_open with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 2221
+      },
+      "start": {
+        "column": 9,
+        "line": 2199
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::dispatch_one with ()\n@@ -2218,25 +2218,17 @@\n         }\n         self.assigned_group_epoch[group_idx as usize] = epoch;\n         let arg = pack_arg(KIND_GROUP, group_idx, 0, false);\n         self.dispatch_one(arg);\n     }\n \n     #[inline]\n     fn dispatch_one(&mut self, arg: u64) {\n-        let ctx = self.storage as *const PipeStorage as *const ();\n-        match self.source_slot {\n-            // Sound: this Pipeline exclusively publishes to its `PipeSlot`'s\n-            // source, and `*self.storage` stays live until this action\n-            // publishes completion.\n-            Some(_) => unsafe { self.storage().slot.get().source.publish_actions(PipeStorage::run_action, ctx, core::slice::from_ref(&arg), false) },\n-            // Sound: `ctx` is this Pipeline's `PipeStorage`, as run_action requires.\n-            None => unsafe { PipeStorage::run_action(ctx, arg, pool_platform()) },\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn dispatch_many(&mut self, count: usize, near: bool) {\n         let ctx = self.storage as *const PipeStorage as *const ();\n         match self.source_slot {\n             // Sound: as dispatch_one's.\n             Some(_) => unsafe { self.storage().slot.get().source.publish_actions(PipeStorage::run_action, ctx, &self.action_buf[..count], near) },\n             None => {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::dispatch_one",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2235
+        },
+        "start": {
+          "column": 5,
+          "line": 2224
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2226:9: replace Pipeline<T, B, P>::dispatch_one with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2234
+      },
+      "start": {
+        "column": 9,
+        "line": 2226
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::dispatch_many with ()\n@@ -2230,28 +2230,17 @@\n             // publishes completion.\n             Some(_) => unsafe { self.storage().slot.get().source.publish_actions(PipeStorage::run_action, ctx, core::slice::from_ref(&arg), false) },\n             // Sound: `ctx` is this Pipeline's `PipeStorage`, as run_action requires.\n             None => unsafe { PipeStorage::run_action(ctx, arg, pool_platform()) },\n         }\n     }\n \n     fn dispatch_many(&mut self, count: usize, near: bool) {\n-        let ctx = self.storage as *const PipeStorage as *const ();\n-        match self.source_slot {\n-            // Sound: as dispatch_one's.\n-            Some(_) => unsafe { self.storage().slot.get().source.publish_actions(PipeStorage::run_action, ctx, &self.action_buf[..count], near) },\n-            None => {\n-                for i in 0..count {\n-                    let arg = self.action_buf[i];\n-                    // Sound: as dispatch_one's.\n-                    unsafe { PipeStorage::run_action(ctx, arg, pool_platform()) };\n-                }\n-            }\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn group_ready(&mut self, group: u32, epoch: u64) -> bool {\n         if group == NONE {\n             return true;\n         }\n         let gi = group as usize;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::dispatch_many",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2250
+        },
+        "start": {
+          "column": 5,
+          "line": 2237
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2238:9: replace Pipeline<T, B, P>::dispatch_many with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2249
+      },
+      "start": {
+        "column": 9,
+        "line": 2238
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::group_ready -> bool with true\n@@ -2246,26 +2246,17 @@\n                     unsafe { PipeStorage::run_action(ctx, arg, pool_platform()) };\n                 }\n             }\n         }\n     }\n \n     #[inline(always)]\n     fn group_ready(&mut self, group: u32, epoch: u64) -> bool {\n-        if group == NONE {\n-            return true;\n-        }\n-        let gi = group as usize;\n-        if self.seen_group_epoch[gi] >= epoch {\n-            return true;\n-        }\n-        let now = self.storage().groups[gi].completed_epoch.load(Ordering::Acquire);\n-        self.seen_group_epoch[gi] = now;\n-        now >= epoch\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn drain_slot_pieces(&mut self, s: usize) {\n         self.drain_pieces(s, false);\n     }\n \n     /// Fold slot `s`'s finished pieces, in order, up to the first still\n     /// being hashed. `keep_last` leaves the newest piece: an open\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::group_ready",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2264
+        },
+        "start": {
+          "column": 5,
+          "line": 2252
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2254:9: replace Pipeline<T, B, P>::group_ready -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 2263
+      },
+      "start": {
+        "column": 9,
+        "line": 2254
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::group_ready -> bool with false\n@@ -2246,26 +2246,17 @@\n                     unsafe { PipeStorage::run_action(ctx, arg, pool_platform()) };\n                 }\n             }\n         }\n     }\n \n     #[inline(always)]\n     fn group_ready(&mut self, group: u32, epoch: u64) -> bool {\n-        if group == NONE {\n-            return true;\n-        }\n-        let gi = group as usize;\n-        if self.seen_group_epoch[gi] >= epoch {\n-            return true;\n-        }\n-        let now = self.storage().groups[gi].completed_epoch.load(Ordering::Acquire);\n-        self.seen_group_epoch[gi] = now;\n-        now >= epoch\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn drain_slot_pieces(&mut self, s: usize) {\n         self.drain_pieces(s, false);\n     }\n \n     /// Fold slot `s`'s finished pieces, in order, up to the first still\n     /// being hashed. `keep_last` leaves the newest piece: an open\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::group_ready",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2264
+        },
+        "start": {
+          "column": 5,
+          "line": 2252
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2254:9: replace Pipeline<T, B, P>::group_ready -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 2263
+      },
+      "start": {
+        "column": 9,
+        "line": 2254
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::drain_pieces with ()\n@@ -2267,71 +2267,17 @@\n         self.drain_pieces(s, false);\n     }\n \n     /// Fold slot `s`'s finished pieces, in order, up to the first still\n     /// being hashed. `keep_last` leaves the newest piece: an open\n     /// message may end with it, and the last piece folds as the root.\n     fn drain_pieces(&mut self, s: usize, keep_last: bool) {\n         // Sound: as `storage()`.\n-        let st = unsafe { &*self.storage };\n-        let tree = st.slot_tree(s);\n-        let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n-        let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n-\n-        loop {\n-            let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n-                return;\n-            }\n-            // Sound: the piece is done (checked above), so its `next` and\n-            // `out` are the owner's again.\n-            let next = unsafe { *st.pieces[head as usize].next.get() };\n-            let out = unsafe { *st.pieces[head as usize].out.0.get() };\n-            self.free_pieces.push_back(head);\n-\n-            let rs = &mut self.room_streams[s];\n-            rs.head_piece = next;\n-            if next == NONE {\n-                rs.tail_piece = NONE;\n-                let pos = rs.piece_slot_pos;\n-                rs.piece_slot_pos = NONE;\n-                let idx = pos as usize;\n-                self.piece_slots.swap_remove(idx);\n-                if let Some(&moved) = self.piece_slots.get(idx) {\n-                    self.room_streams[moved as usize].piece_slot_pos = pos;\n-                }\n-            }\n-            let rs = &mut self.room_streams[s];\n-            if aborted {\n-                continue;\n-            }\n-\n-            // Sound: the caller alone writes a room message's stack\n-            // (workers write a slice message's slots, never both for one slot).\n-            let cvs = unsafe { &mut (*st.cvs[s].get()).whole };\n-            if ended && rs.merged_pieces + 1 == rs.len.div_ceil(ROOM_LEN as u64) {\n-                let root = match out {\n-                    RoomValue::First([left, right]) => tree.root_hash(&left, &right.into(), rs.len),\n-                    RoomValue::Whole(cv) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, cv.into(), rs.len),\n-                    RoomValue::Last(last) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, last, rs.len),\n-                };\n-                // Sound: the room message is done, with no other writer.\n-                unsafe { *st.hashes[s].get() = *root.as_bytes() };\n-                st.slot_done[s].store(true, Ordering::Relaxed);\n-                return;\n-            }\n-            let cv = match out {\n-                RoomValue::First([left, right]) => tree.parent_cv(&left, &right),\n-                RoomValue::Whole(cv) => cv,\n-                RoomValue::Last(_) => panic!(\"a short room is the last piece\"),\n-            };\n-            push_piece(tree, cvs, &mut rs.stack_len, rs.merged_pieces, cv);\n-            rs.merged_pieces += 1;\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn try_reap_one(&mut self) -> Option<Event<T, B, P>> {\n         let &front = self.end_queue.front()?;\n         let s = front as usize;\n \n         let ready = match self.slots[s].kind {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2330
+        },
+        "start": {
+          "column": 5,
+          "line": 2270
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2275:9: replace Pipeline<T, B, P>::drain_pieces with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2329
+      },
+      "start": {
+        "column": 9,
+        "line": 2275
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace || with && in Pipeline<T, B, P>::drain_pieces\n@@ -2274,17 +2274,17 @@\n         // Sound: as `storage()`.\n         let st = unsafe { &*self.storage };\n         let tree = st.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) && /* ~ changed by cargo-mutants ~ */ !st.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *st.pieces[head as usize].next.get() };\n             let out = unsafe { *st.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2330
+        },
+        "start": {
+          "column": 5,
+          "line": 2270
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2282:87: replace || with && in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 2282
+      },
+      "start": {
+        "column": 87,
+        "line": 2282
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace || with && in Pipeline<T, B, P>::drain_pieces\n@@ -2274,17 +2274,17 @@\n         // Sound: as `storage()`.\n         let st = unsafe { &*self.storage };\n         let tree = st.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE && /* ~ changed by cargo-mutants ~ */ (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *st.pieces[head as usize].next.get() };\n             let out = unsafe { *st.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2330
+        },
+        "start": {
+          "column": 5,
+          "line": 2270
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2282:29: replace || with && in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "&&",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 2282
+      },
+      "start": {
+        "column": 29,
+        "line": 2282
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Pipeline<T, B, P>::drain_pieces\n@@ -2274,17 +2274,17 @@\n         // Sound: as `storage()`.\n         let st = unsafe { &*self.storage };\n         let tree = st.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head != /* ~ changed by cargo-mutants ~ */ NONE || (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *st.pieces[head as usize].next.get() };\n             let out = unsafe { *st.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2330
+        },
+        "start": {
+          "column": 5,
+          "line": 2270
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2282:21: replace == with != in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 23,
+        "line": 2282
+      },
+      "start": {
+        "column": 21,
+        "line": 2282
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in Pipeline<T, B, P>::drain_pieces\n@@ -2274,17 +2274,17 @@\n         // Sound: as `storage()`.\n         let st = unsafe { &*self.storage };\n         let tree = st.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last || /* ~ changed by cargo-mutants ~ */ head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *st.pieces[head as usize].next.get() };\n             let out = unsafe { *st.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2330
+        },
+        "start": {
+          "column": 5,
+          "line": 2270
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2282:43: replace && with || in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 45,
+        "line": 2282
+      },
+      "start": {
+        "column": 43,
+        "line": 2282
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Pipeline<T, B, P>::drain_pieces\n@@ -2274,17 +2274,17 @@\n         // Sound: as `storage()`.\n         let st = unsafe { &*self.storage };\n         let tree = st.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last && head != /* ~ changed by cargo-mutants ~ */ self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *st.pieces[head as usize].next.get() };\n             let out = unsafe { *st.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2330
+        },
+        "start": {
+          "column": 5,
+          "line": 2270
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2282:51: replace == with != in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 2282
+      },
+      "start": {
+        "column": 51,
+        "line": 2282
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete ! in Pipeline<T, B, P>::drain_pieces\n@@ -2274,17 +2274,17 @@\n         // Sound: as `storage()`.\n         let st = unsafe { &*self.storage };\n         let tree = st.slot_tree(s);\n         let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);\n         let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });\n \n         loop {\n             let head = self.room_streams[s].head_piece;\n-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {\n+            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) ||  /* ~ changed by cargo-mutants ~ */st.pieces[head as usize].done.load(Ordering::Acquire) {\n                 return;\n             }\n             // Sound: the piece is done (checked above), so its `next` and\n             // `out` are the owner's again.\n             let next = unsafe { *st.pieces[head as usize].next.get() };\n             let out = unsafe { *st.pieces[head as usize].out.0.get() };\n             self.free_pieces.push_back(head);\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::drain_pieces",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2330
+        },
+        "start": {
+          "column": 5,
+          "line": 2270
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/pipeline.rs:2282:90: delete ! in Pipeline<T, B, P>::drain_pieces",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 91,
+        "line": 2282
+      },
+      "start": {
+        "column": 90,
+        "line": 2282
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::try_reap_one -> Option<Event<T, B, P>> with None\n@@ -2326,78 +2326,17 @@\n             };\n             push_piece(tree, cvs, &mut rs.stack_len, rs.merged_pieces, cv);\n             rs.merged_pieces += 1;\n         }\n     }\n \n     #[inline(always)]\n     fn try_reap_one(&mut self) -> Option<Event<T, B, P>> {\n-        let &front = self.end_queue.front()?;\n-        let s = front as usize;\n-\n-        let ready = match self.slots[s].kind {\n-            SlotKind::WaitSingle { group, epoch, .. } => self.group_ready(group, epoch),\n-            SlotKind::WaitMulti { .. } => self.storage().slot_done[s].load(Ordering::Acquire),\n-            SlotKind::WaitBatch { group, epoch } => {\n-                if group != NONE {\n-                    self.group_ready(group, epoch)\n-                } else {\n-                    self.storage().slot_done[s].load(Ordering::Acquire)\n-                }\n-            }\n-            SlotKind::WaitRoomMulti => {\n-                self.drain_slot_pieces(s);\n-                self.storage().slot_done[s].load(Ordering::Acquire)\n-            }\n-            SlotKind::WaitAborted { group, epoch } => {\n-                self.drain_slot_pieces(s);\n-                let rooms_done = self.room_streams[s].head_piece == NONE;\n-                rooms_done && self.group_ready(group, epoch)\n-            }\n-            SlotKind::Free | SlotKind::OpenEmpty | SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { .. } => {\n-                unreachable!()\n-            }\n-        };\n-        if !ready {\n-            return None;\n-        }\n-\n-        self.end_queue.pop_front();\n-        let tag = self.slots[s].tag.take().expect(\"ended slot holds its tag\");\n-        let kind = core::mem::replace(&mut self.slots[s].kind, SlotKind::Free);\n-        let event = match kind {\n-            SlotKind::WaitAborted { .. } => Event::Aborted { tag, owner: None },\n-            SlotKind::WaitSingle { has_owner, .. } | SlotKind::WaitMulti { has_owner } => {\n-                // Sound: the slot's work is done (`ready`), so its hash has no\n-                // writer; `has_owner` says the slot holds an owner, read out\n-                // here once (the slot is then Free).\n-                let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });\n-                let owner = if has_owner { Some(unsafe { (*self.owners.slot(s)).assume_init_read() }) } else { None };\n-                Event::Hashed { tag, hash, owner }\n-            }\n-            SlotKind::WaitRoomMulti => {\n-                // Sound: as above.\n-                let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });\n-                Event::Hashed { tag, hash, owner: None }\n-            }\n-            SlotKind::WaitBatch { .. } => {\n-                if let Some(plan) = self.batch_plans[s].take() {\n-                    self.batches_in_flight -= 1;\n-                    plan.done();\n-                }\n-                // Sound: a WaitBatch slot holds its batch and digests (batch\n-                // wrote them), read out here once.\n-                let (batch, digests) = unsafe { (*self.batches.slot(s)).assume_init_read() };\n-                Event::Batch { tag, batch, digests }\n-            }\n-            _ => unreachable!(),\n-        };\n-        self.free_slots.push_back(u32::try_from(s).expect(\"slot fits u32\"));\n-        return Some(event);\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn reap(&mut self) {\n         while self.events.len() < self.limits.messages {\n             let Some(ev) = self.try_reap_one() else { break };\n             self.events.push_back(ev);\n         }\n     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::try_reap_one",
+      "return_type": "-> Option<Event<T, B, P>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2396
+        },
+        "start": {
+          "column": 5,
+          "line": 2332
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2334:9: replace Pipeline<T, B, P>::try_reap_one -> Option<Event<T, B, P>> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 2395
+      },
+      "start": {
+        "column": 9,
+        "line": 2334
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::try_reap_one -> Option<Event<T, B, P>> with Some(Default::default())\n@@ -2326,78 +2326,17 @@\n             };\n             push_piece(tree, cvs, &mut rs.stack_len, rs.merged_pieces, cv);\n             rs.merged_pieces += 1;\n         }\n     }\n \n     #[inline(always)]\n     fn try_reap_one(&mut self) -> Option<Event<T, B, P>> {\n-        let &front = self.end_queue.front()?;\n-        let s = front as usize;\n-\n-        let ready = match self.slots[s].kind {\n-            SlotKind::WaitSingle { group, epoch, .. } => self.group_ready(group, epoch),\n-            SlotKind::WaitMulti { .. } => self.storage().slot_done[s].load(Ordering::Acquire),\n-            SlotKind::WaitBatch { group, epoch } => {\n-                if group != NONE {\n-                    self.group_ready(group, epoch)\n-                } else {\n-                    self.storage().slot_done[s].load(Ordering::Acquire)\n-                }\n-            }\n-            SlotKind::WaitRoomMulti => {\n-                self.drain_slot_pieces(s);\n-                self.storage().slot_done[s].load(Ordering::Acquire)\n-            }\n-            SlotKind::WaitAborted { group, epoch } => {\n-                self.drain_slot_pieces(s);\n-                let rooms_done = self.room_streams[s].head_piece == NONE;\n-                rooms_done && self.group_ready(group, epoch)\n-            }\n-            SlotKind::Free | SlotKind::OpenEmpty | SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { .. } => {\n-                unreachable!()\n-            }\n-        };\n-        if !ready {\n-            return None;\n-        }\n-\n-        self.end_queue.pop_front();\n-        let tag = self.slots[s].tag.take().expect(\"ended slot holds its tag\");\n-        let kind = core::mem::replace(&mut self.slots[s].kind, SlotKind::Free);\n-        let event = match kind {\n-            SlotKind::WaitAborted { .. } => Event::Aborted { tag, owner: None },\n-            SlotKind::WaitSingle { has_owner, .. } | SlotKind::WaitMulti { has_owner } => {\n-                // Sound: the slot's work is done (`ready`), so its hash has no\n-                // writer; `has_owner` says the slot holds an owner, read out\n-                // here once (the slot is then Free).\n-                let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });\n-                let owner = if has_owner { Some(unsafe { (*self.owners.slot(s)).assume_init_read() }) } else { None };\n-                Event::Hashed { tag, hash, owner }\n-            }\n-            SlotKind::WaitRoomMulti => {\n-                // Sound: as above.\n-                let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });\n-                Event::Hashed { tag, hash, owner: None }\n-            }\n-            SlotKind::WaitBatch { .. } => {\n-                if let Some(plan) = self.batch_plans[s].take() {\n-                    self.batches_in_flight -= 1;\n-                    plan.done();\n-                }\n-                // Sound: a WaitBatch slot holds its batch and digests (batch\n-                // wrote them), read out here once.\n-                let (batch, digests) = unsafe { (*self.batches.slot(s)).assume_init_read() };\n-                Event::Batch { tag, batch, digests }\n-            }\n-            _ => unreachable!(),\n-        };\n-        self.free_slots.push_back(u32::try_from(s).expect(\"slot fits u32\"));\n-        return Some(event);\n+        Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn reap(&mut self) {\n         while self.events.len() < self.limits.messages {\n             let Some(ev) = self.try_reap_one() else { break };\n             self.events.push_back(ev);\n         }\n     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::try_reap_one",
+      "return_type": "-> Option<Event<T, B, P>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2396
+        },
+        "start": {
+          "column": 5,
+          "line": 2332
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2334:9: replace Pipeline<T, B, P>::try_reap_one -> Option<Event<T, B, P>> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 28,
+        "line": 2395
+      },
+      "start": {
+        "column": 9,
+        "line": 2334
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete match arm SlotKind::WaitSingle{has_owner, ..} | SlotKind::WaitMulti{has_owner} in Pipeline<T, B, P>::try_reap_one\n@@ -2361,24 +2361,17 @@\n             return None;\n         }\n \n         self.end_queue.pop_front();\n         let tag = self.slots[s].tag.take().expect(\"ended slot holds its tag\");\n         let kind = core::mem::replace(&mut self.slots[s].kind, SlotKind::Free);\n         let event = match kind {\n             SlotKind::WaitAborted { .. } => Event::Aborted { tag, owner: None },\n-            SlotKind::WaitSingle { has_owner, .. } | SlotKind::WaitMulti { has_owner } => {\n-                // Sound: the slot's work is done (`ready`), so its hash has no\n-                // writer; `has_owner` says the slot holds an owner, read out\n-                // here once (the slot is then Free).\n-                let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });\n-                let owner = if has_owner { Some(unsafe { (*self.owners.slot(s)).assume_init_read() }) } else { None };\n-                Event::Hashed { tag, hash, owner }\n-            }\n+             /* ~ changed by cargo-mutants ~ */\n             SlotKind::WaitRoomMulti => {\n                 // Sound: as above.\n                 let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });\n                 Event::Hashed { tag, hash, owner: None }\n             }\n             SlotKind::WaitBatch { .. } => {\n                 if let Some(plan) = self.batch_plans[s].take() {\n                     self.batches_in_flight -= 1;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::try_reap_one",
+      "return_type": "-> Option<Event<T, B, P>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2396
+        },
+        "start": {
+          "column": 5,
+          "line": 2332
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/pipeline.rs:2369:13: delete match arm SlotKind::WaitSingle{has_owner, ..} | SlotKind::WaitMulti{has_owner} in Pipeline<T, B, P>::try_reap_one",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 2376
+      },
+      "start": {
+        "column": 13,
+        "line": 2369
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete match arm SlotKind::WaitRoomMulti in Pipeline<T, B, P>::try_reap_one\n@@ -2369,21 +2369,17 @@\n             SlotKind::WaitSingle { has_owner, .. } | SlotKind::WaitMulti { has_owner } => {\n                 // Sound: the slot's work is done (`ready`), so its hash has no\n                 // writer; `has_owner` says the slot holds an owner, read out\n                 // here once (the slot is then Free).\n                 let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });\n                 let owner = if has_owner { Some(unsafe { (*self.owners.slot(s)).assume_init_read() }) } else { None };\n                 Event::Hashed { tag, hash, owner }\n             }\n-            SlotKind::WaitRoomMulti => {\n-                // Sound: as above.\n-                let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });\n-                Event::Hashed { tag, hash, owner: None }\n-            }\n+             /* ~ changed by cargo-mutants ~ */\n             SlotKind::WaitBatch { .. } => {\n                 if let Some(plan) = self.batch_plans[s].take() {\n                     self.batches_in_flight -= 1;\n                     plan.done();\n                 }\n                 // Sound: a WaitBatch slot holds its batch and digests (batch\n                 // wrote them), read out here once.\n                 let (batch, digests) = unsafe { (*self.batches.slot(s)).assume_init_read() };\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::try_reap_one",
+      "return_type": "-> Option<Event<T, B, P>>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2396
+        },
+        "start": {
+          "column": 5,
+          "line": 2332
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/pipeline.rs:2377:13: delete match arm SlotKind::WaitRoomMulti in Pipeline<T, B, P>::try_reap_one",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 2381
+      },
+      "start": {
+        "column": 13,
+        "line": 2377
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::has_in_flight_work -> bool with true\n@@ -2398,39 +2398,17 @@\n     fn reap(&mut self) {\n         while self.events.len() < self.limits.messages {\n             let Some(ev) = self.try_reap_one() else { break };\n             self.events.push_back(ev);\n         }\n     }\n \n     fn has_in_flight_work(&self) -> bool {\n-        let st = self.storage();\n-        for g in 0..self.group_count {\n-            let assigned = self.assigned_group_epoch[g];\n-            if assigned != 0 && st.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {\n-                return true;\n-            }\n-        }\n-        for p in &st.pieces {\n-            if !p.done.load(Ordering::Acquire) {\n-                return true;\n-            }\n-        }\n-        for s in 0..self.slots.len() {\n-            match self.slots[s].kind {\n-                SlotKind::WaitMulti { .. } | SlotKind::WaitBatch { group: NONE, .. } => {\n-                    if !st.slot_done[s].load(Ordering::Acquire) {\n-                        return true;\n-                    }\n-                }\n-                _ => {}\n-            }\n-        }\n-        false\n+        true /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P> Drop for Pipeline<T, B, P> {\n     fn drop(&mut self) {\n         if self.has_in_flight_work() {\n             stop_process(\"blake3-servil: Pipeline dropped while worker tasks are still in flight\\n\");\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::has_in_flight_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2429
+        },
+        "start": {
+          "column": 5,
+          "line": 2405
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2406:9: replace Pipeline<T, B, P>::has_in_flight_work -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 2428
+      },
+      "start": {
+        "column": 9,
+        "line": 2406
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::has_in_flight_work -> bool with false\n@@ -2398,39 +2398,17 @@\n     fn reap(&mut self) {\n         while self.events.len() < self.limits.messages {\n             let Some(ev) = self.try_reap_one() else { break };\n             self.events.push_back(ev);\n         }\n     }\n \n     fn has_in_flight_work(&self) -> bool {\n-        let st = self.storage();\n-        for g in 0..self.group_count {\n-            let assigned = self.assigned_group_epoch[g];\n-            if assigned != 0 && st.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {\n-                return true;\n-            }\n-        }\n-        for p in &st.pieces {\n-            if !p.done.load(Ordering::Acquire) {\n-                return true;\n-            }\n-        }\n-        for s in 0..self.slots.len() {\n-            match self.slots[s].kind {\n-                SlotKind::WaitMulti { .. } | SlotKind::WaitBatch { group: NONE, .. } => {\n-                    if !st.slot_done[s].load(Ordering::Acquire) {\n-                        return true;\n-                    }\n-                }\n-                _ => {}\n-            }\n-        }\n-        false\n+        false /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl<T, B, P> Drop for Pipeline<T, B, P> {\n     fn drop(&mut self) {\n         if self.has_in_flight_work() {\n             stop_process(\"blake3-servil: Pipeline dropped while worker tasks are still in flight\\n\");\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::has_in_flight_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2429
+        },
+        "start": {
+          "column": 5,
+          "line": 2405
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2406:9: replace Pipeline<T, B, P>::has_in_flight_work -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 2428
+      },
+      "start": {
+        "column": 9,
+        "line": 2406
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in Pipeline<T, B, P>::has_in_flight_work\n@@ -2401,17 +2401,17 @@\n             self.events.push_back(ev);\n         }\n     }\n \n     fn has_in_flight_work(&self) -> bool {\n         let st = self.storage();\n         for g in 0..self.group_count {\n             let assigned = self.assigned_group_epoch[g];\n-            if assigned != 0 && st.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {\n+            if assigned != 0 || /* ~ changed by cargo-mutants ~ */ st.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {\n                 return true;\n             }\n         }\n         for p in &st.pieces {\n             if !p.done.load(Ordering::Acquire) {\n                 return true;\n             }\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::has_in_flight_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2429
+        },
+        "start": {
+          "column": 5,
+          "line": 2405
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2409:30: replace && with || in Pipeline<T, B, P>::has_in_flight_work",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 2409
+      },
+      "start": {
+        "column": 30,
+        "line": 2409
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace != with == in Pipeline<T, B, P>::has_in_flight_work\n@@ -2401,17 +2401,17 @@\n             self.events.push_back(ev);\n         }\n     }\n \n     fn has_in_flight_work(&self) -> bool {\n         let st = self.storage();\n         for g in 0..self.group_count {\n             let assigned = self.assigned_group_epoch[g];\n-            if assigned != 0 && st.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {\n+            if assigned == /* ~ changed by cargo-mutants ~ */ 0 && st.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {\n                 return true;\n             }\n         }\n         for p in &st.pieces {\n             if !p.done.load(Ordering::Acquire) {\n                 return true;\n             }\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::has_in_flight_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2429
+        },
+        "start": {
+          "column": 5,
+          "line": 2405
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2409:25: replace != with == in Pipeline<T, B, P>::has_in_flight_work",
+    "package": "blake3-servil",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 27,
+        "line": 2409
+      },
+      "start": {
+        "column": 25,
+        "line": 2409
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace < with <= in Pipeline<T, B, P>::has_in_flight_work\n@@ -2401,17 +2401,17 @@\n             self.events.push_back(ev);\n         }\n     }\n \n     fn has_in_flight_work(&self) -> bool {\n         let st = self.storage();\n         for g in 0..self.group_count {\n             let assigned = self.assigned_group_epoch[g];\n-            if assigned != 0 && st.groups[g].completed_epoch.load(Ordering::Acquire) < assigned {\n+            if assigned != 0 && st.groups[g].completed_epoch.load(Ordering::Acquire) <= /* ~ changed by cargo-mutants ~ */ assigned {\n                 return true;\n             }\n         }\n         for p in &st.pieces {\n             if !p.done.load(Ordering::Acquire) {\n                 return true;\n             }\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::has_in_flight_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2429
+        },
+        "start": {
+          "column": 5,
+          "line": 2405
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:2409:86: replace < with <= in Pipeline<T, B, P>::has_in_flight_work",
+    "package": "blake3-servil",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 87,
+        "line": 2409
+      },
+      "start": {
+        "column": 86,
+        "line": 2409
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete match arm SlotKind::WaitMulti{..} | SlotKind::WaitBatch{group:NONE, ..} in Pipeline<T, B, P>::has_in_flight_work\n@@ -2412,21 +2412,17 @@\n         }\n         for p in &st.pieces {\n             if !p.done.load(Ordering::Acquire) {\n                 return true;\n             }\n         }\n         for s in 0..self.slots.len() {\n             match self.slots[s].kind {\n-                SlotKind::WaitMulti { .. } | SlotKind::WaitBatch { group: NONE, .. } => {\n-                    if !st.slot_done[s].load(Ordering::Acquire) {\n-                        return true;\n-                    }\n-                }\n+                 /* ~ changed by cargo-mutants ~ */\n                 _ => {}\n             }\n         }\n         false\n     }\n }\n \n impl<T, B, P> Drop for Pipeline<T, B, P> {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::has_in_flight_work",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2429
+        },
+        "start": {
+          "column": 5,
+          "line": 2405
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/pipeline.rs:2420:17: delete match arm SlotKind::WaitMulti{..} | SlotKind::WaitBatch{group:NONE, ..} in Pipeline<T, B, P>::has_in_flight_work",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 18,
+        "line": 2424
+      },
+      "start": {
+        "column": 17,
+        "line": 2420
+      }
+    }
+  }
+]
