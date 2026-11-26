@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace / with % in PipeSlot::acquire
+@@ -452,17 +452,17 @@
+ 
+ impl PipeSlot {
+     fn acquire(actions: usize) -> &'static PipeSlot {
+         let cap = actions.max(1024).checked_next_power_of_two().unwrap_or(actions);
+         let tier = slot_tier(cap);
+         if let Some(slot) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {
+             return slot;
+         }
+-        let max_slots = cap / MAX_SLOT_PIECES;
++        let max_slots = cap % /* ~ changed by cargo-mutants ~ */ MAX_SLOT_PIECES;
+         let max_groups = max_slots.clamp(4, 256);
+         #[cfg(any(test, shuttle))]
+         PIPE_SLOTS_MADE.fetch_add(1, Ordering::Relaxed);
+         let raw = Box::into_raw(Box::new(PipeSlot {
+             source: Source::with_actions(cap),
+             waker: WakerSlot::new(),
+             group_completed: (0..max_groups).map(|_| OwnLine(AtomicU64::new(0))).collect(),
+             loan_completed: (0..max_slots).map(|_| OwnLine(AtomicU64::new(0))).collect(),
