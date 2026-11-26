@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ delete ! in PipeStorage::finish_multi_slot
+@@ -939,17 +939,17 @@
+             // Sound: a separate slot for each index (submit_multi_slice
+             // limits the count); form no borrow of other workers' slots.
+             unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };
+         }
+         (core::ptr::addr_of!(self.tasks_left[slot].0), false)
+     }
+ 
+     fn finish_multi_slot(&self, slot: usize, is_batch: bool) -> (&'static WakerSlot, *const AtomicBool) {
+-        if !is_batch {
++        if  /* ~ changed by cargo-mutants ~ */is_batch {
+             // Sound: this is the slot's last task (`tasks_left` reached zero),
+             // so every piece's value is written and no one else reads or
+             // writes the slot's values or hash until `slot_done` below.
+             let desc = unsafe { *self.multi[slot].get() };
+             let values = unsafe { &mut *self.cvs[slot].get() };
+             let last = values.last.take().expect("the last piece supplied its value");
+             let hash = fold_multi_cvs(self.slot_tree(slot), &values.whole[..desc.pieces - 1], last, desc.total_len as u64);
+             unsafe { *self.hashes[slot].get() = *hash.as_bytes() };
