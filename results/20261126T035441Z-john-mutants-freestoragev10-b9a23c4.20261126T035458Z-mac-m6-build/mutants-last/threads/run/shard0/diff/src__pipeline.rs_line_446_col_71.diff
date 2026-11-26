@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace == with != in PipeSlot::acquire
+@@ -438,17 +438,17 @@
+ #[path = "../tests/model/storages.rs"]
+ pub(crate) mod model_storages;
+ 
+ impl PipeSlot {
+     fn acquire(actions: usize) -> &'static PipeSlot {
+         let cap = actions.max(1024).checked_next_power_of_two().unwrap_or(actions);
+         let chosen = {
+             let mut free = FREE_PIPE_SLOTS.lock().unwrap();
+-            let at = free.iter().rposition(|s| s.source.actions_len() == cap).or_else(|| {
++            let at = free.iter().rposition(|s| s.source.actions_len() != /* ~ changed by cargo-mutants ~ */ cap).or_else(|| {
+                 free.iter().enumerate().filter(|(_, s)| s.source.actions_len() >= actions).min_by_key(|(_, s)| s.source.actions_len()).map(|(at, _)| at)
+             });
+             at.map(|at| free.swap_remove(at))
+         };
+         if let Some(slot) = chosen {
+             return slot;
+         }
+         let max_slots = cap / MAX_SLOT_PIECES;

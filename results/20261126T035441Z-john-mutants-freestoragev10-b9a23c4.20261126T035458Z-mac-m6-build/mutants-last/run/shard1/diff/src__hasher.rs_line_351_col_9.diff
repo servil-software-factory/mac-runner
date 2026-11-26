@@ -1,0 +1,63 @@
+--- src/hasher.rs
++++ replace CvStack::merge with ()
+@@ -343,59 +343,17 @@
+     /// While the stack holds more than `target` entries, its top two become
+     /// their parent (merge_cv_stack): two rows of one width, the row of
+     /// their parents; any other two, the parent of their values. Two are
+     /// there to merge whenever `target` is at least 1, as the Hasher's are.
+     /// A loop of a count fixed at its start (no condition a change could
+     /// keep true forever: a mutation test's endless loop, which only a clock
+     /// stops, becomes a wrong value a test catches).
+     pub fn merge<H: Hooks>(&mut self, k: &Kernels<'_, H>, target: usize) {
+-        for _ in target..self.len {
+-            assert!(self.len >= 2, "two values to merge");
+-            let (a, b) = (self.len - 2, self.len - 1);
+-            if self.is_row(a) && self.is_row(b) {
+-                // Two rows of different widths (one subtree cut by wider
+-                // kernels than its sibling was, or cut whole where the
+-                // sibling grew from narrower rows): the wider is halved
+-                // to the other's width first.
+-                // (Widths are powers of two: the wider is the other's
+-                // width times two to the count of halvings.)
+-                for (wide, narrow) in [(a, b), (b, a)] {
+-                    // (The narrower over the wider is 0: no halving.)
+-                    let times = self.row(wide).len() / self.row(narrow).len();
+-                    for _ in 0..times.max(1).trailing_zeros() {
+-                        self.halve(k, wide);
+-                    }
+-                }
+-                // The two rows' values in one place, then their parents
+-                // into the lower row's place. The place for the children
+-                // is written before it is read, and never zeroed first:
+-                // zeroing 2 KiB a merge cost more than the merge saved.
+-                let (left, right) = (self.row(a), self.row(b));
+-                let n = left.len();
+-                assert_eq!(n, right.len(), "two rows merge at one width");
+-                let mut children = core::mem::MaybeUninit::<[Cv; 2 * ROW]>::uninit();
+-                let at = children.as_mut_ptr() as *mut Cv;
+-                // Sound: 2n values written into room for 2 ROW, then read.
+-                let children = unsafe {
+-                    core::ptr::copy_nonoverlapping(left.as_ptr(), at, n);
+-                    core::ptr::copy_nonoverlapping(right.as_ptr(), at.add(n), n);
+-                    core::slice::from_raw_parts(at, 2 * n)
+-                };
+-                // Sound: row a's place, its first n values written (they are row a).
+-                let place = unsafe { core::slice::from_raw_parts_mut((self.rows.as_mut_ptr() as *mut Cv).add((a % ROWS) * ROW), n) };
+-                let made = k.parents(children, place);
+-                assert_eq!(made, n, "a parent for every two children");
+-            } else {
+-                let parent = k.parent(&self.get(k, a), &self.get(k, b));
+-                self.set(a, parent);
+-                self.wide &= !(1 << a);
+-            }
+-            self.len -= 1;
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// The number of 1-bits of `x` (its popcount, which the loop this replaced
+ /// compiled to anyway; with no loop, no change to it can run forever).
+ pub fn ones(x: u64) -> usize {
+     x.count_ones() as usize
+ }

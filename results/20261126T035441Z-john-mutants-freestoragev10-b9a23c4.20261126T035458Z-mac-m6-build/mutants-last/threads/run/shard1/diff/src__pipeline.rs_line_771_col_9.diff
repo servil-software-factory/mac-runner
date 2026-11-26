@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace PipeStorage::slot_tree -> &TreeHasher with Box::leak(Box::new(Default::default()))
+@@ -763,17 +763,17 @@
+ 
+ impl PipeStorage {
+     /// Slot `slot`'s prepared mode, for hashing its bytes or folding its values.
+     #[inline(always)]
+     fn slot_tree(&self, slot: usize) -> &TreeHasher {
+         // Sound: the owner writes `slot_custom[slot]` (and `slot_trees[slot]`
+         // when true) when `slot` opens, before dispatching any task for `slot`,
+         // and does not write them again until `slot` returns to `free_slots`.
+-        if unsafe { *self.slot_custom[slot].get() } { unsafe { &*self.slot_trees[slot].get() } } else { &self.tree }
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     unsafe fn run_action(ctx: *const (), arg: u64, platform: Platform) {
+         // Sound: `ctx` is the `*const PipeStorage` its Pipeline dispatched
+         // with, valid until this task publishes completion below. Every
+         // `&PipeStorage` borrow passed to `run_group`, `run_room_piece`,
+         // `run_multi_piece`, and `finish_multi_slot` ends strictly BEFORE the
+         // worker executes its completion atomic (`swap` or `tasks_left.fetch_sub`)
