@@ -1,0 +1,46 @@
+--- src/pipeline.rs
++++ replace <impl Drop for Room>::drop with ()
+@@ -682,42 +682,17 @@
+         self.storage().rooms.release_n(self.index, spent as usize);
+         self.commits += spent;
+     }
+ }
+ 
+ impl Drop for Room {
+     #[inline]
+     fn drop(&mut self) {
+-        let unused = ROOM_CREDITS - (self.commits as usize);
+-        // End the `&PipeStorage` borrow strictly BEFORE `fetch_sub`: on the
+-        // non-closing path (`prev & ROOM_CLOSING_BIT == 0`), once `fetch_sub`
+-        // drops `refs[i]` to 0, a concurrent `Pipeline::drop` may immediately
+-        // free `*self.storage`, so that path touches only `&'static WakerSlot`
+-        // afterwards. On the closing path, `Pipeline::drop` reserved a
+-        // `holders` ref keeping `*self.storage` live until `PipeStorage::release`.
+-        let (waker, ref_ptr) = {
+-            let st = self.storage();
+-            (&st.slot.get().waker, core::ptr::addr_of!(st.rooms.refs[self.index as usize]))
+-        };
+-        // Sound: `ref_ptr` points to `rooms.refs[self.index]` inside `*self.storage`,
+-        // which stays live until this `SeqCst` subtraction completes.
+-        let prev = unsafe { (*ref_ptr).fetch_sub(unused, Ordering::SeqCst) };
+-        if prev & ROOM_CLOSING_BIT != 0 {
+-            // `Pipeline::drop` stamped `ROOM_CLOSING_BIT` after all worker
+-            // tasks finished and reserved a `holders` ref for this Room; drop
+-            // that hold so the last survivor frees `PipeStorage` cleanly.
+-            assert_eq!(prev & !ROOM_CLOSING_BIT, unused, "surviving room ref count");
+-            PipeStorage::release(self.storage.as_ptr());
+-        } else if prev == unused {
+-            // Even if `Pipeline::drop` raced right after `fetch_sub` and freed
+-            // `PipeStorage`, `waker` lives in `&'static PipeSlot` and waking it
+-            // is benign.
+-            waker.notify_after_seqcst();
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ struct PieceNode {
+     slot: UnsafeCell<u32>,
+     room: UnsafeCell<u32>,
+     offset: UnsafeCell<u32>,
+     len: UnsafeCell<u32>,

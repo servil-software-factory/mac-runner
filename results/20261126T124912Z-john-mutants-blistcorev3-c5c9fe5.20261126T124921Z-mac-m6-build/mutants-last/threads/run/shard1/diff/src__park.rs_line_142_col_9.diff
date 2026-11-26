@@ -1,0 +1,30 @@
+--- src/park.rs
++++ replace Park::wake_if_place_asleep -> bool with true
+@@ -134,26 +134,17 @@
+ 
+     /// Best-effort speculative wake: if the workers have places (Linux
+     /// multi-L3 topologies, where `assign` installs at least two places) and
+     /// every worker in the caller's own place is currently parked, wake one
+     /// worker of that place. Concurrent local publishers can each observe all
+     /// local bits set and wake an extra local worker; progress never depends on
+     /// this check because the existing progress wake remains unconditional.
+     pub(crate) fn wake_if_place_asleep(&self) -> bool {
+-        let Some((places, _, here)) = self.near.get() else {
+-            return false;
+-        };
+-        let Some(mine) = places.get(here()) else {
+-            return false;
+-        };
+-        if self.parked.iter().zip(mine.iter()).any(|(word, &mask)| mask != 0 && (word.load(Ordering::SeqCst) & mask) != mask) {
+-            return false;
+-        }
+-        self.wake_one_of(Some(mine))
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Wake one parked worker of the waker's own place, if any (any
+     /// worker, where the workers have no places): whether one was.
+     pub(crate) fn wake_one_near(&self) -> bool {
+         match self.near.get() {
+             Some((places, _, here)) => places.get(here()).is_some_and(|mine| self.wake_one_of(Some(mine))),
+             None => self.wake_one_of(None),
