@@ -1,0 +1,386 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace finalize_each with ()\n@@ -113,109 +113,17 @@\n /// `hash_by_blocks` and counter-zero final blocks via NEON `output8`.\n ///\n /// # Key-dependent timing\n ///\n /// Selected hashers may use different secret keys. Key values and key equality\n /// select neither the finalization path nor its amount of work.\n /// See the [key-independence contract](crate#key-dependent-timing).\n pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n-    assert_eq!(which.len(), out.len(), \"one digest per message named\");\n-    let mut marked = Marked { hashers, which, count: 0, active: true };\n-    for &i in which {\n-        assert!(i < marked.hashers.len(), \"finalize_each names hasher {i} of {}\", marked.hashers.len());\n-        assert!(!marked.hashers[i].mark_finishing(), \"each finalized index is distinct\");\n-        marked.count += 1;\n-    }\n-    let hashers = &mut *marked.hashers;\n-    if which.is_empty() {\n-        marked.active = false;\n-        return;\n-    }\n-    if which.len() == 1 {\n-        let i = which[0];\n-        out[0] = *hashers[i].take_root_hash().as_bytes();\n-        hashers[i].reset();\n-        marked.active = false;\n-        return;\n-    }\n-    #[cfg(blake3_sse41_ffi)]\n-    {\n-        crate::ffi_partial::finalize_each(hashers, which, out);\n-        marked.active = false;\n-        return;\n-    }\n-    // AArch64: partition each 128-hasher slice in a single pass into plain\n-    // staged first chunks (`hash_by_blocks` when >= 2), remaining counter-zero\n-    // single-chunk hashers (keyed/derived/mixed `<= 64 B` staged or ChunkState-\n-    // resident -> NEON `output8` when >= 8, #336), and general hashers. Key\n-    // values never select grouping or dispatch.\n-    #[cfg(blake3_neon)]\n-    {\n-        const FINALIZE_BATCH: usize = 128;\n-        const { assert!(FINALIZE_BATCH <= u8::MAX as usize) };\n-        let platform = Platform::detect();\n-        for (w_chunk, o_chunk) in which.chunks(FINALIZE_BATCH).zip(out.chunks_mut(FINALIZE_BATCH)) {\n-            let mut plain = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-            let mut keyed = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-            let mut rest = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-            for (k, &i) in w_chunk.iter().enumerate() {\n-                let k = k.to_le_bytes()[0];\n-                if hashers[i].is_plain_single_chunk_staged() {\n-                    plain.push(k);\n-                } else if crate::ffi_output::input(&hashers[i]).is_some() {\n-                    keyed.push(k);\n-                } else {\n-                    rest.push(k);\n-                }\n-            }\n-            if plain.len() >= 2 {\n-                for part in plain.as_slice().chunks(BY_BLOCKS_AT_ONCE) {\n-                    let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> =\n-                        part.iter().map(|&k| hashers[w_chunk[usize::from(k)]].staged_bytes()).collect();\n-                    let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];\n-                    hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n-                    for (&k, digest) in part.iter().zip(&digests) {\n-                        o_chunk[usize::from(k)] = *digest;\n-                    }\n-                }\n-            } else {\n-                for &k in plain.as_slice() {\n-                    let k = usize::from(k);\n-                    o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-                }\n-            }\n-            let done = if keyed.len() >= 8 {\n-                let mut inputs = crate::stack_vec::StackVec::<crate::ffi_output::Input<'_>, FINALIZE_BATCH>::new();\n-                for &k in keyed.as_slice() {\n-                    inputs.push(crate::ffi_output::input(&hashers[w_chunk[usize::from(k)]]).unwrap());\n-                }\n-                let mut digests = [[0u8; OUT_LEN]; FINALIZE_BATCH];\n-                let done = crate::ffi_output::hash_groups_arm(inputs.as_slice(), &mut digests[..keyed.len()]);\n-                for (&k, digest) in keyed.as_slice()[..done].iter().zip(&digests[..done]) {\n-                    o_chunk[usize::from(k)] = *digest;\n-                }\n-                done\n-            } else {\n-                0\n-            };\n-            for &k in &keyed.as_slice()[done..] {\n-                let k = usize::from(k);\n-                o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-            }\n-            for &k in rest.as_slice() {\n-                let k = usize::from(k);\n-                o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-            }\n-            for &i in w_chunk {\n-                hashers[i].reset();\n-            }\n-        }\n-        marked.active = false;\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// A turn of pieces for many hashers, in caller order: each piece\n /// gathered into its hasher's stage; a stage that fills a whole group is\n /// held, and its hasher's later bytes (the rest of that piece, and its\n /// later pieces) wait, in order, until the held groups hash together, up\n /// to TABLE of them in one pass (one SME2 call for all; elsewhere a call\n /// per group, then each parent level in one call). A full table, a full\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 214
+        },
+        "start": {
+          "column": 1,
+          "line": 96
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:121:5: replace finalize_each with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 213
+      },
+      "start": {
+        "column": 5,
+        "line": 121
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace hash_counter_range_on with ()\n@@ -160,40 +160,17 @@\n     let _ = (tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n     done\n }\n \n /// Hash `out.len()` single-block messages derived from `template` on\n /// `platform`, replacing the 4-byte little-endian word at `counter_word * 4`\n /// with `start.wrapping_add(i)` (modulo 2^32) for `i in 0..out.len()`.\n pub(crate) fn hash_counter_range_on(template: &[u8], counter_word: usize, start: u32, key: &CVWords, flags: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n-    validate_counter_range(template, counter_word);\n-    if out.is_empty() {\n-        return;\n-    }\n-\n-    let mut block = [0u8; BLOCK_LEN];\n-    block[..template.len()].copy_from_slice(template);\n-    let tmpl_words = words_from_block(&block);\n-\n-    const ROOT_BLOCK_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n-    let root_flags = flags + ROOT_BLOCK_FLAGS;\n-    let blen_u8 = u8::try_from(template.len()).expect(\"validated <= BLOCK_LEN\");\n-    let done = hash_counter_groups(&tmpl_words, blen_u8, counter_word, start, key, root_flags, out, platform);\n-\n-    // Serial tail (< 16 / < 11 / < 8, or SSE4.1 / portable builds).\n-    let cw_off = counter_word * 4;\n-    let mut cur = wrapping_add_usize(start, done);\n-    for slot in &mut out[done..] {\n-        block[cw_off..cw_off + 4].copy_from_slice(&cur.to_le_bytes());\n-        let mut cv = *key;\n-        platform.compress_in_place(&mut cv, &block, blen_u8, 0, root_flags);\n-        *slot = crate::hasher::le_bytes(&cv);\n-        cur = cur.wrapping_add(1);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n const SELF_TEST_COUNT: usize = 43;\n const SELF_TEST_LEN: usize = 52;\n const SELF_TEST_CW: usize = 12;\n const SELF_TEST_START: u32 = u32::MAX - 5;\n const SELF_TEST_KEY: [u8; 32] = [\n     0x17, 0x2b, 0x3f, 0x53, 0x67, 0x7b, 0x8f, 0xa3, 0xb7, 0xcb, 0xdf, 0xf3, 0x09, 0x1d, 0x31, 0x45, 0x59, 0x6d, 0x81, 0x95, 0xa9, 0xbd, 0xd1, 0xe5, 0xf9, 0x0e,\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_range_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 192
+        },
+        "start": {
+          "column": 1,
+          "line": 164
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_counter.rs:168:5: replace hash_counter_range_on with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 191
+      },
+      "start": {
+        "column": 5,
+        "line": 168
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace self_test -> usize with 0\n@@ -211,31 +211,17 @@\n /// Fold of `43` keyed 52-byte counter-range digests starting at `u32::MAX - 5`\n /// (`counter_word = 12`) from official BLAKE3 1.8.7.\n /// `43 = 2*16 + 11 = 2*16 + 8 + 3 = 5*8 + 3 = 3*11 + 10`, exercising multi-group\n /// counter wrapping and remainder dispatch on every ISA kernel in one call.\n const SELF_TEST_EXPECTED: u64 = 0xb837_cd90_1a80_d68b;\n \n #[inline(never)]\n pub(crate) fn self_test(platform: Platform) -> usize {\n-    let key = crate::platform::words_from_le_bytes_32(&SELF_TEST_KEY);\n-    let tmpl = self_test_template();\n-    let mut out = [[0u8; OUT_LEN]; SELF_TEST_COUNT];\n-    hash_counter_range_on(&tmpl, SELF_TEST_CW, SELF_TEST_START, &key, crate::KEYED_HASH, &mut out, platform);\n-    let got = crate::self_test::fold(out.as_flattened());\n-    if got != SELF_TEST_EXPECTED {\n-        crate::self_test::fail(format_args!(\n-            \"blake3-servil startup self-test failed: hash_counter_range (platform {}): \\\n-             expected {:#018x}, got {:#018x}\",\n-            platform.name(),\n-            SELF_TEST_EXPECTED,\n-            got,\n-        ));\n-    }\n-    1\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Exported entry points of the counter-range kernels compiled for this target,\n /// for `self_test::test_self_test_runs_every_kernel`.\n #[cfg(all(test, blake3_neon))]\n pub(crate) fn entries_neon() -> [(&'static str, *const ()); 1] {\n     [(\"neon_p11_counter\", ffi_neon::blake3_servil_neon_p11_counter as *const ())]\n }\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "self_test",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 234
+        },
+        "start": {
+          "column": 1,
+          "line": 217
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_counter.rs:219:5: replace self_test -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 233
+      },
+      "start": {
+        "column": 5,
+        "line": 219
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace self_test -> usize with 1\n@@ -211,31 +211,17 @@\n /// Fold of `43` keyed 52-byte counter-range digests starting at `u32::MAX - 5`\n /// (`counter_word = 12`) from official BLAKE3 1.8.7.\n /// `43 = 2*16 + 11 = 2*16 + 8 + 3 = 5*8 + 3 = 3*11 + 10`, exercising multi-group\n /// counter wrapping and remainder dispatch on every ISA kernel in one call.\n const SELF_TEST_EXPECTED: u64 = 0xb837_cd90_1a80_d68b;\n \n #[inline(never)]\n pub(crate) fn self_test(platform: Platform) -> usize {\n-    let key = crate::platform::words_from_le_bytes_32(&SELF_TEST_KEY);\n-    let tmpl = self_test_template();\n-    let mut out = [[0u8; OUT_LEN]; SELF_TEST_COUNT];\n-    hash_counter_range_on(&tmpl, SELF_TEST_CW, SELF_TEST_START, &key, crate::KEYED_HASH, &mut out, platform);\n-    let got = crate::self_test::fold(out.as_flattened());\n-    if got != SELF_TEST_EXPECTED {\n-        crate::self_test::fail(format_args!(\n-            \"blake3-servil startup self-test failed: hash_counter_range (platform {}): \\\n-             expected {:#018x}, got {:#018x}\",\n-            platform.name(),\n-            SELF_TEST_EXPECTED,\n-            got,\n-        ));\n-    }\n-    1\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Exported entry points of the counter-range kernels compiled for this target,\n /// for `self_test::test_self_test_runs_every_kernel`.\n #[cfg(all(test, blake3_neon))]\n pub(crate) fn entries_neon() -> [(&'static str, *const ()); 1] {\n     [(\"neon_p11_counter\", ffi_neon::blake3_servil_neon_p11_counter as *const ())]\n }\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "self_test",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 234
+        },
+        "start": {
+          "column": 1,
+          "line": 217
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_counter.rs:219:5: replace self_test -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 233
+      },
+      "start": {
+        "column": 5,
+        "line": 219
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace self_test -> usize with 0\n@@ -213,48 +213,17 @@\n     let flags = [crate::KEYED_HASH, crate::DERIVE_KEY_MATERIAL];\n     let mut out = [[0u8; OUT_LEN]; 32];\n     hash(&chunks, &counters, &keys, &flags, &mut out);\n     crate::self_test::fold(out.as_flattened())\n }\n \n #[inline(never)]\n pub(crate) fn self_test(platform: Platform) -> usize {\n-    let neon_answer = self_test_shape(|inputs, out| {\n-        crate::ran_kernel(blake3_servil_neon_output8 as *const ());\n-        // Sound: `blake3_neon` guarantees AArch64 NEON; `inputs` and `out` hold 16 entries (2 groups of 8).\n-        unsafe { blake3_servil_neon_output8(inputs.as_ptr(), out.as_mut_ptr().cast(), 2) };\n-        #[cfg(test)]\n-        if PLANTED_WRONG_OUTPUT.load(core::sync::atomic::Ordering::Relaxed) == 1 {\n-            out[15][OUT_LEN - 1] = !out[15][OUT_LEN - 1];\n-        }\n-    });\n-    check_self_test(neon_answer);\n-\n-    #[cfg(blake3_sme2)]\n-    if matches!(platform, Platform::SME2) {\n-        let chunks_answer = chunks_keyed_self_test_shape(|chunks, counters, keys, flags, out| {\n-            let ptrs: [*const u8; 32] = core::array::from_fn(|i| chunks[i].as_ptr());\n-            // Sound: `Platform::SME2` verified SME2; 32 readable chunks, 2 groups, exact output room.\n-            let svl = unsafe { blake3_servil_sme2_chunks_keyed(ptrs.as_ptr(), counters.as_ptr(), keys.as_ptr(), flags.as_ptr(), out.as_mut_ptr().cast(), 2) };\n-            assert_eq!(svl, 16, \"SME2 chunks_keyed self-test declined\");\n-            crate::ran_kernel(blake3_servil_sme2_chunks_keyed as *const ());\n-            #[cfg(test)]\n-            if PLANTED_WRONG_OUTPUT.load(core::sync::atomic::Ordering::Relaxed) == 2 {\n-                out[31][OUT_LEN - 1] = !out[31][OUT_LEN - 1];\n-            }\n-        });\n-        if chunks_answer != CHUNKS_KEYED_SELF_TEST_EXPECTED {\n-            crate::self_test::fail(format_args!(\"blake3-servil startup self-test failed: SME2 keyed chunks\"));\n-        }\n-        return 2;\n-    }\n-    #[cfg(not(blake3_sme2))]\n-    let _ = platform;\n-    1\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(test)]\n pub(crate) fn entry() -> *const () {\n     blake3_servil_neon_output8 as *const ()\n }\n #[cfg(test)]\n pub(crate) fn entry8() -> *const () {\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "self_test",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 253
+        },
+        "start": {
+          "column": 1,
+          "line": 219
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_output_aarch64.rs:221:5: replace self_test -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 252
+      },
+      "start": {
+        "column": 5,
+        "line": 221
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace self_test -> usize with 1\n@@ -213,48 +213,17 @@\n     let flags = [crate::KEYED_HASH, crate::DERIVE_KEY_MATERIAL];\n     let mut out = [[0u8; OUT_LEN]; 32];\n     hash(&chunks, &counters, &keys, &flags, &mut out);\n     crate::self_test::fold(out.as_flattened())\n }\n \n #[inline(never)]\n pub(crate) fn self_test(platform: Platform) -> usize {\n-    let neon_answer = self_test_shape(|inputs, out| {\n-        crate::ran_kernel(blake3_servil_neon_output8 as *const ());\n-        // Sound: `blake3_neon` guarantees AArch64 NEON; `inputs` and `out` hold 16 entries (2 groups of 8).\n-        unsafe { blake3_servil_neon_output8(inputs.as_ptr(), out.as_mut_ptr().cast(), 2) };\n-        #[cfg(test)]\n-        if PLANTED_WRONG_OUTPUT.load(core::sync::atomic::Ordering::Relaxed) == 1 {\n-            out[15][OUT_LEN - 1] = !out[15][OUT_LEN - 1];\n-        }\n-    });\n-    check_self_test(neon_answer);\n-\n-    #[cfg(blake3_sme2)]\n-    if matches!(platform, Platform::SME2) {\n-        let chunks_answer = chunks_keyed_self_test_shape(|chunks, counters, keys, flags, out| {\n-            let ptrs: [*const u8; 32] = core::array::from_fn(|i| chunks[i].as_ptr());\n-            // Sound: `Platform::SME2` verified SME2; 32 readable chunks, 2 groups, exact output room.\n-            let svl = unsafe { blake3_servil_sme2_chunks_keyed(ptrs.as_ptr(), counters.as_ptr(), keys.as_ptr(), flags.as_ptr(), out.as_mut_ptr().cast(), 2) };\n-            assert_eq!(svl, 16, \"SME2 chunks_keyed self-test declined\");\n-            crate::ran_kernel(blake3_servil_sme2_chunks_keyed as *const ());\n-            #[cfg(test)]\n-            if PLANTED_WRONG_OUTPUT.load(core::sync::atomic::Ordering::Relaxed) == 2 {\n-                out[31][OUT_LEN - 1] = !out[31][OUT_LEN - 1];\n-            }\n-        });\n-        if chunks_answer != CHUNKS_KEYED_SELF_TEST_EXPECTED {\n-            crate::self_test::fail(format_args!(\"blake3-servil startup self-test failed: SME2 keyed chunks\"));\n-        }\n-        return 2;\n-    }\n-    #[cfg(not(blake3_sme2))]\n-    let _ = platform;\n-    1\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(test)]\n pub(crate) fn entry() -> *const () {\n     blake3_servil_neon_output8 as *const ()\n }\n #[cfg(test)]\n pub(crate) fn entry8() -> *const () {\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "self_test",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 253
+        },
+        "start": {
+          "column": 1,
+          "line": 219
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_output_aarch64.rs:221:5: replace self_test -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 252
+      },
+      "start": {
+        "column": 5,
+        "line": 221
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_many_on with ()\n@@ -72,87 +72,17 @@\n /// plain hashing), on `platform`: messages of up to a chunk go to\n /// the kernels TABLE at a time, 2 to 15 chunks side by side on SME2, others\n /// through the one-message path. Requires `input.len() == slot *\n /// outputs.len()` and every slot's bytes past `len` zero (a Batch's, or\n /// the crate's own).\n pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n     // One-block messages first, on the path they took before slots (a\n     // shared entry cost 64 B x 3 7% in the regression check).\n-    if len == BLOCK_LEN && outputs.len() >= 2 {\n-        crate::ran(crate::Ran::BlockRun);\n-        assert_slots(input, len, slot, outputs.len());\n-        for (messages, digests) in input.chunks(BLOCK_LEN * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-            hash_run(messages, key, flags, digests, platform);\n-        }\n-        return;\n-    }\n-    assert_slots(input, len, slot, outputs.len());\n-    if packed(len, slot) {\n-        return hash_packed(input, len, key, flags, outputs, platform);\n-    }\n-    // Empty messages: the NEON plans take a last block of 1 to 64 bytes\n-    // (hash_many_in's contract), so without this arm a batch of them stops\n-    // there (#251: CI's Cortex-A72, and every NEON machine since the pair\n-    // kernels left).\n-    if len == 0 {\n-        outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());\n-        return;\n-    }\n-    #[cfg(blake3_sme2)]\n-    if chunked(len) && platform_is_sme2(platform) && (outputs.len() >= 16 || outputs.len() >= sme2_chunked_min(len)) {\n-        return hash_chunked(input, len, key, flags, outputs, platform);\n-    }\n-    #[cfg(blake3_neon)]\n-    if (CHUNK_LEN + 1..=2 * CHUNK_LEN).contains(&len) && outputs.len() >= 2 && neon_plans() {\n-        return hash_two_chunks(input, len, key, flags, outputs);\n-    }\n-    if outputs.len() < 2 || len > CHUNK_LEN {\n-        #[cfg(target_arch = \"x86_64\")]\n-        return hash_long_or_single(input, len, key, flags, outputs, platform);\n-        #[cfg(not(target_arch = \"x86_64\"))]\n-        {\n-            for (i, output) in outputs.iter_mut().enumerate() {\n-                *output = *crate::hash_serial_on(&input[i * slot..][..len], key, flags, platform).as_bytes();\n-            }\n-            return;\n-        }\n-    }\n-    crate::ran(crate::Ran::ShortRun);\n-    let plans = neon_plans();\n-    let last_len = len - (slot - BLOCK_LEN);\n-    #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n-        let width = crate::ffi_output::lanes(platform);\n-        if width != 0 {\n-            multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n-            return;\n-        }\n-    }\n-    for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-        match slot / BLOCK_LEN {\n-            1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n-            2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            5 => hash_blocks::<{ 5 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            6 => hash_blocks::<{ 6 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            7 => hash_blocks::<{ 7 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            8 => hash_blocks::<{ 8 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            9 => hash_blocks::<{ 9 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            10 => hash_blocks::<{ 10 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            11 => hash_blocks::<{ 11 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            12 => hash_blocks::<{ 12 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            13 => hash_blocks::<{ 13 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            14 => hash_blocks::<{ 14 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            15 => hash_blocks::<{ 15 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            16 => hash_blocks::<{ 16 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n-            _ => unreachable!(\"messages of up to a chunk\"),\n-        }\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Packed messages (`len` bytes each, at a stride of `len`): full SIMD\n /// groups run directly on the zero-padding-free packed kernels in\n /// `ffi_packed` (#501) across SME2, AVX-512, AVX2, and NEON `8+3`; any\n /// short remainder (or SSE4.1 fallback) expands up to 16 messages at a\n /// time into a 1 KiB zero-padded stack buffer.\n #[inline(never)]\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:80:5: replace hash_many_on with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 150
+      },
+      "start": {
+        "column": 5,
+        "line": 80
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace * with + in hash_many_on\n@@ -75,17 +75,17 @@\n /// outputs.len()` and every slot's bytes past `len` zero (a Batch's, or\n /// the crate's own).\n pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n     // One-block messages first, on the path they took before slots (a\n     // shared entry cost 64 B x 3 7% in the regression check).\n     if len == BLOCK_LEN && outputs.len() >= 2 {\n         crate::ran(crate::Ran::BlockRun);\n         assert_slots(input, len, slot, outputs.len());\n-        for (messages, digests) in input.chunks(BLOCK_LEN * TABLE).zip(outputs.chunks_mut(TABLE)) {\n+        for (messages, digests) in input.chunks(BLOCK_LEN + /* ~ changed by cargo-mutants ~ */ TABLE).zip(outputs.chunks_mut(TABLE)) {\n             hash_run(messages, key, flags, digests, platform);\n         }\n         return;\n     }\n     assert_slots(input, len, slot, outputs.len());\n     if packed(len, slot) {\n         return hash_packed(input, len, key, flags, outputs, platform);\n     }\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:83:59: replace * with + in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 60,
+        "line": 83
+      },
+      "start": {
+        "column": 59,
+        "line": 83
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ delete match arm 1 in hash_many_on\n@@ -124,17 +124,17 @@\n         let width = crate::ffi_output::lanes(platform);\n         if width != 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n         match slot / BLOCK_LEN {\n-            1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n+             /* ~ changed by cargo-mutants ~ */\n             2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             5 => hash_blocks::<{ 5 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             6 => hash_blocks::<{ 6 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             7 => hash_blocks::<{ 7 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             8 => hash_blocks::<{ 8 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             9 => hash_blocks::<{ 9 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/many.rs:132:13: delete match arm 1 in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 91,
+        "line": 132
+      },
+      "start": {
+        "column": 13,
+        "line": 132
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace / with % in hash_many_on\n@@ -123,17 +123,17 @@\n     if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n         let width = crate::ffi_output::lanes(platform);\n         if width != 0 {\n             multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n             return;\n         }\n     }\n     for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-        match slot / BLOCK_LEN {\n+        match slot % /* ~ changed by cargo-mutants ~ */ BLOCK_LEN {\n             1 => hash_run_short(messages, key, flags, digests, platform, plans, last_len),\n             2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             5 => hash_blocks::<{ 5 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             6 => hash_blocks::<{ 6 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             7 => hash_blocks::<{ 7 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n             8 => hash_blocks::<{ 8 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 151
+        },
+        "start": {
+          "column": 1,
+          "line": 70
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:131:20: replace / with % in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 131
+      },
+      "start": {
+        "column": 20,
+        "line": 131
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_packed with ()\n@@ -154,30 +154,17 @@\n /// groups run directly on the zero-padding-free packed kernels in\n /// `ffi_packed` (#501) across SME2, AVX-512, AVX2, and NEON `8+3`; any\n /// short remainder (or SSE4.1 fallback) expands up to 16 messages at a\n /// time into a 1 KiB zero-padded stack buffer.\n #[inline(never)]\n fn hash_packed(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n     // Packed's three lengths, in every build: a block-length message sent\n     // here would hash right and slow (a mutant of `packed` did).\n-    assert!(matches!(len, 16 | 32 | 48), \"packed messages are 16, 32, or 48 bytes, not {len}\");\n-    let done = crate::ffi_packed::hash_packed_groups(input, len, key, flags, outputs, platform);\n-    if done == outputs.len() {\n-        return;\n-    }\n-    let plans = neon_plans();\n-    let mut blocks = [crate::block::Block::ZERO; 16];\n-    for (messages, digests) in input[done * len..].chunks(len * 16).zip(outputs[done..].chunks_mut(16)) {\n-        let bytes = crate::block::Block::bytes_mut(&mut blocks);\n-        for (i, message) in messages.chunks_exact(len).enumerate() {\n-            bytes[i * BLOCK_LEN..][..len].copy_from_slice(message);\n-        }\n-        hash_run_short(&bytes[..digests.len() * BLOCK_LEN], key, flags, digests, platform, plans, len);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Minimum remaining one-block or short-last-block messages to pad a 16-lane\n /// AVX-512 `output16` call instead of `output8` + scalar.\n #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n const X86_PAD16_MIN: usize = 9;\n /// Minimum remaining one-block or short-last-block messages to pad an 8-lane\n /// AVX2 `output8` call instead of running serial `hash_serial_on` (4 wins on\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_packed",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 176
+        },
+        "start": {
+          "column": 1,
+          "line": 153
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:162:5: replace hash_packed with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 175
+      },
+      "start": {
+        "column": 5,
+        "line": 162
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace * with + in hash_packed\n@@ -166,17 +166,17 @@\n     }\n     let plans = neon_plans();\n     let mut blocks = [crate::block::Block::ZERO; 16];\n     for (messages, digests) in input[done * len..].chunks(len * 16).zip(outputs[done..].chunks_mut(16)) {\n         let bytes = crate::block::Block::bytes_mut(&mut blocks);\n         for (i, message) in messages.chunks_exact(len).enumerate() {\n             bytes[i * BLOCK_LEN..][..len].copy_from_slice(message);\n         }\n-        hash_run_short(&bytes[..digests.len() * BLOCK_LEN], key, flags, digests, platform, plans, len);\n+        hash_run_short(&bytes[..digests.len() + /* ~ changed by cargo-mutants ~ */ BLOCK_LEN], key, flags, digests, platform, plans, len);\n     }\n }\n \n /// Minimum remaining one-block or short-last-block messages to pad a 16-lane\n /// AVX-512 `output16` call instead of `output8` + scalar.\n #[cfg(all(blake3_avx512_ffi, target_os = \"linux\"))]\n const X86_PAD16_MIN: usize = 9;\n /// Minimum remaining one-block or short-last-block messages to pad an 8-lane\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_packed",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 176
+        },
+        "start": {
+          "column": 1,
+          "line": 153
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:174:47: replace * with + in hash_packed",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 174
+      },
+      "start": {
+        "column": 47,
+        "line": 174
+      }
+    }
+  }
+]
