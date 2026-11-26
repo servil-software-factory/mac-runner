@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/self_test.rs\n+++ replace stop::<impl core::fmt::Write for StackBuf>::write_str -> core::fmt::Result with Ok(Default::default())\n@@ -529,23 +529,17 @@\n     use core::fmt::Write as _;\n \n     struct StackBuf {\n         bytes: [u8; 320],\n         len: usize,\n     }\n     impl core::fmt::Write for StackBuf {\n         fn write_str(&mut self, s: &str) -> core::fmt::Result {\n-            for &b in s.as_bytes() {\n-                if let Some(slot) = self.bytes.get_mut(self.len) {\n-                    *slot = b;\n-                    self.len += 1;\n-                }\n-            }\n-            Ok(())\n+            Ok(Default::default()) /* ~ changed by cargo-mutants ~ */\n         }\n     }\n     #[repr(C)]\n     struct PollFd {\n         fd: i32,\n         events: i16,\n         revents: i16,\n     }\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "stop::<impl core::fmt::Write for StackBuf>::write_str",
+      "return_type": "-> core::fmt::Result",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 544
+        },
+        "start": {
+          "column": 9,
+          "line": 536
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:537:13: replace stop::<impl core::fmt::Write for StackBuf>::write_str -> core::fmt::Result with Ok(Default::default())",
+    "package": "blake3-servil-core",
+    "replacement": "Ok(Default::default())",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 543
+      },
+      "start": {
+        "column": 13,
+        "line": 537
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace += with -= in stop::<impl core::fmt::Write for StackBuf>::write_str\n@@ -532,17 +532,17 @@\n         bytes: [u8; 320],\n         len: usize,\n     }\n     impl core::fmt::Write for StackBuf {\n         fn write_str(&mut self, s: &str) -> core::fmt::Result {\n             for &b in s.as_bytes() {\n                 if let Some(slot) = self.bytes.get_mut(self.len) {\n                     *slot = b;\n-                    self.len += 1;\n+                    self.len -= /* ~ changed by cargo-mutants ~ */ 1;\n                 }\n             }\n             Ok(())\n         }\n     }\n     #[repr(C)]\n     struct PollFd {\n         fd: i32,\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "stop::<impl core::fmt::Write for StackBuf>::write_str",
+      "return_type": "-> core::fmt::Result",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 544
+        },
+        "start": {
+          "column": 9,
+          "line": 536
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/self_test.rs:540:30: replace += with -= in stop::<impl core::fmt::Write for StackBuf>::write_str",
+    "package": "blake3-servil-core",
+    "replacement": "-=",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 540
+      },
+      "start": {
+        "column": 30,
+        "line": 540
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace == with != in stop\n@@ -567,17 +567,17 @@\n     // fills a blocking stderr pipe after `poll` (under default SIGALRM).\n     let mut buf = StackBuf { bytes: [0; 320], len: 0 };\n     let _ = buf.write_fmt(why);\n     let _ = buf.write_str(\"\\n\");\n     let mut pfd = PollFd { fd: 2, events: POLLOUT, revents: 0 };\n     // Sound: valid PollFd pointer and initialized stack slice of length `buf.len <= 320 <= PIPE_BUF`.\n     unsafe {\n         let _ = poll(&mut pfd, 1, 0);\n-        if pfd.revents == POLLOUT {\n+        if pfd.revents != /* ~ changed by cargo-mutants ~ */ POLLOUT {\n             let _ = alarm(1);\n             let _ = write(2, buf.bytes.as_ptr().cast(), buf.len);\n         }\n     }\n     std::process::abort()\n }\n \n /// The self-test's progress in this process. A failed one stops the\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "stop",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 581
+        },
+        "start": {
+          "column": 1,
+          "line": 527
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/self_test.rs:575:24: replace == with != in stop",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 26,
+        "line": 575
+      },
+      "start": {
+        "column": 24,
+        "line": 575
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace ensure_slow with ()\n@@ -627,22 +627,17 @@\n #[inline(never)]\n fn ensure_slow() {\n     // `std::sync::Once` allocates nothing on macOS or Linux (its waiter\n     // nodes live on contending threads' stacks) and parks waiters in the\n     // OS kernel rather than spinning. `run()` records the exact tested\n     // platform once inside this winning run so later `initialize()` calls\n     // on other threads never promote an untested backend or overwrite the\n     // verified process selection.\n-    INIT.call_once(|| {\n-        let failed = Failed;\n-        run();\n-        core::mem::forget(failed);\n-        STATE.store(PASSED, core::sync::atomic::Ordering::Release);\n-    });\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(test)]\n mod test {\n     use super::*;\n \n     /// True when running under CI's emulated ISA runner (`BLAKE3_EMULATED=1`,\n     /// or Cargo's target runner executable for this target architecture is\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "ensure_slow",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 641
+        },
+        "start": {
+          "column": 1,
+          "line": 626
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:635:5: replace ensure_slow with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 8,
+        "line": 640
+      },
+      "start": {
+        "column": 5,
+        "line": 635
+      }
+    }
+  }
+]

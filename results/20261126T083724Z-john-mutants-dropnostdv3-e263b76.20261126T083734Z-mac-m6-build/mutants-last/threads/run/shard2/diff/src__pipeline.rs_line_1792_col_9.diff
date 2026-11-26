@@ -1,0 +1,87 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::commit_multi with ()
+@@ -1784,83 +1784,17 @@
+             self.slots[s].kind = SlotKind::OpenShort { room: room.index, offset: start_offset, len: u32::try_from(written).expect("written < ROOM_LEN") };
+             return;
+         }
+         self.commit_multi(s, room, written);
+     }
+ 
+     #[inline(never)]
+     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {
+-        let start_offset = room.offset;
+-        let room_idx = room.index;
+-
+-        match self.slots[s].kind {
+-            SlotKind::OpenEmpty => {
+-                debug_assert_eq!(written, ROOM_LEN);
+-                debug_assert_eq!(start_offset, 0);
+-                room.offset = u32::try_from(ROOM_LEN).unwrap();
+-                self.room_streams[s] = RoomStream::EMPTY;
+-                self.slots[s].kind = SlotKind::OpenRooms { sealed: false };
+-            }
+-            SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {
+-                panic!("commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room");
+-            }
+-            SlotKind::OpenRooms { ref mut sealed } => {
+-                if written == ROOM_LEN {
+-                    debug_assert_eq!(start_offset, 0);
+-                    room.offset = u32::try_from(ROOM_LEN).unwrap();
+-                } else {
+-                    *sealed = true;
+-                    room.offset = u32::try_from(((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN)).expect("bounded by ROOM_LEN");
+-                    if written == 0 {
+-                        return;
+-                    }
+-                }
+-            }
+-            _ => unreachable!("Message token refers to a non-open slot"),
+-        }
+-
+-        room.take_credit();
+-        let rs = &mut self.room_streams[s];
+-        // The earlier commits all filled a whole room. A short one
+-        // seals the message, so there can be no commit after it.
+-        let index = rs.len / ROOM_LEN as u64;
+-        rs.len = rs.len.checked_add(written as u64).expect("a message fits in u64 bytes");
+-
+-        self.drain_slot_pieces(s);
+-        let pnode = self.alloc_piece_node(s);
+-        // Sound: as `storage()`. The node came off the free list, so no task
+-        // uses it: its fields are the owner's to write before the dispatch
+-        // below.
+-        let st = unsafe { &*self.storage };
+-        let node = &st.pieces[pnode as usize];
+-        unsafe {
+-            *node.slot.get() = u32::try_from(s).expect("slot fits u32");
+-            *node.room.get() = room_idx;
+-            *node.offset.get() = start_offset;
+-            *node.len.get() = u32::try_from(written).expect("written <= ROOM_LEN");
+-            *node.index.get() = index;
+-            *node.next.get() = NONE;
+-        }
+-        node.done.store(false, Ordering::Relaxed);
+-
+-        let rs = &mut self.room_streams[s];
+-        if rs.tail_piece == NONE {
+-            rs.head_piece = pnode;
+-            rs.piece_slot_pos = u32::try_from(self.piece_slots.len()).expect("piece_slots length fits u32");
+-            self.piece_slots.push(u32::try_from(s).expect("slot fits u32"));
+-        } else {
+-            // Sound: `next` is the owner's alone (workers read a node's other
+-            // fields).
+-            unsafe { *st.pieces[rs.tail_piece as usize].next.get() = pnode };
+-        }
+-        rs.tail_piece = pnode;
+-
+-        let arg = pack_arg(KIND_ROOM_PIECE, pnode, 0, written >= SME2_MIN_LEN);
+-        self.dispatch_one(arg);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {
+         if let Some(p) = self.free_pieces.pop_front() {
+             return p;
+         }
+         loop {
+             self.drain_slot_pieces(current_slot);

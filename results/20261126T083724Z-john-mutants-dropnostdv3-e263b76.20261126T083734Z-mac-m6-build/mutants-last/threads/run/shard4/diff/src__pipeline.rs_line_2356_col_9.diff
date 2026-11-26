@@ -1,0 +1,82 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::try_reap_one -> Option<Event<T, B, P>> with None
+@@ -2348,78 +2348,17 @@
+             };
+             push_piece(tree, cvs, &mut rs.stack_len, rs.merged_pieces, cv);
+             rs.merged_pieces += 1;
+         }
+     }
+ 
+     #[inline(always)]
+     fn try_reap_one(&mut self) -> Option<Event<T, B, P>> {
+-        let &front = self.end_queue.front()?;
+-        let s = front as usize;
+-
+-        let ready = match self.slots[s].kind {
+-            SlotKind::WaitSingle { group, epoch, .. } => self.group_ready(group, epoch),
+-            SlotKind::WaitMulti { .. } => self.storage().slot_done[s].load(Ordering::Acquire),
+-            SlotKind::WaitBatch { group, epoch } => {
+-                if group != NONE {
+-                    self.group_ready(group, epoch)
+-                } else {
+-                    self.storage().slot_done[s].load(Ordering::Acquire)
+-                }
+-            }
+-            SlotKind::WaitRoomMulti => {
+-                self.drain_slot_pieces(s);
+-                self.storage().slot_done[s].load(Ordering::Acquire)
+-            }
+-            SlotKind::WaitAborted { group, epoch } => {
+-                self.drain_slot_pieces(s);
+-                let rooms_done = self.room_streams[s].head_piece == NONE;
+-                rooms_done && self.group_ready(group, epoch)
+-            }
+-            SlotKind::Free | SlotKind::OpenEmpty | SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { .. } => {
+-                unreachable!()
+-            }
+-        };
+-        if !ready {
+-            return None;
+-        }
+-
+-        self.end_queue.pop_front();
+-        let tag = self.slots[s].tag.take().expect("ended slot holds its tag");
+-        let kind = core::mem::replace(&mut self.slots[s].kind, SlotKind::Free);
+-        let event = match kind {
+-            SlotKind::WaitAborted { .. } => Event::Aborted { tag, owner: None },
+-            SlotKind::WaitSingle { has_owner, .. } | SlotKind::WaitMulti { has_owner } => {
+-                // Sound: the slot's work is done (`ready`), so its hash has no
+-                // writer; `has_owner` says the slot holds an owner, read out
+-                // here once (the slot is then Free).
+-                let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });
+-                let owner = if has_owner { Some(unsafe { (*self.owners.slot(s)).assume_init_read() }) } else { None };
+-                Event::Hashed { tag, hash, owner }
+-            }
+-            SlotKind::WaitRoomMulti => {
+-                // Sound: as above.
+-                let hash = Hash::from_bytes(unsafe { *self.storage().hashes[s].get() });
+-                Event::Hashed { tag, hash, owner: None }
+-            }
+-            SlotKind::WaitBatch { .. } => {
+-                if let Some(plan) = self.batch_plans[s].take() {
+-                    self.batches_in_flight -= 1;
+-                    plan.done();
+-                }
+-                // Sound: a WaitBatch slot holds its batch and digests (batch
+-                // wrote them), read out here once.
+-                let (batch, digests) = unsafe { (*self.batches.slot(s)).assume_init_read() };
+-                Event::Batch { tag, batch, digests }
+-            }
+-            _ => unreachable!(),
+-        };
+-        self.free_slots.push_back(u32::try_from(s).expect("slot fits u32"));
+-        return Some(event);
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn reap(&mut self) {
+         while self.events.len() < self.limits.messages {
+             let Some(ev) = self.try_reap_one() else { break };
+             self.events.push_back(ev);
+         }
+     }

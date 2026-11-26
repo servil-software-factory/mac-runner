@@ -1,0 +1,75 @@
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::drain_pieces with ()
+@@ -2289,71 +2289,17 @@
+         self.drain_pieces(s, false);
+     }
+ 
+     /// Fold slot `s`'s finished pieces, in order, up to the first still
+     /// being hashed. `keep_last` leaves the newest piece: an open
+     /// message may end with it, and the last piece folds as the root.
+     fn drain_pieces(&mut self, s: usize, keep_last: bool) {
+         // Sound: as `storage()`.
+-        let st = unsafe { &*self.storage };
+-        let tree = st.slot_tree(s);
+-        let ended = matches!(self.slots[s].kind, SlotKind::WaitRoomMulti);
+-        let aborted = matches!(self.slots[s].kind, SlotKind::WaitAborted { .. });
+-
+-        loop {
+-            let head = self.room_streams[s].head_piece;
+-            if head == NONE || (keep_last && head == self.room_streams[s].tail_piece) || !st.pieces[head as usize].done.load(Ordering::Acquire) {
+-                return;
+-            }
+-            // Sound: the piece is done (checked above), so its `next` and
+-            // `out` are the owner's again.
+-            let next = unsafe { *st.pieces[head as usize].next.get() };
+-            let out = unsafe { *st.pieces[head as usize].out.0.get() };
+-            self.free_pieces.push_back(head);
+-
+-            let rs = &mut self.room_streams[s];
+-            rs.head_piece = next;
+-            if next == NONE {
+-                rs.tail_piece = NONE;
+-                let pos = rs.piece_slot_pos;
+-                rs.piece_slot_pos = NONE;
+-                let idx = pos as usize;
+-                self.piece_slots.swap_remove(idx);
+-                if let Some(&moved) = self.piece_slots.get(idx) {
+-                    self.room_streams[moved as usize].piece_slot_pos = pos;
+-                }
+-            }
+-            let rs = &mut self.room_streams[s];
+-            if aborted {
+-                continue;
+-            }
+-
+-            // Sound: the caller alone writes a room message's stack
+-            // (workers write a slice message's slots, never both for one slot).
+-            let cvs = unsafe { &mut (*st.cvs[s].get()).whole };
+-            if ended && rs.merged_pieces + 1 == rs.len.div_ceil(ROOM_LEN as u64) {
+-                let root = match out {
+-                    RoomValue::First([left, right]) => tree.root_hash(&left, &right.into(), rs.len),
+-                    RoomValue::Whole(cv) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, cv.into(), rs.len),
+-                    RoomValue::Last(last) => finish_pieces(tree, cvs, rs.stack_len, rs.merged_pieces, last, rs.len),
+-                };
+-                // Sound: the room message is done, with no other writer.
+-                unsafe { *st.hashes[s].get() = *root.as_bytes() };
+-                st.slot_done[s].store(true, Ordering::Relaxed);
+-                return;
+-            }
+-            let cv = match out {
+-                RoomValue::First([left, right]) => tree.parent_cv(&left, &right),
+-                RoomValue::Whole(cv) => cv,
+-                RoomValue::Last(_) => panic!("a short room is the last piece"),
+-            };
+-            push_piece(tree, cvs, &mut rs.stack_len, rs.merged_pieces, cv);
+-            rs.merged_pieces += 1;
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn try_reap_one(&mut self) -> Option<Event<T, B, P>> {
+         let &front = self.end_queue.front()?;
+         let s = front as usize;
+ 
+         let ready = match self.slots[s].kind {
