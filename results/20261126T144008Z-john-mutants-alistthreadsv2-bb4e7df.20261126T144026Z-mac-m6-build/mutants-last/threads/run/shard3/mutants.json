@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace + with - in Pipeline<T, B, P>::create\n@@ -1488,17 +1488,17 @@\n         assert!(limits.messages > 0, \"Pipeline Limits.messages must be at least 1\");\n         let tree = TreeHasher::new(mode);\n         let m = limits.messages;\n         // Each limit alone first: their sum, next, could wrap round to a\n         // small one (`rooms: usize::MAX` passed the check below so). Keep the\n         // documented `messages + rooms < (1 << 29) - 1` admission bound even\n         // when `rooms == 0` allocates zero PieceNodes (`p_cap = 0`).\n         assert!(m < 1 << 29 && limits.rooms < 1 << 29 && m + limits.rooms < (1 << 29) - 1, \"Pipeline Limits beyond what an action can name\");\n-        let p_cap = if limits.rooms == 0 { 0 } else { limits.rooms + m + 1 };\n+        let p_cap = if limits.rooms == 0 { 0 } else { limits.rooms - /* ~ changed by cargo-mutants ~ */ m + 1 };\n         let g_cap = m.clamp(4, 256);\n         let actions_cap = m * MAX_SLOT_PIECES + p_cap + g_cap;\n         // An action names a slot, a piece or a group in 29 bits (pack_arg).\n         assert!(m < 1 << 29 && p_cap < 1 << 29, \"Pipeline Limits beyond what an action can name\");\n         // Reserve a non-wrapping identity before acquiring storage or a source\n         // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot\n         // wrap back to previously issued IDs.\n         let id = loop {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1587
+        },
+        "start": {
+          "column": 5,
+          "line": 1485
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1496:68: replace + with - in Pipeline<T, B, P>::create",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 69,
+        "line": 1496
+      },
+      "start": {
+        "column": 68,
+        "line": 1496
+      }
+    }
+  },
+  {
+    "diff": "--- src/waker.rs\n+++ replace WakerSlot::install_waker -> Option<Waker> with None\n@@ -49,32 +49,17 @@\n         // The completion re-check may load with Acquire (RCpc\n         // on Arm). It must not move before publishing the waiter.\n         fence(Ordering::SeqCst);\n         drop(old);\n     }\n \n     #[inline(always)]\n     fn install_waker(&self, cx: &Context<'_>) -> Option<Waker> {\n-        {\n-            let slot = self.waker.lock().expect(\"WakerSlot mutex poisoned\");\n-            // `Waker::will_wake` compares raw data/vtable pointers and runs no\n-            // user code while the mutex is held.\n-            if slot.as_ref().is_some_and(|w| w.will_wake(cx.waker())) {\n-                self.registered.0.store(true, Ordering::SeqCst);\n-                return None;\n-            }\n-        }\n-        // Clone outside the mutex so a panicking user `Waker::clone` cannot\n-        // poison the slot.\n-        let next = cx.waker().clone();\n-        let mut slot = self.waker.lock().expect(\"WakerSlot mutex poisoned\");\n-        let old = slot.replace(next);\n-        self.registered.0.store(true, Ordering::SeqCst);\n-        old\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     pub(crate) fn clear(&self) {\n         if !self.registered.0.load(Ordering::SeqCst) {\n             return;\n         }\n         let old = {\n             let mut slot = self.waker.lock().expect(\"WakerSlot mutex poisoned\");\n",
+    "file": "src/waker.rs",
+    "function": {
+      "function_name": "WakerSlot::install_waker",
+      "return_type": "-> Option<Waker>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 73
+        },
+        "start": {
+          "column": 5,
+          "line": 55
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/waker.rs:57:9: replace WakerSlot::install_waker -> Option<Waker> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 72
+      },
+      "start": {
+        "column": 9,
+        "line": 57
+      }
+    }
+  },
+  {
+    "diff": "--- src/waker.rs\n+++ replace WakerSlot::install_waker -> Option<Waker> with Some(Default::default())\n@@ -49,32 +49,17 @@\n         // The completion re-check may load with Acquire (RCpc\n         // on Arm). It must not move before publishing the waiter.\n         fence(Ordering::SeqCst);\n         drop(old);\n     }\n \n     #[inline(always)]\n     fn install_waker(&self, cx: &Context<'_>) -> Option<Waker> {\n-        {\n-            let slot = self.waker.lock().expect(\"WakerSlot mutex poisoned\");\n-            // `Waker::will_wake` compares raw data/vtable pointers and runs no\n-            // user code while the mutex is held.\n-            if slot.as_ref().is_some_and(|w| w.will_wake(cx.waker())) {\n-                self.registered.0.store(true, Ordering::SeqCst);\n-                return None;\n-            }\n-        }\n-        // Clone outside the mutex so a panicking user `Waker::clone` cannot\n-        // poison the slot.\n-        let next = cx.waker().clone();\n-        let mut slot = self.waker.lock().expect(\"WakerSlot mutex poisoned\");\n-        let old = slot.replace(next);\n-        self.registered.0.store(true, Ordering::SeqCst);\n-        old\n+        Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n \n     pub(crate) fn clear(&self) {\n         if !self.registered.0.load(Ordering::SeqCst) {\n             return;\n         }\n         let old = {\n             let mut slot = self.waker.lock().expect(\"WakerSlot mutex poisoned\");\n",
+    "file": "src/waker.rs",
+    "function": {
+      "function_name": "WakerSlot::install_waker",
+      "return_type": "-> Option<Waker>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 73
+        },
+        "start": {
+          "column": 5,
+          "line": 55
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/waker.rs:57:9: replace WakerSlot::install_waker -> Option<Waker> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 72
+      },
+      "start": {
+        "column": 9,
+        "line": 57
+      }
+    }
+  },
+  {
+    "diff": "--- src/waker.rs\n+++ replace WakerSlot::clear with ()\n@@ -68,26 +68,17 @@\n         let next = cx.waker().clone();\n         let mut slot = self.waker.lock().expect(\"WakerSlot mutex poisoned\");\n         let old = slot.replace(next);\n         self.registered.0.store(true, Ordering::SeqCst);\n         old\n     }\n \n     pub(crate) fn clear(&self) {\n-        if !self.registered.0.load(Ordering::SeqCst) {\n-            return;\n-        }\n-        let old = {\n-            let mut slot = self.waker.lock().expect(\"WakerSlot mutex poisoned\");\n-            let old = slot.take();\n-            self.registered.0.store(false, Ordering::SeqCst);\n-            old\n-        };\n-        drop(old);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     pub(crate) fn notify_after_seqcst(&self) {\n         if self.registered.0.load(Ordering::SeqCst) {\n             self.wake_slow();\n         }\n     }\n",
+    "file": "src/waker.rs",
+    "function": {
+      "function_name": "WakerSlot::clear",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 86
+        },
+        "start": {
+          "column": 5,
+          "line": 75
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/waker.rs:76:9: replace WakerSlot::clear with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 85
+      },
+      "start": {
+        "column": 9,
+        "line": 76
+      }
+    }
+  }
+]

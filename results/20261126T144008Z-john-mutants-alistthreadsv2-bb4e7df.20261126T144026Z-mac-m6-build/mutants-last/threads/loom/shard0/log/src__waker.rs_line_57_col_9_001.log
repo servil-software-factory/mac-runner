@@ -1,0 +1,64 @@
+
+*** src/waker.rs:57:9: replace WakerSlot::install_waker -> Option<Waker> with Some(Default::default())
+
+*** mutation diff:
+--- src/waker.rs
++++ replace WakerSlot::install_waker -> Option<Waker> with Some(Default::default())
+@@ -49,32 +49,17 @@
+         // The completion re-check may load with Acquire (RCpc
+         // on Arm). It must not move before publishing the waiter.
+         fence(Ordering::SeqCst);
+         drop(old);
+     }
+ 
+     #[inline(always)]
+     fn install_waker(&self, cx: &Context<'_>) -> Option<Waker> {
+-        {
+-            let slot = self.waker.lock().expect("WakerSlot mutex poisoned");
+-            // `Waker::will_wake` compares raw data/vtable pointers and runs no
+-            // user code while the mutex is held.
+-            if slot.as_ref().is_some_and(|w| w.will_wake(cx.waker())) {
+-                self.registered.0.store(true, Ordering::SeqCst);
+-                return None;
+-            }
+-        }
+-        // Clone outside the mutex so a panicking user `Waker::clone` cannot
+-        // poison the slot.
+-        let next = cx.waker().clone();
+-        let mut slot = self.waker.lock().expect("WakerSlot mutex poisoned");
+-        let old = slot.replace(next);
+-        self.registered.0.store(true, Ordering::SeqCst);
+-        old
++        Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub(crate) fn clear(&self) {
+         if !self.registered.0.load(Ordering::SeqCst) {
+             return;
+         }
+         let old = {
+             let mut slot = self.waker.lock().expect("WakerSlot mutex poisoned");
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/loom-0/Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/loom-0/version)
+   Compiling blake3-servil v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/loom-0/threads)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/loom-0)
+error[E0277]: the trait bound `Waker: Default` is not satisfied
+  --> src/waker.rs:57:14
+   |
+57 |         Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+   |              ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `Waker`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Ring<X>::pop_front -> Option<X> with Some(Default::default())\n@@ -97,17 +97,17 @@\n         // In every build: hold callers to the pre-allocated capacity so the\n         // queue never reallocates on the hot path or drops work silently.\n         assert!(self.inner.len() < self.cap, \"Ring capacity exceeded\");\n         self.inner.push_back(item);\n     }\n \n     #[inline(always)]\n     fn pop_front(&mut self) -> Option<X> {\n-        self.inner.pop_front()\n+        Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Move-insensitive heap array of uninitialized interior-mutable slots\n /// (matching `Rooms::backing`): held by raw pointer rather than `Box<[...]>`,\n /// so moving `Pipeline` by value never retags pointers derived from inline\n /// values stored inside the array. The caller drops every initialized element\n /// before dropping `RawSlots`; `Drop` frees the backing allocation itself.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Ring<X>::pop_front",
+      "return_type": "-> Option<X>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 106
+        },
+        "start": {
+          "column": 5,
+          "line": 103
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:105:9: replace Ring<X>::pop_front -> Option<X> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 31,
+        "line": 105
+      },
+      "start": {
+        "column": 9,
+        "line": 105
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::create -> Self with Default::default()\n@@ -1478,117 +1478,17 @@\n     #[inline(always)]\n     fn storage(&self) -> &PipeStorage {\n         // Sound: this `Pipeline` holds a `PipeStorage::holders` reference\n         // keeping `*self.storage` live until `Pipeline::drop`.\n         unsafe { &*self.storage }\n     }\n \n     fn create(mode: Mode, limits: Limits) -> Self {\n-        crate::lanes::require();\n-        prepare_thread();\n-        assert!(limits.messages > 0, \"Pipeline Limits.messages must be at least 1\");\n-        let tree = TreeHasher::new(mode);\n-        let m = limits.messages;\n-        // Each limit alone first: their sum, next, could wrap round to a\n-        // small one (`rooms: usize::MAX` passed the check below so). Keep the\n-        // documented `messages + rooms < (1 << 29) - 1` admission bound even\n-        // when `rooms == 0` allocates zero PieceNodes (`p_cap = 0`).\n-        assert!(m < 1 << 29 && limits.rooms < 1 << 29 && m + limits.rooms < (1 << 29) - 1, \"Pipeline Limits beyond what an action can name\");\n-        let p_cap = if limits.rooms == 0 { 0 } else { limits.rooms + m + 1 };\n-        let g_cap = m.clamp(4, 256);\n-        let actions_cap = m * MAX_SLOT_PIECES + p_cap + g_cap;\n-        // An action names a slot, a piece or a group in 29 bits (pack_arg).\n-        assert!(m < 1 << 29 && p_cap < 1 << 29, \"Pipeline Limits beyond what an action can name\");\n-        // Reserve a non-wrapping identity before acquiring storage or a source\n-        // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot\n-        // wrap back to previously issued IDs.\n-        let id = loop {\n-            let cur = NEXT_PIPELINE_ID.load(Ordering::Relaxed);\n-            assert!(cur < u64::MAX, \"Pipeline ID counter exhausted\");\n-            if NEXT_PIPELINE_ID.compare_exchange(cur, cur + 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {\n-                break cur;\n-            }\n-        };\n-\n-        // Build all fallible caller-side arrays (including generic T/B/P slots)\n-        // BEFORE taking a PipeSlot lease, allocating PipeStorage, registering\n-        // the source, or bumping `sources::opened()`, so a layout panic in\n-        // caller-side construction cannot leak process resources.\n-        let mut local_free_rooms = Ring::new(limits.rooms.max(1));\n-        for i in 0..limits.rooms {\n-            local_free_rooms.push_back(u32::try_from(i).expect(\"room index fits u32\"));\n-        }\n-        let mut free_slots = Ring::new(m);\n-        for i in 0..m {\n-            free_slots.push_back(u32::try_from(i).expect(\"slot index fits u32\"));\n-        }\n-        let mut free_pieces = Ring::new(p_cap);\n-        for i in 0..p_cap {\n-            free_pieces.push_back(u32::try_from(i).expect(\"piece index fits u32\"));\n-        }\n-        let slots: Box<[SlotMeta<T>]> = (0..m).map(|_| SlotMeta { tag: None, kind: SlotKind::Free, mode: SlotMode::Default }).collect();\n-        let room_streams = vec![RoomStream::EMPTY; m].into_boxed_slice();\n-        let owners = RawSlots::new(m);\n-        let batches = RawSlots::new(m);\n-        let batch_plans = vec![None; m].into_boxed_slice();\n-        let end_queue = Ring::new(m);\n-        let events = Ring::new(m);\n-        let piece_slots = Vec::with_capacity(if limits.rooms == 0 { 0 } else { m });\n-        let assigned_group_epoch = vec![0u64; g_cap].into_boxed_slice();\n-        let seen_group_epoch = vec![0u64; g_cap].into_boxed_slice();\n-        let bufs = Box::new(PipelineBufs {\n-            local_members: [Member { input: core::ptr::null(), len: 0, out: core::ptr::null_mut() }; MEMBERS],\n-            local_rooms: [NONE; MEMBERS],\n-            action_buf: [0; MAX_SLOT_PIECES],\n-            batch_plans,\n-        });\n-\n-        let (pipe_slot, next_group_epoch, next_loan_epoch) = PipeSlot::acquire(actions_cap);\n-        let storage = PipeStorage::alloc(pipe_slot, tree, m, limits.rooms, p_cap, g_cap);\n-        // A pool of one thread has no worker to take a published action,\n-        // and only this crate's block_on would run it: an outside executor\n-        // waited for ever. Unregistered, every action runs where it is\n-        // dispatched, as when no slot is free.\n-        let source_slot = if crate::lanes::pool_has_workers() { pipe_slot.source.register() } else { None };\n-        crate::lanes::sources::opened();\n-\n-        Pipeline {\n-            id,\n-            limits,\n-            group_count: g_cap,\n-            source_slot,\n-            pipe_slot,\n-            storage,\n-            slots,\n-            room_streams,\n-            owners,\n-            batches,\n-            free_slots,\n-            open_messages: 0,\n-            end_queue,\n-            events,\n-            local_free_rooms,\n-            room_cursor: 0,\n-            free_pieces,\n-            piece_slots,\n-            group_cursor: 0,\n-            open_group: None,\n-            local_count: 0,\n-            local_bytes: 0,\n-            local_batch: None,\n-            local_group_mode: SlotMode::Default,\n-            local_custom_slot: NONE,\n-            batches_in_flight: 0,\n-            next_loan_epoch,\n-            next_group_epoch,\n-            assigned_group_epoch,\n-            seen_group_epoch,\n-            bufs,\n-        }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Wait for a free message slot and open a [`Message`] in this pipeline's\n     /// default [`Mode`].\n     ///\n     /// # Panics\n     ///\n     /// If no slot is free and waiting cannot free one: as many messages\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1587
+        },
+        "start": {
+          "column": 5,
+          "line": 1485
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1486:9: replace Pipeline<T, B, P>::create -> Self with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1586
+      },
+      "start": {
+        "column": 9,
+        "line": 1486
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace == with != in Pipeline<T, B, P>::create\n@@ -1488,17 +1488,17 @@\n         assert!(limits.messages > 0, \"Pipeline Limits.messages must be at least 1\");\n         let tree = TreeHasher::new(mode);\n         let m = limits.messages;\n         // Each limit alone first: their sum, next, could wrap round to a\n         // small one (`rooms: usize::MAX` passed the check below so). Keep the\n         // documented `messages + rooms < (1 << 29) - 1` admission bound even\n         // when `rooms == 0` allocates zero PieceNodes (`p_cap = 0`).\n         assert!(m < 1 << 29 && limits.rooms < 1 << 29 && m + limits.rooms < (1 << 29) - 1, \"Pipeline Limits beyond what an action can name\");\n-        let p_cap = if limits.rooms == 0 { 0 } else { limits.rooms + m + 1 };\n+        let p_cap = if limits.rooms != /* ~ changed by cargo-mutants ~ */ 0 { 0 } else { limits.rooms + m + 1 };\n         let g_cap = m.clamp(4, 256);\n         let actions_cap = m * MAX_SLOT_PIECES + p_cap + g_cap;\n         // An action names a slot, a piece or a group in 29 bits (pack_arg).\n         assert!(m < 1 << 29 && p_cap < 1 << 29, \"Pipeline Limits beyond what an action can name\");\n         // Reserve a non-wrapping identity before acquiring storage or a source\n         // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot\n         // wrap back to previously issued IDs.\n         let id = loop {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1587
+        },
+        "start": {
+          "column": 5,
+          "line": 1485
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1496:37: replace == with != in Pipeline<T, B, P>::create",
+    "package": "blake3-servil",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 39,
+        "line": 1496
+      },
+      "start": {
+        "column": 37,
+        "line": 1496
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace + with - in Pipeline<T, B, P>::create\n@@ -1488,17 +1488,17 @@\n         assert!(limits.messages > 0, \"Pipeline Limits.messages must be at least 1\");\n         let tree = TreeHasher::new(mode);\n         let m = limits.messages;\n         // Each limit alone first: their sum, next, could wrap round to a\n         // small one (`rooms: usize::MAX` passed the check below so). Keep the\n         // documented `messages + rooms < (1 << 29) - 1` admission bound even\n         // when `rooms == 0` allocates zero PieceNodes (`p_cap = 0`).\n         assert!(m < 1 << 29 && limits.rooms < 1 << 29 && m + limits.rooms < (1 << 29) - 1, \"Pipeline Limits beyond what an action can name\");\n-        let p_cap = if limits.rooms == 0 { 0 } else { limits.rooms + m + 1 };\n+        let p_cap = if limits.rooms == 0 { 0 } else { limits.rooms + m - /* ~ changed by cargo-mutants ~ */ 1 };\n         let g_cap = m.clamp(4, 256);\n         let actions_cap = m * MAX_SLOT_PIECES + p_cap + g_cap;\n         // An action names a slot, a piece or a group in 29 bits (pack_arg).\n         assert!(m < 1 << 29 && p_cap < 1 << 29, \"Pipeline Limits beyond what an action can name\");\n         // Reserve a non-wrapping identity before acquiring storage or a source\n         // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot\n         // wrap back to previously issued IDs.\n         let id = loop {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1587
+        },
+        "start": {
+          "column": 5,
+          "line": 1485
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:1496:72: replace + with - in Pipeline<T, B, P>::create",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 73,
+        "line": 1496
+      },
+      "start": {
+        "column": 72,
+        "line": 1496
+      }
+    }
+  }
+]
