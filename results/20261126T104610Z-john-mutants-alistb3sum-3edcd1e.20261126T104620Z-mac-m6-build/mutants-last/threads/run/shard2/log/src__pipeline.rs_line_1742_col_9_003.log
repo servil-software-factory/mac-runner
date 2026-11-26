@@ -1,0 +1,113 @@
+
+*** src/pipeline.rs:1742:9: replace Pipeline<T, B, P>::poll_room -> Poll<Room> with Poll::from(Default::default())
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace Pipeline<T, B, P>::poll_room -> Poll<Room> with Poll::from(Default::default())
+@@ -1734,43 +1734,17 @@
+                     self.local_free_rooms.push_back(u32::try_from(i).expect("room index fits u32"));
+                 }
+             }
+         }
+         self.pop_cached_room()
+     }
+ 
+     fn poll_room(&mut self, cx: &mut Context<'_>) -> Poll<Room> {
+-        if let Some(r) = self.try_take_room() {
+-            return Poll::Ready(r);
+-        }
+-        self.reap();
+-        self.flush_sealed_short_rooms();
+-        self.publish_open();
+-        if let Some(r) = self.try_take_room() {
+-            return Poll::Ready(r);
+-        }
+-        self.assert_room_can_progress();
+-        if in_block_on() {
+-            while self.pipe_slot.source.run_waiting_action() {
+-                if let Some(r) = self.try_take_room() {
+-                    return Poll::Ready(r);
+-                }
+-            }
+-        }
+-        self.pipe_slot.waker.register(cx);
+-        if let Some(r) = self.try_take_room() {
+-            self.pipe_slot.waker.clear();
+-            return Poll::Ready(r);
+-        }
+-        self.assert_room_can_progress();
+-        if self.source_slot.is_some() {
+-            self.pipe_slot.source.wake_for_waiting();
+-        }
+-        Poll::Pending
++        Poll::from(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn make_room(&self, index: u32) -> Room {
+         // Sound: `self.storage` came from `Box::into_raw` and is non-null.
+         let storage = unsafe { core::ptr::NonNull::new_unchecked(self.storage) };
+         Room { pipeline_id: self.id, index, offset: 0, commits: 0, ptr: self.storage().rooms.room_ptr(index as usize), storage }
+     }
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-2/Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[43790]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[70438]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[70420]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil` (build script) generated 1 warning
+   Compiling blake3-servil v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/threads)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2)
+error[E0283]: type annotations needed
+    --> src/pipeline.rs:1742:9
+     |
+1742 |         Poll::from(Default::default()) /* ~ changed by cargo-mutants ~ */
+     |         ^^^^ cannot infer type for type parameter `T` declared on the trait `From`
+     |
+     = note: multiple `impl`s satisfying `Poll<Room>: From<_>` found in the `core` crate:
+             - impl<T> From<T> for Poll<T>;
+             - impl<T> From<T> for T;
+
+For more information about this error, try `rustc --explain E0283`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0283]: type annotations needed
+    --> src/pipeline.rs:1742:9
+     |
+1742 |         Poll::from(Default::default()) /* ~ changed by cargo-mutants ~ */
+     |         ^^^^ cannot infer type for type parameter `T` declared on the trait `From`
+     |
+     = note: multiple `impl`s satisfying `std::task::Poll<pipeline::Room>: From<_>` found in the `core` crate:
+             - impl<T> From<T> for T;
+             - impl<T> From<T> for std::task::Poll<T>;
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

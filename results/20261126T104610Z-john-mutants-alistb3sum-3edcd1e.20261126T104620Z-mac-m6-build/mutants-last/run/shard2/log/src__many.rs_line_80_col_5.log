@@ -1,0 +1,586 @@
+
+*** src/many.rs:80:5: replace hash_many_on with ()
+
+*** mutation diff:
+--- src/many.rs
++++ replace hash_many_on with ()
+@@ -72,87 +72,17 @@
+ /// plain hashing), on `platform`: messages of up to a chunk go to
+ /// the kernels TABLE at a time, 2 to 15 chunks side by side on SME2, others
+ /// through the one-message path. Requires `input.len() == slot *
+ /// outputs.len()` and every slot's bytes past `len` zero (a Batch's, or
+ /// the crate's own).
+ pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+     // One-block messages first, on the path they took before slots (a
+     // shared entry cost 64 B x 3 7% in the regression check).
+-    if len == BLOCK_LEN && outputs.len() >= 2 {
+-        crate::ran(crate::Ran::BlockRun);
+-        assert_slots(input, len, slot, outputs.len());
+-        for (messages, digests) in input.chunks(BLOCK_LEN * TABLE).zip(outputs.chunks_mut(TABLE)) {
+-            hash_run::<{ BLOCK_LEN }>(messages, key, flags, digests, platform);
+-        }
+-        return;
+-    }
+-    assert_slots(input, len, slot, outputs.len());
+-    if packed(len, slot) {
+-        return hash_packed(input, len, key, flags, outputs, platform);
+-    }
+-    // Empty messages: the NEON plans take a last block of 1 to 64 bytes
+-    // (hash_many_in's contract), so without this arm a batch of them stops
+-    // there (#251: CI's Cortex-A72, and every NEON machine since the pair
+-    // kernels left).
+-    if len == 0 {
+-        outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());
+-        return;
+-    }
+-    #[cfg(blake3_sme2)]
+-    if chunked(len) && platform_is_sme2(platform) && (outputs.len() >= 16 || outputs.len() >= sme2_chunked_min(len)) {
+-        return hash_chunked(input, len, key, flags, outputs, platform);
+-    }
+-    #[cfg(blake3_neon)]
+-    if (CHUNK_LEN + 1..=2 * CHUNK_LEN).contains(&len) && outputs.len() >= 2 && neon_plans() {
+-        return hash_two_chunks(input, len, key, flags, outputs);
+-    }
+-    if outputs.len() < 2 || len > CHUNK_LEN {
+-        #[cfg(target_arch = "x86_64")]
+-        return hash_long_or_single(input, len, key, flags, outputs, platform);
+-        #[cfg(not(target_arch = "x86_64"))]
+-        {
+-            for (i, output) in outputs.iter_mut().enumerate() {
+-                *output = *crate::hash_serial_on(&input[i * slot..][..len], key, flags, platform).as_bytes();
+-            }
+-            return;
+-        }
+-    }
+-    crate::ran(crate::Ran::ShortRun);
+-    let plans = neon_plans();
+-    let last_len = len - (slot - BLOCK_LEN);
+-    #[cfg(all(blake3_avx512_ffi, target_os = "linux"))]
+-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {
+-        let width = crate::ffi_output::lanes(platform);
+-        if width != 0 {
+-            multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);
+-            return;
+-        }
+-    }
+-    for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {
+-        match slot / BLOCK_LEN {
+-            1 => hash_run_short::<{ BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            2 => hash_blocks::<{ 2 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            3 => hash_blocks::<{ 3 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            4 => hash_blocks::<{ 4 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            5 => hash_blocks::<{ 5 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            6 => hash_blocks::<{ 6 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            7 => hash_blocks::<{ 7 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            8 => hash_blocks::<{ 8 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            9 => hash_blocks::<{ 9 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            10 => hash_blocks::<{ 10 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            11 => hash_blocks::<{ 11 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            12 => hash_blocks::<{ 12 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            13 => hash_blocks::<{ 13 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            14 => hash_blocks::<{ 14 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            15 => hash_blocks::<{ 15 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            16 => hash_blocks::<{ 16 * BLOCK_LEN }>(messages, key, flags, digests, platform, plans, last_len),
+-            _ => unreachable!("messages of up to a chunk"),
+-        }
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Packed messages (`len` bytes each, at a stride of `len`): full SIMD
+ /// groups run directly on the zero-padding-free packed kernels in
+ /// `ffi_packed` (#501) across SME2, AVX-512, AVX2, and NEON `8+3`; any
+ /// short remainder (or SSE4.1 fallback) expands up to 16 messages at a
+ /// time into a 1 KiB zero-padded stack buffer.
+ #[inline(never)]
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[82648]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[51228]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2/version)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-2)
+warning: unused variable: `input`
+  --> src/many.rs:77:21
+   |
+77 | pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_input`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `len`
+  --> src/many.rs:77:35
+   |
+77 | pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |                                   ^^^ help: if this is intentional, prefix it with an underscore: `_len`
+
+warning: unused variable: `slot`
+  --> src/many.rs:77:47
+   |
+77 | pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |                                               ^^^^ help: if this is intentional, prefix it with an underscore: `_slot`
+
+warning: unused variable: `key`
+  --> src/many.rs:77:60
+   |
+77 | pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |                                                            ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+
+warning: unused variable: `flags`
+  --> src/many.rs:77:75
+   |
+77 | ...lot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+   |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_flags`
+
+warning: unused variable: `outputs`
+  --> src/many.rs:77:86
+   |
+77 | ...ey: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+   |                             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_outputs`
+
+warning: unused variable: `platform`
+  --> src/many.rs:77:117
+   |
+77 | ...: &mut [[u8; OUT_LEN]], platform: Platform) {
+   |                            ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_platform`
+
+warning: function `hash_packed_groups` is never used
+  --> src/ffi_packed.rs:18:15
+   |
+18 | pub(crate) fn hash_packed_groups(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |               ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `blake3_servil_sme2_packed16` is never used
+   --> src/ffi_packed.rs:269:16
+    |
+269 |         pub fn blake3_servil_sme2_packed16(input: *const u8, key: *const u32, flags: u32, out: *mut u8, groups: u64) -> u64;
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `blake3_servil_sme2_packed32` is never used
+   --> src/ffi_packed.rs:270:16
+    |
+270 |         pub fn blake3_servil_sme2_packed32(input: *const u8, key: *const u32, flags: u32, out: *mut u8, groups: u64) -> u64;
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `blake3_servil_sme2_packed48` is never used
+   --> src/ffi_packed.rs:271:16
+    |
+271 |         pub fn blake3_servil_sme2_packed48(input: *const u8, key: *const u32, flags: u32, out: *mut u8, groups: u64) -> u64;
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `blake3_servil_neon_p11_packed16` is never used
+   --> src/ffi_packed.rs:278:16
+    |
+278 |         pub fn blake3_servil_neon_p11_packed16(input: *const u8, groups: u64, key: *const u32, flags: u32, out: *mut u8);
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `blake3_servil_neon_p11_packed32` is never used
+   --> src/ffi_packed.rs:279:16
+    |
+279 |         pub fn blake3_servil_neon_p11_packed32(input: *const u8, groups: u64, key: *const u32, flags: u32, out: *mut u8);
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `blake3_servil_neon_p11_packed48` is never used
+   --> src/ffi_packed.rs:280:16
+    |
+280 |         pub fn blake3_servil_neon_p11_packed48(input: *const u8, groups: u64, key: *const u32, flags: u32, out: *mut u8);
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `MESSAGE_CHUNKS` is never used
+   --> src/ffi_sme2.rs:354:11
+    |
+354 | pub const MESSAGE_CHUNKS: core::ops::RangeInclusive<usize> = 2..=15;
+    |           ^^^^^^^^^^^^^^
+
+warning: function `hash_chunked_messages` is never used
+   --> src/ffi_sme2.rs:367:15
+    |
+367 | pub unsafe fn hash_chunked_messages(lanes: &[*const u8; GROUP], len: usize, key: &CVWords, flags: u8, out: &mut [u8]) {
+    |               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `hash_chunked_messages_neon` is never used
+   --> src/ffi_sme2.rs:477:11
+    |
+477 | unsafe fn hash_chunked_messages_neon(lanes: &[*const u8; GROUP], len: usize, key: &CVWords, flags: u8, out: &mut [u8]) {
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `ChunkedScratch` is never constructed
+   --> src/ffi_sme2.rs:491:8
+    |
+491 | struct ChunkedScratch {
+    |        ^^^^^^^^^^^^^^
+
+warning: function `hash_packed` is never used
+  --> src/many.rs:89:4
+   |
+89 | fn hash_packed(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+   |    ^^^^^^^^^^^
+
+warning: constant `SME2_TAIL_MIN_AFTER_GROUPS` is never used
+   --> src/many.rs:312:18
+    |
+312 | pub(crate) const SME2_TAIL_MIN_AFTER_GROUPS: usize = 5;
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `hash_chunked` is never used
+   --> src/many.rs:340:4
+    |
+340 | fn hash_chunked(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+    |    ^^^^^^^^^^^^
+
+warning: function `hash_two_chunks` is never used
+   --> src/many.rs:377:4
+    |
+377 | fn hash_two_chunks(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]]) {
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `hash_run` is never used
+   --> src/many.rs:609:4
+    |
+609 | fn hash_run<const N: usize>(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+    |    ^^^^^^^^
+
+warning: function `hash_run_padded` is never used
+   --> src/many.rs:697:4
+    |
+697 | fn hash_run_padded<const N: usize>(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], last_len: usize) {
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `hash_run_short` is never used
+   --> src/many.rs:709:4
+    |
+709 | fn hash_run_short<const N: usize>(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, pla...
+    |    ^^^^^^^^^^^^^^
+
+warning: constant `ONE_BLOCK_PAD_AFTER_GROUPS` is never used
+   --> src/many.rs:757:18
+    |
+757 | pub(crate) const ONE_BLOCK_PAD_AFTER_GROUPS: usize = 5;
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type alias `Slots` is never used
+   --> src/many.rs:761:6
+    |
+761 | type Slots<'a, const N: usize> = [core::mem::MaybeUninit<&'a [u8; N]>; TABLE + 16];
+    |      ^^^^^
+
+warning: function `fill_table` is never used
+   --> src/many.rs:767:4
+    |
+767 | fn fill_table<'a, 's, const N: usize>(slots: &'s mut Slots<'a, N>, messages: &'a [u8], count: usize, lanes: usize) -> &'s [&'a [u8;...
+    |    ^^^^^^^^^^
+
+warning: function `neon_plans_last_len` is never used
+   --> src/many.rs:784:4
+    |
+784 | fn neon_plans_last_len<const N: usize>(lanes: &[&[u8; N]], key: &CVWords, flags: u8, last_len: usize, outputs: &mut [[u8; OUT_LEN]]) {
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `hash_blocks` is never used
+   --> src/many.rs:815:4
+    |
+815 | fn hash_blocks<const N: usize>(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, plans:...
+    |    ^^^^^^^^^^^
+
+warning: function `hash_four_at_a_time` is never used
+   --> src/many.rs:946:4
+    |
+946 | fn hash_four_at_a_time<const N: usize>(lanes: &[&[u8; N]], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platf...
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `noted_lanes` is never used
+   --> src/many.rs:999:4
+    |
+999 | fn noted_lanes(lanes: usize) {
+    |    ^^^^^^^^^^^
+
+warning: function `neon_plans` is never used
+    --> src/many.rs:1009:4
+     |
+1009 | fn neon_plans() -> bool {
+     |    ^^^^^^^^^^
+
+warning: function `platform_is_sme2` is never used
+    --> src/many.rs:1014:4
+     |
+1014 | fn platform_is_sme2(platform: Platform) -> bool {
+     |    ^^^^^^^^^^^^^^^^
+
+warning: `blake3-servil-core` (lib) generated 34 warnings (run `cargo fix --lib -p blake3-servil-core` to apply 7 suggestions)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[59897]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[59896]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "after_initialize") generated 1 warning
+warning: `blake3-servil-core` (test "initialize_contract") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[59904]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[59906]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "initialize_stack") generated 1 warning
+warning: `blake3-servil-core` (test "self_test_init") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[59910]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "batch_equals_single") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[59917]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "lifecycle") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[59918]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "guard_alloc") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[59921]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "tree_shape") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[59922]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "build_version") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[60011]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (lib test) generated 20 warnings (19 duplicates)
+    Finished `mutants` profile [optimized] target(s) in 5.13s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.11.0+dev --lib --tests
+warning: failed to connect to jobserver from environment variable `CARGO_MAKEFLAGS="-j --jobserver-fds=10,12 --jobserver-auth=10,12"`: cannot open file descriptor 10 from the jobserver environment variable value: Bad file descriptor (os error 9)
+warning: failed to connect to jobserver from environment variable `CARGO_MAKEFLAGS="-j --jobserver-fds=10,12 --jobserver-auth=10,12"`: cannot open file descriptor 10 from the jobserver environment variable value: Bad file descriptor (os error 9)
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[82648]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[51228]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+warning: unused variable: `input`
+  --> src/many.rs:77:21
+   |
+77 | pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |                     ^^^^^ help: if this is intentional, prefix it with an underscore: `_input`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `len`
+  --> src/many.rs:77:35
+   |
+77 | pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |                                   ^^^ help: if this is intentional, prefix it with an underscore: `_len`
+
+warning: unused variable: `slot`
+  --> src/many.rs:77:47
+   |
+77 | pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |                                               ^^^^ help: if this is intentional, prefix it with an underscore: `_slot`
+
+warning: unused variable: `key`
+  --> src/many.rs:77:60
+   |
+77 | pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |                                                            ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+
+warning: unused variable: `flags`
+  --> src/many.rs:77:75
+   |
+77 | ...lot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+   |                               ^^^^^ help: if this is intentional, prefix it with an underscore: `_flags`
+
+warning: unused variable: `outputs`
+  --> src/many.rs:77:86
+   |
+77 | ...ey: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+   |                             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_outputs`
+
+warning: unused variable: `platform`
+  --> src/many.rs:77:117
+   |
+77 | ...: &mut [[u8; OUT_LEN]], platform: Platform) {
+   |                            ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_platform`
+
+warning: function `hash_packed_groups` is never used
+  --> src/ffi_packed.rs:18:15
+   |
+18 | pub(crate) fn hash_packed_groups(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platfo...
+   |               ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `MESSAGE_CHUNKS` is never used
+   --> src/ffi_sme2.rs:354:11
+    |
+354 | pub const MESSAGE_CHUNKS: core::ops::RangeInclusive<usize> = 2..=15;
+    |           ^^^^^^^^^^^^^^
+
+warning: function `hash_chunked_messages` is never used
+   --> src/ffi_sme2.rs:367:15
+    |
+367 | pub unsafe fn hash_chunked_messages(lanes: &[*const u8; GROUP], len: usize, key: &CVWords, flags: u8, out: &mut [u8]) {
+    |               ^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `ChunkedScratch` is never constructed
+   --> src/ffi_sme2.rs:491:8
+    |
+491 | struct ChunkedScratch {
+    |        ^^^^^^^^^^^^^^
+
+warning: function `hash_packed` is never used
+  --> src/many.rs:89:4
+   |
+89 | fn hash_packed(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+   |    ^^^^^^^^^^^
+
+warning: function `hash_chunked` is never used
+   --> src/many.rs:340:4
+    |
+340 | fn hash_chunked(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+    |    ^^^^^^^^^^^^
+
+warning: function `hash_two_chunks` is never used
+   --> src/many.rs:377:4
+    |
+377 | fn hash_two_chunks(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]]) {
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `hash_run` is never used
+   --> src/many.rs:609:4
+    |
+609 | fn hash_run<const N: usize>(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+    |    ^^^^^^^^
+
+warning: function `hash_run_padded` is never used
+   --> src/many.rs:697:4
+    |
+697 | fn hash_run_padded<const N: usize>(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], last_len: usize) {
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `hash_run_short` is never used
+   --> src/many.rs:709:4
+    |
+709 | fn hash_run_short<const N: usize>(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, pla...
+    |    ^^^^^^^^^^^^^^
+
+warning: constant `ONE_BLOCK_PAD_AFTER_GROUPS` is never used
+   --> src/many.rs:757:18
+    |
+757 | pub(crate) const ONE_BLOCK_PAD_AFTER_GROUPS: usize = 5;
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `neon_plans` is never used
+    --> src/many.rs:1009:4
+     |
+1009 | fn neon_plans() -> bool {
+     |    ^^^^^^^^^^
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[60011]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (lib test) generated 20 warnings (run `cargo fix --lib -p blake3-servil-core --tests` to apply 7 suggestions)
+    Finished `mutants` profile [optimized] target(s) in 0.01s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID 68569933-bc25-4872-887c-8714adffd6de with nextest profile: mutants
+    Starting 219 tests across 1 binary
+       START [         ] (  1/219) blake3-servil-core block::packed_test::packed_capacity_rejects_wrapping_message_counts
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-2/mutants/build/blake3-servil-core/9c328f8a1b6bee03/out/blake3_servil_core-9c328f8a1b6bee03 --exact block::packed_test::packed_capacity_rejects_wrapping_message_counts --nocapture
+       START [         ] (  1/219) blake3-servil-core block::packed_test::borrowed_array_slices_hash_as_packed
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-2/mutants/build/blake3-servil-core/9c328f8a1b6bee03/out/blake3_servil_core-9c328f8a1b6bee03 --exact block::packed_test::borrowed_array_slices_hash_as_packed --nocapture
+     SIGABRT [   0.038s] (  1/219) blake3-servil-core block::packed_test::borrowed_array_slices_hash_as_packed
+  stdout ───
+
+    running 1 test
+  stderr ───
+    blake3-servil startup self-test failed: case 21, ten one-chunk messages: the SME2 message kernel (platform SME2): this build or this CPU computes wrong BLAKE3 digests on that path
+
+    (test aborted with signal 6: SIGABRT)
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGTERM [   0.118s] (  2/219) blake3-servil-core block::packed_test::packed_capacity_rejects_wrapping_message_counts
+────────────
+     Summary [   0.119s] 2/219 tests run: 0 passed, 2 failed, 0 skipped
+warning: 217/219 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
