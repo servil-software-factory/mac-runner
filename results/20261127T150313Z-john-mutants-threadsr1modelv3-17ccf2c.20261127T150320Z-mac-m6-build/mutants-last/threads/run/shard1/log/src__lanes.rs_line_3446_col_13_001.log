@@ -1,0 +1,98 @@
+
+*** src/lanes.rs:3446:13: replace sources::Source::take -> Option<Item> with Some(Default::default())
+
+*** mutation diff:
+--- src/lanes.rs
++++ replace sources::Source::take -> Option<Item> with Some(Default::default())
+@@ -3438,32 +3438,17 @@
+             self.claimed.store(base + own, Ordering::Relaxed);
+             self.finish.published.store(target, Ordering::Release);
+             core::sync::atomic::fence(Ordering::SeqCst);
+             target
+         }
+ 
+         /// Claim the next published item, if any.
+         pub(crate) fn take(&self) -> Option<Item> {
+-            if let Some(run) = self.action_run {
+-                let (_, context, arg) = crate::action_ring::take_one(&self.actions, &self.finish.published, &self.claimed)?;
+-                return Some(Item::Action { run, context, arg });
+-            }
+-            let mut c = self.claimed.load(Ordering::Acquire);
+-            loop {
+-                let p = self.finish.published.load(Ordering::Acquire);
+-                if c >= p {
+-                    return None;
+-                }
+-                let n = Self::run_len(p - c, pool().threads);
+-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {
+-                    Ok(_) => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),
+-                    Err(now) => c = now,
+-                }
+-            }
++            Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+         }
+ 
+         /// Get the number of pieces one claim takes of `waiting` pieces of a
+         /// job shared by `threads` threads: a 2 * threads-th of what waits,
+         /// one at least, so runs shrink toward the end (guided
+         /// self-scheduling).
+         fn run_len(waiting: usize, threads: usize) -> usize {
+             (waiting / (2 * threads)).max(1)
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/run-1/Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[61360]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[19091]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+   Compiling blake3-servil v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/threads)
+error[E0277]: the trait bound `Item: Default` is not satisfied
+    --> src/lanes.rs:3446:18
+     |
+3446 |             Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     |                  ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `Default` is not implemented for `Item`
+    --> src/lanes.rs:3302:5
+     |
+3302 |     pub(crate) enum Item {
+     |     ^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `lanes::sources::Item: Default` is not satisfied
+    --> src/lanes.rs:3446:18
+     |
+3446 |             Some(Default::default()) /* ~ changed by cargo-mutants ~ */
+     |                  ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+     |
+help: the trait `Default` is not implemented for `lanes::sources::Item`
+    --> src/lanes.rs:3302:5
+     |
+3302 |     pub(crate) enum Item {
+     |     ^^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

@@ -1,0 +1,39 @@
+--- src/platform.rs
++++ replace sme2_detected -> bool with true
+@@ -825,35 +825,17 @@
+ /// The hardware check is cached once per process. On Apple silicon the
+ /// streaming vector length is fixed hardware-wide and cached with it; on
+ /// Linux SVL is per-thread (`prctl(PR_SME_SET_VL)`), so the calling thread's
+ /// SVL is queried via side-effect-free `rdsvl` (without entering streaming
+ /// mode or touching ZA).
+ #[cfg(target_arch = "aarch64")]
+ #[inline(always)]
+ pub fn sme2_detected() -> bool {
+-    use core::sync::atomic::{AtomicU8, Ordering};
+-
+-    // 0 = unknown, 1 = no, 2 = yes.
+-    static CACHE: AtomicU8 = AtomicU8::new(0);
+-
+-    let cached = match CACHE.load(Ordering::Relaxed) {
+-        2 => true,
+-        1 => false,
+-        _ => {
+-            let detected = sme2_detect_uncached();
+-            CACHE.store(if detected { 2 } else { 1 }, Ordering::Relaxed);
+-            detected
+-        }
+-    };
+-    // Sound: `cached` is true only after `sme2_reported()` confirmed HWCAP2_SME2, so `rdsvl` is legal.
+-    #[cfg(target_os = "linux")]
+-    return if cached { sme2_svl_ok(unsafe { crate::sme2::svl_lanes() }) } else { false };
+-    #[cfg(not(target_os = "linux"))]
+-    cached
++    true /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(target_arch = "aarch64")]
+ fn sme2_detect_uncached() -> bool {
+     if !sme2_reported() {
+         return false;
+     }
+ 

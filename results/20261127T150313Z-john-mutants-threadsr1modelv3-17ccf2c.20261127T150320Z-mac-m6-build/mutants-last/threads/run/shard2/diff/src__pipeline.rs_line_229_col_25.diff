@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace & with | in ActionArg::decode
+@@ -221,17 +221,17 @@
+         // Put the SME2 flag bit (bit 63) first so every `+` has a distinct
+         // non-zero right operand (avoiding `x + (1<<63) == x - (1<<63)`).
+         let sme2_bit = if sme2 { ACTION_SME2 } else { 0 };
+         sme2_bit + ((kind << 61) + ((a as u64) << 32) + (b as u64))
+     }
+ 
+     #[inline(always)]
+     fn decode(arg: u64) -> Self {
+-        let sme2 = (arg & ACTION_SME2) != 0;
++        let sme2 = (arg | /* ~ changed by cargo-mutants ~ */ ACTION_SME2) != 0;
+         let clean = arg & !ACTION_SME2;
+         let kind = clean >> 61;
+         let a = u32::try_from((clean >> 32) & u64::from(Self::MAX_A)).expect("29-bit field fits u32");
+         let b = u32::from_le_bytes(clean.to_le_bytes()[..4].try_into().unwrap());
+         match kind {
+             0 => ActionArg::Group { group: a, custom_slot: b },
+             1 => ActionArg::RoomPiece { pnode: a, custom: b != 0, sme2 },
+             2 => ActionArg::Multi { slot: a, piece: b & !MULTI_CUSTOM_BIT, custom: (b & MULTI_CUSTOM_BIT) != 0, sme2 },

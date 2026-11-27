@@ -1,0 +1,55 @@
+
+*** src/action_ring.rs:20:9: replace Action::empty -> Self with Default::default()
+
+*** mutation diff:
+--- src/action_ring.rs
++++ replace Action::empty -> Self with Default::default()
+@@ -12,17 +12,17 @@
+ pub(crate) struct Action {
+     pub(crate) context: AtomicPtr<()>,
+     pub(crate) arg: AtomicU64,
+     pub(crate) near: AtomicBool,
+ }
+ 
+ impl Action {
+     pub(crate) fn empty() -> Self {
+-        Self { context: AtomicPtr::new(core::ptr::null_mut()), arg: AtomicU64::new(0), near: AtomicBool::new(false) }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Publish `args` in order into `actions` with a single `Release` store on
+ /// `published`. Panics if `args` would overwrite any ticket not yet claimed.
+ pub(crate) fn publish_slice(actions: &[Action], published: &AtomicUsize, claimed: &AtomicUsize, context: *const (), args: &[u64], near: bool) {
+     // Debug-only: internal pool entry; callers only publish non-empty job slices.
+     debug_assert!(!args.is_empty());
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants/loom-0/Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/loom-0/version)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/loom-0)
+   Compiling blake3-servil v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/loom-0/threads)
+error[E0277]: the trait bound `Action: Default` is not satisfied
+  --> src/action_ring.rs:20:9
+   |
+20 |         Default::default() /* ~ changed by cargo-mutants ~ */
+   |         ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `Action`
+   |
+help: consider annotating `Action` with `#[derive(Default)]`
+   |
+12 + #[derive(Default)]
+13 | pub(crate) struct Action {
+   |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
