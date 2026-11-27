@@ -1,0 +1,66 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace EventRing<X>::pop_front -> Option<X> with Some(Default::default())\n@@ -149,17 +149,17 @@\n         // queue never reallocates on the hot path; asserting `len != capacity`\n         // proves `!is_full()` to LLVM at inline call sites, eliding `VecDeque::grow`.\n         assert!(self.0.len() != self.0.capacity(), \"EventRing backing capacity full\");\n         self.0.push_back(item);\n     }\n \n     #[inline(always)]\n     fn pop_front(&mut self) -> Option<X> {\n-        self.0.pop_front()\n+        Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Move-insensitive heap array of uninitialized interior-mutable slots\n /// (matching `Rooms::backing`): held by raw pointer rather than `Box<[...]>`,\n /// so moving `Pipeline` by value never retags pointers derived from inline\n /// values stored inside the array. The caller drops every initialized element\n /// before dropping `RawSlots`; `Drop` frees the backing allocation itself.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "EventRing<X>::pop_front",
+      "return_type": "-> Option<X>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 158
+        },
+        "start": {
+          "column": 5,
+          "line": 155
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:157:9: replace EventRing<X>::pop_front -> Option<X> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 27,
+        "line": 157
+      },
+      "start": {
+        "column": 9,
+        "line": 157
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::create -> Self with Default::default()\n@@ -1551,107 +1551,17 @@\n     #[inline(always)]\n     fn storage(&self) -> &PipeStorage {\n         // Sound: this `Pipeline` holds a `PipeStorage::holders` reference\n         // keeping `*self.storage` live until `Pipeline::drop`.\n         unsafe { &*self.storage }\n     }\n \n     fn create(mode: Mode, limits: Limits) -> Self {\n-        crate::lanes::require();\n-        prepare_thread();\n-        let (p_cap, g_cap, actions_cap) = pipeline_capacities(limits);\n-        let tree = TreeHasher::new(mode);\n-        let m = limits.messages;\n-        // Reserve a non-wrapping identity before acquiring storage or a source\n-        // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot\n-        // wrap back to previously issued IDs.\n-        let id = loop {\n-            let cur = NEXT_PIPELINE_ID.load(Ordering::Relaxed);\n-            assert!(cur < u64::MAX, \"Pipeline ID counter exhausted\");\n-            if NEXT_PIPELINE_ID.compare_exchange(cur, cur + 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {\n-                break cur;\n-            }\n-        };\n-\n-        // Build all fallible caller-side arrays (including generic T/B/P slots)\n-        // BEFORE taking a PipeSlot lease, allocating PipeStorage, registering\n-        // the source, or bumping `sources::opened()`, so a layout panic in\n-        // caller-side construction cannot leak process resources.\n-        let mut local_free_rooms = IndexRing::new(limits.rooms);\n-        for i in 0..limits.rooms {\n-            local_free_rooms.push_back(u32::try_from(i).expect(\"room index fits u32\"));\n-        }\n-        let mut free_slots = IndexRing::new(m);\n-        for i in 0..m {\n-            free_slots.push_back(u32::try_from(i).expect(\"slot index fits u32\"));\n-        }\n-        let mut free_pieces = IndexRing::new(p_cap);\n-        for i in 0..p_cap {\n-            free_pieces.push_back(u32::try_from(i).expect(\"piece index fits u32\"));\n-        }\n-        let slots: Box<[SlotMeta<T>]> = (0..m).map(|_| SlotMeta { tag: None, kind: SlotKind::Free, mode: SlotMode::Default }).collect();\n-        let room_streams = vec![RoomStream::EMPTY; m].into_boxed_slice();\n-        let owners = RawSlots::new(m);\n-        let batches = RawSlots::new(m);\n-        let batch_plans = vec![None; m].into_boxed_slice();\n-        let end_queue = IndexRing::new(m);\n-        let events = EventRing::new(m);\n-        let piece_slots = Vec::with_capacity(if limits.rooms == 0 { 0 } else { m });\n-        let assigned_group_epoch = vec![0u64; g_cap].into_boxed_slice();\n-        let seen_group_epoch = vec![0u64; g_cap].into_boxed_slice();\n-        let bufs = Box::new(PipelineBufs {\n-            local_members: [Member { input: core::ptr::null(), len: 0, out: core::ptr::null_mut() }; MEMBERS],\n-            local_rooms: [NONE; MEMBERS],\n-            action_buf: [0; MAX_SLOT_PIECES],\n-            batch_plans,\n-        });\n-\n-        let (pipe_slot, next_group_epoch, next_loan_epoch) = PipeSlot::acquire(actions_cap);\n-        let storage = PipeStorage::alloc(pipe_slot, tree, m, limits.rooms, p_cap, g_cap);\n-        // A pool of one thread has no worker to take a published action,\n-        // and only this crate's block_on would run it: an outside executor\n-        // waited for ever. Unregistered, every action runs where it is\n-        // dispatched, as when no slot is free.\n-        let source_slot = if crate::lanes::pool_has_workers() { pipe_slot.source.register() } else { None };\n-        crate::lanes::sources::opened();\n-\n-        Pipeline {\n-            id,\n-            limits,\n-            group_count: g_cap,\n-            source_slot,\n-            pipe_slot,\n-            storage,\n-            slots,\n-            room_streams,\n-            owners,\n-            batches,\n-            free_slots,\n-            open_messages: 0,\n-            end_queue,\n-            events,\n-            local_free_rooms,\n-            room_cursor: 0,\n-            free_pieces,\n-            piece_slots,\n-            group_cursor: 0,\n-            open_group: None,\n-            local_count: 0,\n-            local_bytes: 0,\n-            local_batch: None,\n-            local_group_mode: SlotMode::Default,\n-            local_custom_slot: NONE,\n-            batches_in_flight: 0,\n-            next_loan_epoch,\n-            next_group_epoch,\n-            assigned_group_epoch,\n-            seen_group_epoch,\n-            bufs,\n-        }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Wait for a free message slot and open a [`Message`] in this pipeline's\n     /// default [`Mode`].\n     ///\n     /// # Panics\n     ///\n     /// If no slot is free and waiting cannot free one: as many messages\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1650
+        },
+        "start": {
+          "column": 5,
+          "line": 1558
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1559:9: replace Pipeline<T, B, P>::create -> Self with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1649
+      },
+      "start": {
+        "column": 9,
+        "line": 1559
+      }
+    }
+  }
+]
