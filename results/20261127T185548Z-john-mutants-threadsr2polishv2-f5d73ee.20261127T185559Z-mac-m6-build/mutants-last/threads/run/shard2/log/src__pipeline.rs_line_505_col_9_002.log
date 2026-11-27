@@ -1,0 +1,108 @@
+
+*** src/pipeline.rs:505:9: replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 1, 0)
+
+*** mutation diff:
+--- src/pipeline.rs
++++ replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 1, 0)
+@@ -497,42 +497,17 @@
+ /// were freed and frees the run's `PipeSlot`s at its end.
+ #[cfg(shuttle)]
+ #[allow(dead_code)]
+ #[path = "../tests/model/storages.rs"]
+ pub(crate) mod model_storages;
+ 
+ impl PipeSlot {
+     fn acquire(actions: usize, messages: usize) -> (&'static PipeSlot, u64, u64) {
+-        let has_workers = crate::lanes::pool_has_workers();
+-        let need = if has_workers { actions } else { messages * MAX_SLOT_PIECES };
+-        let cap = need.max(1024).checked_next_power_of_two().expect("admitted action capacity fits power of two");
+-        let tier = slot_tier(cap);
+-        if let Some(FreeSlot { slot, next_group_epoch, next_loan_epoch }) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {
+-            return (slot, next_group_epoch, next_loan_epoch);
+-        }
+-        let max_slots = cap / MAX_SLOT_PIECES;
+-        let max_groups = max_slots.clamp(4, 256);
+-        #[cfg(any(test, shuttle))]
+-        PIPE_SLOTS_MADE.fetch_add(1, Ordering::Relaxed);
+-        // A one-thread pool never registers a `Source` or dispatches tickets to
+-        // workers, so keep its ticket ring empty while retaining stable waker
+-        // and group/loan completion lines for synchronous execution.
+-        let source = if has_workers { Source::with_actions(cap, PipeStorage::run_action) } else { Source::new() };
+-        let raw = Box::into_raw(Box::new(PipeSlot {
+-            source,
+-            waker: WakerSlot::new(),
+-            group_completed: (0..max_groups).map(|_| OwnLine(AtomicU64::new(0))).collect(),
+-            loan_completed: (0..max_slots).map(|_| OwnLine(AtomicU64::new(0))).collect(),
+-        }));
+-        #[cfg(shuttle)]
+-        MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));
+-        // Sound: `raw` stays live for the process (freed only after all Shuttle
+-        // worker threads join in `model_storages::free_storages_for_model`).
+-        (unsafe { &*raw }, 1, 1)
++        (Box::leak(Box::new(Default::default())), 1, 0) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     fn release(slot: &'static PipeSlot, next_group_epoch: u64, next_loan_epoch: u64) {
+         let tier = slot_tier(slot.loan_completed.len() * MAX_SLOT_PIECES);
+         FREE_PIPE_SLOTS.lock().unwrap()[tier].push(FreeSlot { slot, next_group_epoch, next_loan_epoch });
+     }
+ }
+ 
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-core` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil` (manifest) generated 1 warning
+warning: /Users/benchrunner/tmp/blake3-servil-mutants-502/run-2/Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[39646]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[39652]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants-502/run-2/version)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants-502/run-2)
+   Compiling blake3-servil v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants-502/run-2/threads)
+error[E0277]: the trait bound `PipeSlot: Default` is not satisfied
+   --> src/pipeline.rs:505:29
+    |
+505 |         (Box::leak(Box::new(Default::default())), 1, 0) /* ~ changed by cargo-mutants ~ */
+    |                             ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `PipeSlot`
+   --> src/pipeline.rs:433:1
+    |
+433 | struct PipeSlot {
+    | ^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `pipeline::PipeSlot: Default` is not satisfied
+   --> src/pipeline.rs:505:29
+    |
+505 |         (Box::leak(Box::new(Default::default())), 1, 0) /* ~ changed by cargo-mutants ~ */
+    |                             ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `pipeline::PipeSlot`
+   --> src/pipeline.rs:433:1
+    |
+433 | struct PipeSlot {
+    | ^^^^^^^^^^^^^^^
+
+error: could not compile `blake3-servil` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

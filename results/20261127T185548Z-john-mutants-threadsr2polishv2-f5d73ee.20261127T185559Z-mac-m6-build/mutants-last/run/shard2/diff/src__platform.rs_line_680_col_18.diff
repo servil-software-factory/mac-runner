@@ -1,0 +1,21 @@
+--- src/platform.rs
++++ replace && with || in features_of
+@@ -672,17 +672,17 @@
+ const fn features_of(words: CpuWords) -> u8 {
+     use x86_bits::*;
+     let mut features = READ;
+     let sse41_bits = (1 << 9) | (1 << 19);
+     let has_sse41 = words.leaf1_ecx & sse41_bits == sse41_bits;
+     if has_sse41 {
+         features |= SSE41;
+     }
+-    if has_sse41 && os_saves_avx(words.leaf1_ecx) {
++    if has_sse41 || /* ~ changed by cargo-mutants ~ */ os_saves_avx(words.leaf1_ecx) {
+         let (ymm, zmm) = (0b110, 0b1110_0110);
+         let has_avx2 = words.xcr0 & ymm == ymm && words.leaf7_ebx & (1 << 5) != 0;
+         if has_avx2 {
+             features |= AVX2;
+             let f_vl = (1 << 16) | (1 << 31);
+             if words.xcr0 & zmm == zmm && words.leaf7_ebx & f_vl == f_vl {
+                 features |= AVX512;
+                 if wide_cpu(words.amd, family(words.leaf1_eax)) {

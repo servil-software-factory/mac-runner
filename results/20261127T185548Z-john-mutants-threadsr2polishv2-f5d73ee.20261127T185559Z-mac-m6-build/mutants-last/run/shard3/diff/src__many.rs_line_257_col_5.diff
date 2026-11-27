@@ -1,0 +1,76 @@
+--- src/many.rs
++++ replace hash_two_chunks with ()
+@@ -249,72 +249,17 @@
+ /// lane (q1) or a pair alone (k2); side by side the plans fill their
+ /// lanes with the batch. VM, ns per message, one hash() each / side by
+ /// side: 2000 B x 2 1018 / 927, x 3 1036 / 653, x 4 1050 / 697, x 8 690
+ /// (SME2 from 7); 1100 B x 3 442 / 379. Commonware's four NEON lanes: 2000
+ /// B x 4 824 (Mac P-core 914 against servil's 1050 before, job 283).
+ #[cfg(target_arch = "aarch64")]
+ #[inline(never)]
+ fn hash_two_chunks(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]]) {
+-    use crate::PARENT;
+-    let slot = slot_len(len);
+-    let second = len - CHUNK_LEN;
+-    let second_blocks = second.div_ceil(BLOCK_LEN);
+-    let last_len = second - (second_blocks - 1) * BLOCK_LEN;
+-    // Sixteen at a time, as the plans take them: small arrays to zero.
+-    const GROUP: usize = 16;
+-    for (messages, digests) in input.chunks(slot * GROUP).zip(outputs.chunks_mut(GROUP)) {
+-        let count = digests.len();
+-        let mut firsts = crate::stack_vec::StackVec::<&[u8; CHUNK_LEN], GROUP>::new();
+-        let mut seconds = crate::stack_vec::StackVec::<*const u8, GROUP>::new();
+-        firsts.extend(messages.chunks_exact(slot).map(|m| m[..CHUNK_LEN].try_into().expect("a whole first chunk")));
+-        seconds.extend(messages.chunks_exact(slot).map(|m| m[CHUNK_LEN..].as_ptr()));
+-        assert_eq!(firsts.len(), count, "one two-chunk slot per output");
+-        assert_eq!(seconds.len(), count, "one second chunk per output");
+-        let mut cvs = [[0u8; OUT_LEN]; 2 * GROUP];
+-        let mut pairs = [[0u8; BLOCK_LEN]; GROUP];
+-        // Sound: `firsts` and `seconds` hold exactly `count` initialized
+-        // entries; each second-chunk pointer reaches `second_blocks` whole
+-        // blocks inside its slot, zero past the message; NEON is mandatory on
+-        // AArch64 (checked by `Platform::detect` / `build.rs` target gate).
+-        unsafe {
+-            crate::neon_hybrid::hash_many_last_len(
+-                &firsts,
+-                key,
+-                0,
+-                IncrementCounter::No,
+-                flags,
+-                CHUNK_START,
+-                CHUNK_END,
+-                BLOCK_LEN,
+-                cvs[..count].as_flattened_mut(),
+-            );
+-            crate::neon_hybrid::hash_messages_raw(
+-                seconds.as_ptr(),
+-                seconds.len(),
+-                second_blocks,
+-                key,
+-                1,
+-                flags,
+-                CHUNK_START,
+-                CHUNK_END,
+-                last_len,
+-                cvs[count..2 * count].as_flattened_mut(),
+-            );
+-        }
+-        for (i, pair) in pairs[..count].iter_mut().enumerate() {
+-            pair[..OUT_LEN].copy_from_slice(&cvs[i]);
+-            pair[OUT_LEN..].copy_from_slice(&cvs[count + i]);
+-        }
+-        let parents: crate::stack_vec::StackVec<&[u8; BLOCK_LEN], GROUP> = pairs[..count].iter().collect();
+-        // Sound: as above.
+-        unsafe {
+-            crate::neon_hybrid::hash_many_last_len(&parents, key, 0, IncrementCounter::No, flags | PARENT, 0, ROOT, BLOCK_LEN, digests.as_flattened_mut())
+-        };
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Number of messages to hash across when `count >= least`: whole-chunk
+ /// AVX-512 batches of 16..=31 (`least == ACROSS_GROUP`) hash their full
+ /// 16-message prefix across and leave the 0..=15 remainder serial, avoiding
+ /// the +14% slowdown of running a short tail through `hash_group_across`
+ /// (e.g. 15 KiB x 17). Larger batches (>= 32) and all other shapes stay
+ /// all-across.

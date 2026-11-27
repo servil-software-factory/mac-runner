@@ -1,0 +1,21 @@
+--- src/ffi_neon_hybrid.rs
++++ replace << with >> in midr_implementer
+@@ -643,17 +643,17 @@
+     #[cfg_attr(all(target_env = "musl", target_feature = "crt-static"), link(name = "c", kind = "static", modifiers = "-bundle"))]
+     #[cfg_attr(not(all(target_env = "musl", target_feature = "crt-static")), link(name = "c"))]
+     unsafe extern "C" {
+         fn getauxval(kind: c_ulong) -> c_ulong;
+     }
+     {
+         // AT_HWCAP from <elf.h>, HWCAP_CPUID from <asm/hwcap.h>.
+         const AT_HWCAP: c_ulong = 16;
+-        const HWCAP_CPUID: c_ulong = 1 << 11;
++        const HWCAP_CPUID: c_ulong = 1 >> /* ~ changed by cargo-mutants ~ */ 11;
+         // Sound: getauxval reads the process's own vector.
+         if unsafe { getauxval(AT_HWCAP) } & HWCAP_CPUID == 0 {
+             return None;
+         }
+         let midr: u64;
+         // Sound: with HWCAP_CPUID the kernel answers this read at EL0.
+         unsafe { core::arch::asm!("mrs {}, midr_el1", out(reg) midr, options(nomem, nostack, preserves_flags)) };
+         Some(u8::try_from((midr >> 24) & 0xff).expect("masked to 8 bits"))
