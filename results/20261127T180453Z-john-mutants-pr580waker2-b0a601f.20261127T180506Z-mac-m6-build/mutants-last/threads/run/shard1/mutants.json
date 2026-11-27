@@ -1,0 +1,296 @@
+[
+  {
+    "diff": "--- src/action_ring.rs\n+++ replace % with + in take_one\n@@ -47,17 +47,17 @@\n pub(crate) fn take_one(actions: &[Action], published: &AtomicUsize, claimed: &AtomicUsize) -> Option<(usize, *const (), u64)> {\n     let mut c = claimed.load(Ordering::Acquire);\n     let cap = actions.len();\n     loop {\n         let p = published.load(Ordering::Acquire);\n         if c >= p {\n             return None;\n         }\n-        let slot = &actions[c % cap];\n+        let slot = &actions[c + /* ~ changed by cargo-mutants ~ */ cap];\n         let context = slot.context.load(Ordering::Relaxed) as *const ();\n         let arg = slot.arg.load(Ordering::Relaxed);\n         match claimed.compare_exchange_weak(c, c + 1, Ordering::AcqRel, Ordering::Acquire) {\n             Ok(_) => return Some((c, context, arg)),\n             Err(now) => c = now,\n         }\n     }\n }\n",
+    "file": "src/action_ring.rs",
+    "function": {
+      "function_name": "take_one",
+      "return_type": "-> Option<(usize, *const(), u64)>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 63
+        },
+        "start": {
+          "column": 1,
+          "line": 42
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/action_ring.rs:55:31: replace % with + in take_one",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 55
+      },
+      "start": {
+        "column": 31,
+        "line": 55
+      }
+    }
+  },
+  {
+    "diff": "--- src/action_ring.rs\n+++ replace + with - in take_one\n@@ -50,14 +50,14 @@\n     loop {\n         let p = published.load(Ordering::Acquire);\n         if c >= p {\n             return None;\n         }\n         let slot = &actions[c % cap];\n         let context = slot.context.load(Ordering::Relaxed) as *const ();\n         let arg = slot.arg.load(Ordering::Relaxed);\n-        match claimed.compare_exchange_weak(c, c + 1, Ordering::AcqRel, Ordering::Acquire) {\n+        match claimed.compare_exchange_weak(c, c - /* ~ changed by cargo-mutants ~ */ 1, Ordering::AcqRel, Ordering::Acquire) {\n             Ok(_) => return Some((c, context, arg)),\n             Err(now) => c = now,\n         }\n     }\n }\n",
+    "file": "src/action_ring.rs",
+    "function": {
+      "function_name": "take_one",
+      "return_type": "-> Option<(usize, *const(), u64)>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 63
+        },
+        "start": {
+          "column": 1,
+          "line": 42
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/action_ring.rs:58:50: replace + with - in take_one",
+    "package": "blake3-servil",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 51,
+        "line": 58
+      },
+      "start": {
+        "column": 50,
+        "line": 58
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::with_actions -> Source with Default::default()\n@@ -3315,26 +3315,17 @@\n                 base: AtomicUsize::new(0),\n                 near: core::sync::atomic::AtomicBool::new(false),\n                 finish: crate::finish::Finish::new(),\n             }\n         }\n \n         /// A source with `actions` slots and a fixed `run` handler for a pipeline's items.\n         pub(crate) fn with_actions(actions: usize, run: unsafe fn(*const (), u64, Platform)) -> Source {\n-            assert!(actions > 0, \"an action source has at least one slot\");\n-            Source {\n-                claimed: OwnLine(AtomicUsize::new(0)),\n-                actions: (0..actions).map(|_| Action::empty()).collect(),\n-                action_run: Some(run),\n-                job: AtomicPtr::new(core::ptr::null_mut()),\n-                base: AtomicUsize::new(0),\n-                near: core::sync::atomic::AtomicBool::new(false),\n-                finish: crate::finish::Finish::new(),\n-            }\n+            Default::default() /* ~ changed by cargo-mutants ~ */\n         }\n \n         pub(crate) fn actions_len(&self) -> usize {\n             self.actions.len()\n         }\n \n         fn carries_tasks(&self) -> bool {\n             !self.actions.is_empty()\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::with_actions",
+      "return_type": "-> Source",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3333
+        },
+        "start": {
+          "column": 9,
+          "line": 3321
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3323:13: replace sources::Source::with_actions -> Source with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3332
+      },
+      "start": {
+        "column": 13,
+        "line": 3323
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::take -> Option<Item> with None\n@@ -3438,32 +3438,17 @@\n             self.claimed.store(base + own, Ordering::Relaxed);\n             self.finish.published.store(target, Ordering::Release);\n             core::sync::atomic::fence(Ordering::SeqCst);\n             target\n         }\n \n         /// Claim the next published item, if any.\n         pub(crate) fn take(&self) -> Option<Item> {\n-            if let Some(run) = self.action_run {\n-                let (_, context, arg) = crate::action_ring::take_one(&self.actions, &self.finish.published, &self.claimed)?;\n-                return Some(Item::Action { run, context, arg });\n-            }\n-            let mut c = self.claimed.load(Ordering::Acquire);\n-            loop {\n-                let p = self.finish.published.load(Ordering::Acquire);\n-                if c >= p {\n-                    return None;\n-                }\n-                let n = Self::run_len(p - c, pool().threads);\n-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n-                    Ok(_) => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n-                    Err(now) => c = now,\n-                }\n-            }\n+            None /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Get the number of pieces one claim takes of `waiting` pieces of a\n         /// job shared by `threads` threads: a 2 * threads-th of what waits,\n         /// one at least, so runs shrink toward the end (guided\n         /// self-scheduling).\n         fn run_len(waiting: usize, threads: usize) -> usize {\n             (waiting / (2 * threads)).max(1)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3462
+        },
+        "start": {
+          "column": 9,
+          "line": 3444
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3446:13: replace sources::Source::take -> Option<Item> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3461
+      },
+      "start": {
+        "column": 13,
+        "line": 3446
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::take -> Option<Item> with Some(Default::default())\n@@ -3438,32 +3438,17 @@\n             self.claimed.store(base + own, Ordering::Relaxed);\n             self.finish.published.store(target, Ordering::Release);\n             core::sync::atomic::fence(Ordering::SeqCst);\n             target\n         }\n \n         /// Claim the next published item, if any.\n         pub(crate) fn take(&self) -> Option<Item> {\n-            if let Some(run) = self.action_run {\n-                let (_, context, arg) = crate::action_ring::take_one(&self.actions, &self.finish.published, &self.claimed)?;\n-                return Some(Item::Action { run, context, arg });\n-            }\n-            let mut c = self.claimed.load(Ordering::Acquire);\n-            loop {\n-                let p = self.finish.published.load(Ordering::Acquire);\n-                if c >= p {\n-                    return None;\n-                }\n-                let n = Self::run_len(p - c, pool().threads);\n-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n-                    Ok(_) => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n-                    Err(now) => c = now,\n-                }\n-            }\n+            Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Get the number of pieces one claim takes of `waiting` pieces of a\n         /// job shared by `threads` threads: a 2 * threads-th of what waits,\n         /// one at least, so runs shrink toward the end (guided\n         /// self-scheduling).\n         fn run_len(waiting: usize, threads: usize) -> usize {\n             (waiting / (2 * threads)).max(1)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3462
+        },
+        "start": {
+          "column": 9,
+          "line": 3444
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3446:13: replace sources::Source::take -> Option<Item> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3461
+      },
+      "start": {
+        "column": 13,
+        "line": 3446
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace - with + in sources::Source::take\n@@ -3448,17 +3448,17 @@\n                 return Some(Item::Action { run, context, arg });\n             }\n             let mut c = self.claimed.load(Ordering::Acquire);\n             loop {\n                 let p = self.finish.published.load(Ordering::Acquire);\n                 if c >= p {\n                     return None;\n                 }\n-                let n = Self::run_len(p - c, pool().threads);\n+                let n = Self::run_len(p + /* ~ changed by cargo-mutants ~ */ c, pool().threads);\n                 match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n                     Ok(_) => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n                     Err(now) => c = now,\n                 }\n             }\n         }\n \n         /// Get the number of pieces one claim takes of `waiting` pieces of a\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3462
+        },
+        "start": {
+          "column": 9,
+          "line": 3444
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3456:41: replace - with + in sources::Source::take",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 42,
+        "line": 3456
+      },
+      "start": {
+        "column": 41,
+        "line": 3456
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace - with +\n@@ -199,17 +199,17 @@\n #[derive(Clone, Copy, Debug, PartialEq, Eq)]\n enum ActionArg {\n     Group { group: u32, custom_slot: u32 },\n     RoomPiece { pnode: u32, custom: bool, sme2: bool },\n     Multi { slot: u32, piece: u32, custom: bool, sme2: bool },\n }\n \n impl ActionArg {\n-    const MAX_A: u32 = (1 << 29) - 1;\n+    const MAX_A: u32 = (1 << 29) + /* ~ changed by cargo-mutants ~ */ 1;\n \n     #[inline(always)]\n     fn encode(self) -> u64 {\n         let (kind, a, b, sme2): (u64, u32, u32, bool) = match self {\n             ActionArg::Group { group, custom_slot } => (0, group, custom_slot, false),\n             ActionArg::RoomPiece { pnode, custom, sme2 } => (1, pnode, u32::from(custom), sme2),\n             ActionArg::Multi { slot, piece, custom, sme2 } => {\n                 assert!(piece < MULTI_CUSTOM_BIT, \"multi piece index overlaps custom flag\");\n",
+    "file": "src/pipeline.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:207:34: replace - with +",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 35,
+        "line": 207
+      },
+      "start": {
+        "column": 34,
+        "line": 207
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace << with >>\n@@ -199,17 +199,17 @@\n #[derive(Clone, Copy, Debug, PartialEq, Eq)]\n enum ActionArg {\n     Group { group: u32, custom_slot: u32 },\n     RoomPiece { pnode: u32, custom: bool, sme2: bool },\n     Multi { slot: u32, piece: u32, custom: bool, sme2: bool },\n }\n \n impl ActionArg {\n-    const MAX_A: u32 = (1 << 29) - 1;\n+    const MAX_A: u32 = (1 >> /* ~ changed by cargo-mutants ~ */ 29) - 1;\n \n     #[inline(always)]\n     fn encode(self) -> u64 {\n         let (kind, a, b, sme2): (u64, u32, u32, bool) = match self {\n             ActionArg::Group { group, custom_slot } => (0, group, custom_slot, false),\n             ActionArg::RoomPiece { pnode, custom, sme2 } => (1, pnode, u32::from(custom), sme2),\n             ActionArg::Multi { slot, piece, custom, sme2 } => {\n                 assert!(piece < MULTI_CUSTOM_BIT, \"multi piece index overlaps custom flag\");\n",
+    "file": "src/pipeline.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:207:27: replace << with >>",
+    "package": "blake3-servil",
+    "replacement": ">>",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 207
+      },
+      "start": {
+        "column": 27,
+        "line": 207
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace ActionArg::encode -> u64 with 0\n@@ -203,30 +203,17 @@\n     Multi { slot: u32, piece: u32, custom: bool, sme2: bool },\n }\n \n impl ActionArg {\n     const MAX_A: u32 = (1 << 29) - 1;\n \n     #[inline(always)]\n     fn encode(self) -> u64 {\n-        let (kind, a, b, sme2): (u64, u32, u32, bool) = match self {\n-            ActionArg::Group { group, custom_slot } => (0, group, custom_slot, false),\n-            ActionArg::RoomPiece { pnode, custom, sme2 } => (1, pnode, u32::from(custom), sme2),\n-            ActionArg::Multi { slot, piece, custom, sme2 } => {\n-                assert!(piece < MULTI_CUSTOM_BIT, \"multi piece index overlaps custom flag\");\n-                let custom_bit = if custom { MULTI_CUSTOM_BIT } else { 0 };\n-                (2, slot, custom_bit + piece, sme2)\n-            }\n-        };\n-        assert!(a <= Self::MAX_A, \"action index exceeds 29-bit field\");\n-        // Put the SME2 flag bit (bit 63) first so every `+` has a distinct\n-        // non-zero right operand (avoiding `x + (1<<63) == x - (1<<63)`).\n-        let sme2_bit = if sme2 { ACTION_SME2 } else { 0 };\n-        sme2_bit + ((kind << 61) + ((a as u64) << 32) + (b as u64))\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn decode(arg: u64) -> Self {\n         let sme2 = (arg & ACTION_SME2) != 0;\n         let clean = arg & !ACTION_SME2;\n         let kind = clean >> 61;\n         let a = u32::try_from((clean >> 32) & u64::from(Self::MAX_A)).expect(\"29-bit field fits u32\");\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "ActionArg::encode",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 225
+        },
+        "start": {
+          "column": 5,
+          "line": 209
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:211:9: replace ActionArg::encode -> u64 with 0",
+    "package": "blake3-servil",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 68,
+        "line": 224
+      },
+      "start": {
+        "column": 9,
+        "line": 211
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace ActionArg::encode -> u64 with 1\n@@ -203,30 +203,17 @@\n     Multi { slot: u32, piece: u32, custom: bool, sme2: bool },\n }\n \n impl ActionArg {\n     const MAX_A: u32 = (1 << 29) - 1;\n \n     #[inline(always)]\n     fn encode(self) -> u64 {\n-        let (kind, a, b, sme2): (u64, u32, u32, bool) = match self {\n-            ActionArg::Group { group, custom_slot } => (0, group, custom_slot, false),\n-            ActionArg::RoomPiece { pnode, custom, sme2 } => (1, pnode, u32::from(custom), sme2),\n-            ActionArg::Multi { slot, piece, custom, sme2 } => {\n-                assert!(piece < MULTI_CUSTOM_BIT, \"multi piece index overlaps custom flag\");\n-                let custom_bit = if custom { MULTI_CUSTOM_BIT } else { 0 };\n-                (2, slot, custom_bit + piece, sme2)\n-            }\n-        };\n-        assert!(a <= Self::MAX_A, \"action index exceeds 29-bit field\");\n-        // Put the SME2 flag bit (bit 63) first so every `+` has a distinct\n-        // non-zero right operand (avoiding `x + (1<<63) == x - (1<<63)`).\n-        let sme2_bit = if sme2 { ACTION_SME2 } else { 0 };\n-        sme2_bit + ((kind << 61) + ((a as u64) << 32) + (b as u64))\n+        1 /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn decode(arg: u64) -> Self {\n         let sme2 = (arg & ACTION_SME2) != 0;\n         let clean = arg & !ACTION_SME2;\n         let kind = clean >> 61;\n         let a = u32::try_from((clean >> 32) & u64::from(Self::MAX_A)).expect(\"29-bit field fits u32\");\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "ActionArg::encode",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 225
+        },
+        "start": {
+          "column": 5,
+          "line": 209
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:211:9: replace ActionArg::encode -> u64 with 1",
+    "package": "blake3-servil",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 68,
+        "line": 224
+      },
+      "start": {
+        "column": 9,
+        "line": 211
+      }
+    }
+  }
+]

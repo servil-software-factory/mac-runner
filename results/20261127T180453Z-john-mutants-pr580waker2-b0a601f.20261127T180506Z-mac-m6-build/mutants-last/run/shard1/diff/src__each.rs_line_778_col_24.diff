@@ -1,0 +1,21 @@
+--- src/each.rs
++++ replace += with -= in hash_each_on
+@@ -770,17 +770,17 @@
+     if by_blocks {
+         // BY_BLOCKS_AT_ONCE of them at a time, their indices on the stack:
+         // a collection of small items allocates nothing and returns before
+         // borrowing SHARED or scanning items again.
+         let mut small_done = 0usize;
+         let mut small = (0..items.len()).filter(|&i| items[i].bytes().len() <= CHUNK_LEN).peekable();
+         while small.peek().is_some() {
+             let part: crate::stack_vec::StackVec<usize, BY_BLOCKS_AT_ONCE> = small.by_ref().take(BY_BLOCKS_AT_ONCE).collect();
+-            small_done += part.len();
++            small_done -= /* ~ changed by cargo-mutants ~ */ part.len();
+             let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> = part.iter().map(|&i| items[i].bytes()).collect();
+             let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];
+             hash_by_blocks(&bytes, &key, flags, &mut digests[..part.len()], platform);
+             for (&i, digest) in part.iter().zip(&digests) {
+                 out[i] = *digest;
+             }
+         }
+         if small_done == items.len() {

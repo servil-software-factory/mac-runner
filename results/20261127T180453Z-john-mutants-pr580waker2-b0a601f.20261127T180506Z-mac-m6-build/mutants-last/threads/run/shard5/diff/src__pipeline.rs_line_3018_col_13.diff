@@ -1,0 +1,29 @@
+--- src/pipeline.rs
++++ replace block_on::<impl Drop for Guard>::drop with ()
+@@ -3010,25 +3010,17 @@
+ ///     let _ = (slot.await, ev.await);
+ /// }
+ /// ```
+ pub fn block_on<F: Future>(future: F) -> F::Output {
+     /// Whether this `block_on` runs inside another, and whether it took a wake.
+     struct Guard(bool, bool);
+     impl Drop for Guard {
+         fn drop(&mut self) {
+-            IN_BLOCK_ON.with(|f| f.set(self.0));
+-            if self.0 && self.1 {
+-                // This `block_on` ran inside a poll of another, on the one
+-                // waker the two share: a wake it took may have been the
+-                // other's, which polls once more before it sleeps. Only
+-                // where it took one: an outer future that runs a
+-                // `block_on` in each poll would otherwise never sleep.
+-                BLOCK_ON_PARK.with(|park| park.woken.store(true, Ordering::Release));
+-            }
++            () /* ~ changed by cargo-mutants ~ */
+         }
+     }
+     let prev = IN_BLOCK_ON.with(|f| f.replace(true));
+     let mut guard = Guard(prev, false);
+     let mut future = core::pin::pin!(future);
+     BLOCK_ON_PARK.with(|park| {
+         BLOCK_ON_WAKER.with(|waker| {
+             let mut cx = Context::from_waker(waker);
