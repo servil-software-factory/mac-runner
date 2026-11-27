@@ -1,0 +1,51 @@
+--- src/pipeline.rs
++++ replace PipeStorage::alloc -> *mut PipeStorage with Default::default()
+@@ -600,47 +600,17 @@
+             unsafe { (*st).slot.poison() };
+             #[cfg(any(test, shuttle))]
+             LIVE_STORAGES.fetch_sub(1, Ordering::Relaxed);
+             crate::pipeline_sync::retire_storage!(st);
+         }
+     }
+ 
+     fn alloc(slot: &'static PipeSlot, tree: TreeHasher, messages: usize, rooms: usize, pieces: usize, groups: usize) -> *mut PipeStorage {
+-        #[cfg(any(test, shuttle))]
+-        LIVE_STORAGES.fetch_add(1, Ordering::Relaxed);
+-        let raw = Box::into_raw(Box::new(PipeStorage {
+-            slot: crate::pipeline_sync::SlotRef::new(slot),
+-            slot_trees: (0..messages).map(|_| UnsafeCell::new(tree.clone())).collect(),
+-            tree,
+-            rooms: Rooms::new(rooms),
+-            groups: (0..groups)
+-                .map(|_| MemberGroup { task: UnsafeCell::new(Task::members(None)), rooms: UnsafeCell::new([NONE; MEMBERS]), epoch: UnsafeCell::new(0) })
+-                .collect(),
+-            hashes: (0..messages).map(|_| UnsafeCell::new([0u8; OUT_LEN])).collect(),
+-            cvs: (0..messages).map(|_| UnsafeCell::new(PieceValues { whole: [Cv::unset(); MAX_SLOT_PIECES], last: None })).collect(),
+-            slot_done: (0..messages).map(|_| OwnLine(AtomicBool::new(true))).collect(),
+-            tasks_left: (0..messages).map(|_| OwnLine(AtomicUsize::new(0))).collect(),
+-            multi: (0..messages).map(|_| UnsafeCell::new(MultiDesc::empty())).collect(),
+-            pieces: (0..pieces)
+-                .map(|_| PieceNode {
+-                    slot: UnsafeCell::new(0),
+-                    room: UnsafeCell::new(0),
+-                    offset: UnsafeCell::new(0),
+-                    len: UnsafeCell::new(0),
+-                    index: UnsafeCell::new(0),
+-                    out: OwnLine(UnsafeCell::new(RoomValue::Whole(Cv::unset()))),
+-                    done: OwnLine(AtomicBool::new(true)),
+-                    next: UnsafeCell::new(NONE),
+-                })
+-                .collect(),
+-            holders: OwnLine(AtomicUsize::new(1)),
+-        }));
+-        crate::pipeline_sync::register_storage!(raw);
+-        raw
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.
+ ///
+ /// # Trait implementations
+ ///
+ /// - `Drop` returns the unused credits; workers retain access to committed

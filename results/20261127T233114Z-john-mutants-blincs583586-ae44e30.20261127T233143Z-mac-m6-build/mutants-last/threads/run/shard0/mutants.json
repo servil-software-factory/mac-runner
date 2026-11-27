@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::alloc -> *mut PipeStorage with Default::default()\n@@ -600,47 +600,17 @@\n             unsafe { (*st).slot.poison() };\n             #[cfg(any(test, shuttle))]\n             LIVE_STORAGES.fetch_sub(1, Ordering::Relaxed);\n             crate::pipeline_sync::retire_storage!(st);\n         }\n     }\n \n     fn alloc(slot: &'static PipeSlot, tree: TreeHasher, messages: usize, rooms: usize, pieces: usize, groups: usize) -> *mut PipeStorage {\n-        #[cfg(any(test, shuttle))]\n-        LIVE_STORAGES.fetch_add(1, Ordering::Relaxed);\n-        let raw = Box::into_raw(Box::new(PipeStorage {\n-            slot: crate::pipeline_sync::SlotRef::new(slot),\n-            slot_trees: (0..messages).map(|_| UnsafeCell::new(tree.clone())).collect(),\n-            tree,\n-            rooms: Rooms::new(rooms),\n-            groups: (0..groups)\n-                .map(|_| MemberGroup { task: UnsafeCell::new(Task::members(None)), rooms: UnsafeCell::new([NONE; MEMBERS]), epoch: UnsafeCell::new(0) })\n-                .collect(),\n-            hashes: (0..messages).map(|_| UnsafeCell::new([0u8; OUT_LEN])).collect(),\n-            cvs: (0..messages).map(|_| UnsafeCell::new(PieceValues { whole: [Cv::unset(); MAX_SLOT_PIECES], last: None })).collect(),\n-            slot_done: (0..messages).map(|_| OwnLine(AtomicBool::new(true))).collect(),\n-            tasks_left: (0..messages).map(|_| OwnLine(AtomicUsize::new(0))).collect(),\n-            multi: (0..messages).map(|_| UnsafeCell::new(MultiDesc::empty())).collect(),\n-            pieces: (0..pieces)\n-                .map(|_| PieceNode {\n-                    slot: UnsafeCell::new(0),\n-                    room: UnsafeCell::new(0),\n-                    offset: UnsafeCell::new(0),\n-                    len: UnsafeCell::new(0),\n-                    index: UnsafeCell::new(0),\n-                    out: OwnLine(UnsafeCell::new(RoomValue::Whole(Cv::unset()))),\n-                    done: OwnLine(AtomicBool::new(true)),\n-                    next: UnsafeCell::new(NONE),\n-                })\n-                .collect(),\n-            holders: OwnLine(AtomicUsize::new(1)),\n-        }));\n-        crate::pipeline_sync::register_storage!(raw);\n-        raw\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Reusable `ROOM_LEN`-byte buffer for arriving message bytes.\n ///\n /// # Trait implementations\n ///\n /// - `Drop` returns the unused credits; workers retain access to committed\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::alloc",
+      "return_type": "-> *mut PipeStorage",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 639
+        },
+        "start": {
+          "column": 5,
+          "line": 607
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:608:9: replace PipeStorage::alloc -> *mut PipeStorage with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 638
+      },
+      "start": {
+        "column": 9,
+        "line": 608
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace MultiDesc::empty -> Self with Default::default()\n@@ -802,17 +802,17 @@\n     pieces: usize,\n     kind: MultiKind,\n }\n \n const _: () = assert!(core::mem::size_of::<MultiDesc>() <= 64);\n \n impl MultiDesc {\n     fn empty() -> Self {\n-        Self { input: core::ptr::null(), pieces: 0, kind: MultiKind::Slice { total_len: 0, piece_level: level_of(TASK_LEN as u64), loan_epoch: 0 } }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// The last thing a worker does for a task: `publish` stores the task's\n /// completion, then `waker` (living in `&'static PipeSlot`) wakes the owner.\n /// Every reference into `PipeStorage` ends BEFORE `publish` runs so that once\n /// `publish` completes, `Pipeline::drop` may immediately free `PipeStorage`\n /// without any worker holding a dangling reference or touching freed memory.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "MultiDesc::empty",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 811
+        },
+        "start": {
+          "column": 5,
+          "line": 809
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:810:9: replace MultiDesc::empty -> Self with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 149,
+        "line": 810
+      },
+      "start": {
+        "column": 9,
+        "line": 810
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::run_multi_piece -> (*const AtomicUsize, bool) with (Default::default(), true)\n@@ -963,56 +963,17 @@\n         self.rooms.release_n(room_idx, 1);\n         (&self.slot.get().waker, core::ptr::addr_of!(pnode.done.0))\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, custom: bool, platform: Platform) -> (*const AtomicUsize, bool) {\n         // Sound: the owner wrote the description before dispatching the slot's\n         // tasks (batch, submit_multi_slice), and writes it again only after\n         // `slot_done`.\n-        let desc = unsafe { *self.multi[slot].get() };\n-        assert!(piece_idx < desc.pieces, \"the action names a piece of its submission\");\n-        let tree = self.tree_for(slot, custom);\n-        match desc.kind {\n-            MultiKind::Batch { message_len, slot_len, per_part, count: total_count, digests: digests_ptr } => {\n-                let first = piece_idx * per_part;\n-                let count = (total_count - first).min(per_part);\n-                // Sound: the batch and its digests stay in the slot (`batches[s]`)\n-                // until the slot's event, which waits for `slot_done`; this task's\n-                // messages and digests are its own range of them (`first`,\n-                // `count`).\n-                let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };\n-                let digests = unsafe { core::slice::from_raw_parts_mut(digests_ptr.as_ptr().add(first), count) };\n-                // Sound: `MultiKind::Batch` came from a validated `Prepared` batch\n-                // (including zero-length messages padded to `BLOCK_LEN`) held alive\n-                // in `Pipeline::batches[slot]` until `slot_done`.\n-                let part = unsafe { crate::throughput::Part::from_checked_slots(bytes, message_len, slot_len) };\n-                tree.hash_many_on(platform, &part, digests);\n-                (core::ptr::addr_of!(self.tasks_left[slot].0), true)\n-            }\n-            MultiKind::Slice { total_len, piece_level: level, .. } => {\n-                // Sound: the owner, or the Lent guard, keeps all the message's\n-                // bytes in place until the slot is done. The chunks of this slice\n-                // are the same partition the submitter put in the action list.\n-                let input = unsafe { core::slice::from_raw_parts(desc.input, total_len) };\n-                let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect(\"a piece within its message\");\n-                let values = self.cvs[slot].get();\n-                if piece_idx + 1 == desc.pieces {\n-                    let value = tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);\n-                    // Sound: only the last piece writes this field.\n-                    unsafe { (*values).last = Some(value) };\n-                } else {\n-                    let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);\n-                    // Sound: a separate slot for each index (submit_multi_slice\n-                    // limits the count); form no borrow of other workers' slots.\n-                    unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n-                }\n-                (core::ptr::addr_of!(self.tasks_left[slot].0), false)\n-            }\n-        }\n+        (Default::default(), true) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn finish_multi_slot(&self, slot: usize, is_batch: bool, custom: bool) -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) {\n         let mut loan_mark = None;\n         if !is_batch {\n             // Sound: this is the slot's last task (`tasks_left` reached zero),\n             // so every piece's value is written and no one else reads or\n             // writes the slot's values or hash until `slot_done` below.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::run_multi_piece",
+      "return_type": "-> (*const AtomicUsize, bool)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1011
+        },
+        "start": {
+          "column": 5,
+          "line": 967
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:971:9: replace PipeStorage::run_multi_piece -> (*const AtomicUsize, bool) with (Default::default(), true)",
+    "package": "blake3-servil",
+    "replacement": "(Default::default(), true)",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1010
+      },
+      "start": {
+        "column": 9,
+        "line": 971
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::run_multi_piece -> (*const AtomicUsize, bool) with (Default::default(), false)\n@@ -963,56 +963,17 @@\n         self.rooms.release_n(room_idx, 1);\n         (&self.slot.get().waker, core::ptr::addr_of!(pnode.done.0))\n     }\n \n     fn run_multi_piece(&self, slot: usize, piece_idx: usize, custom: bool, platform: Platform) -> (*const AtomicUsize, bool) {\n         // Sound: the owner wrote the description before dispatching the slot's\n         // tasks (batch, submit_multi_slice), and writes it again only after\n         // `slot_done`.\n-        let desc = unsafe { *self.multi[slot].get() };\n-        assert!(piece_idx < desc.pieces, \"the action names a piece of its submission\");\n-        let tree = self.tree_for(slot, custom);\n-        match desc.kind {\n-            MultiKind::Batch { message_len, slot_len, per_part, count: total_count, digests: digests_ptr } => {\n-                let first = piece_idx * per_part;\n-                let count = (total_count - first).min(per_part);\n-                // Sound: the batch and its digests stay in the slot (`batches[s]`)\n-                // until the slot's event, which waits for `slot_done`; this task's\n-                // messages and digests are its own range of them (`first`,\n-                // `count`).\n-                let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };\n-                let digests = unsafe { core::slice::from_raw_parts_mut(digests_ptr.as_ptr().add(first), count) };\n-                // Sound: `MultiKind::Batch` came from a validated `Prepared` batch\n-                // (including zero-length messages padded to `BLOCK_LEN`) held alive\n-                // in `Pipeline::batches[slot]` until `slot_done`.\n-                let part = unsafe { crate::throughput::Part::from_checked_slots(bytes, message_len, slot_len) };\n-                tree.hash_many_on(platform, &part, digests);\n-                (core::ptr::addr_of!(self.tasks_left[slot].0), true)\n-            }\n-            MultiKind::Slice { total_len, piece_level: level, .. } => {\n-                // Sound: the owner, or the Lent guard, keeps all the message's\n-                // bytes in place until the slot is done. The chunks of this slice\n-                // are the same partition the submitter put in the action list.\n-                let input = unsafe { core::slice::from_raw_parts(desc.input, total_len) };\n-                let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect(\"a piece within its message\");\n-                let values = self.cvs[slot].get();\n-                if piece_idx + 1 == desc.pieces {\n-                    let value = tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);\n-                    // Sound: only the last piece writes this field.\n-                    unsafe { (*values).last = Some(value) };\n-                } else {\n-                    let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);\n-                    // Sound: a separate slot for each index (submit_multi_slice\n-                    // limits the count); form no borrow of other workers' slots.\n-                    unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n-                }\n-                (core::ptr::addr_of!(self.tasks_left[slot].0), false)\n-            }\n-        }\n+        (Default::default(), false) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn finish_multi_slot(&self, slot: usize, is_batch: bool, custom: bool) -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) {\n         let mut loan_mark = None;\n         if !is_batch {\n             // Sound: this is the slot's last task (`tasks_left` reached zero),\n             // so every piece's value is written and no one else reads or\n             // writes the slot's values or hash until `slot_done` below.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::run_multi_piece",
+      "return_type": "-> (*const AtomicUsize, bool)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1011
+        },
+        "start": {
+          "column": 5,
+          "line": 967
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:971:9: replace PipeStorage::run_multi_piece -> (*const AtomicUsize, bool) with (Default::default(), false)",
+    "package": "blake3-servil",
+    "replacement": "(Default::default(), false)",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1010
+      },
+      "start": {
+        "column": 9,
+        "line": 971
+      }
+    }
+  }
+]
