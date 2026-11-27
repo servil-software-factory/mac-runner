@@ -1,0 +1,39 @@
+--- src/lanes.rs
++++ replace tree_cvs -> T with Default::default()
+@@ -379,35 +379,17 @@
+ 
+ /// The subtree pieces of `input` at chunk `counter` and their chaining
+ /// values, hashed over the pool (the SME2 thread's prefix first, where it
+ /// takes one), handed to `merge`: the whole pieces' values (every piece
+ /// but the last), then the last piece's.
+ /// `merge` gets `tree` kept to a core's own kernels too, as the pieces
+ /// ran: the merges are the pool's work like them.
+ fn tree_cvs<T>(pool: &Pool, input: &[u8], tree: &TreeHasher, counter: u64, merge: impl FnOnce(&[Piece], &mut [ChainingValue], LastCv, &TreeHasher) -> T) -> T {
+-    let turn = Sme2Turn::take(Platform::detect(), true);
+-    let plan = pool.plan(places::Kind::Tree, input.len());
+-    let threads = tree_threads(input.len(), plan.threads, turn.platform().simd_degree());
+-    let prefix = prefix_for(&turn, input.len(), threads);
+-    with_scratch(
+-        |pieces| cut_with_prefix(pieces, input.len(), threads, prefix),
+-        |own, pieces, cvs| {
+-            cvs.clear();
+-            cvs.resize(pieces.len(), ChainingValue::unset());
+-            let own_core = tree.clone().on_this_core();
+-            let mut last = None;
+-            let work = Work::Tree { input, pieces, cvs: cvs.as_mut_ptr(), last: &mut last, tree: own_core.clone(), counter, own_platform: turn.platform() };
+-            pool.run_job(work, pieces.len(), own, threads, plan.near());
+-            plan.done();
+-            drop(turn);
+-            let whole = pieces.len() - 1;
+-            merge(pieces, &mut cvs[..whole], last.expect("the job hashed its last piece"), &own_core)
+-        },
+-    )
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The halves of the whole subtree the Hasher asks for (at least
+ /// MIN_SPLIT_LEN), over the machine's threads. The Hasher checks the
+ /// returned places before its stack takes the values.
+ pub(crate) fn subtree_halves(tree: &TreeHasher, level: u32, index: u64, input: &[u8]) -> [ChainingValue; 2] {
+     let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().subtree_halves(level, index, input) };
+     tree_cvs(pool, input, tree, index << level, |pieces, cvs, last, own| {

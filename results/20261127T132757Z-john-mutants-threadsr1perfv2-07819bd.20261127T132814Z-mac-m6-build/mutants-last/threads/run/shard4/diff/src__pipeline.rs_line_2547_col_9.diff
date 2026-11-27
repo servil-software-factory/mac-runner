@@ -1,0 +1,110 @@
+--- src/pipeline.rs
++++ replace <impl Drop for Pipeline<T, B, P>>::drop with ()
+@@ -2539,106 +2539,17 @@
+             }
+         }
+         false
+     }
+ }
+ 
+ impl<T, B, P> Drop for Pipeline<T, B, P> {
+     fn drop(&mut self) {
+-        if self.has_in_flight_work() {
+-            stop_process("blake3-servil: Pipeline dropped while worker tasks are still in flight\n");
+-        }
+-        // Release any credits held on uncommitted short rooms sitting in un-ended slots
+-        // (e.g. during panic unwind after a precondition check failed with zero workers running).
+-        for s in 0..self.slots.len() {
+-            if let SlotKind::OpenShort { room: room_idx, .. } = self.slots[s].kind {
+-                self.storage().rooms.release_n(room_idx, 1);
+-            }
+-        }
+-        if self.open_group.take().is_some() {
+-            for &r in &self.bufs.local_rooms[..self.local_count] {
+-                if r != NONE {
+-                    self.storage().rooms.release_n(r, 1);
+-                }
+-            }
+-        }
+-        if let Some(slot) = self.source_slot {
+-            Source::unregister(slot);
+-            crate::lanes::sources::closed();
+-        }
+-        let storage_ptr = self.storage;
+-        let storage = self.storage();
+-        let pipe_slot = self.pipe_slot;
+-        // Pre-reserve one hold per room slot before stamping ROOM_CLOSING_BIT so
+-        // any surviving Room dropped concurrently on another thread cannot drop
+-        // `storage.holders` to 0 while this loop is still running.
+-        let room_count = storage.rooms.count;
+-        storage.holders.fetch_add(room_count, Ordering::Relaxed);
+-        let mut survivors = 0usize;
+-        for r in &storage.rooms.refs {
+-            let prev = r.fetch_or(ROOM_CLOSING_BIT, Ordering::SeqCst);
+-            if prev != 0 {
+-                survivors += 1;
+-            }
+-        }
+-        let release_holds = (room_count - survivors) + 1;
+-        let next_group_epoch = self.next_group_epoch;
+-        let next_loan_epoch = self.next_loan_epoch;
+-        struct ReleaseStorage {
+-            storage: *mut PipeStorage,
+-            holds: usize,
+-            slot: &'static PipeSlot,
+-            next_group_epoch: u64,
+-            next_loan_epoch: u64,
+-        }
+-        impl Drop for ReleaseStorage {
+-            fn drop(&mut self) {
+-                PipeSlot::release(self.slot, self.next_group_epoch, self.next_loan_epoch);
+-                // Sound: `Pipeline::drop` verified zero outstanding worker work,
+-                // returned local room credits, reserved `room_count` holds before
+-                // stamping `ROOM_CLOSING_BIT`, and surrenders
+-                // `release_holds = (room_count - survivors) + 1` unique holds
+-                // (all non-surviving rooms plus the Pipeline's initial hold).
+-                unsafe { PipeStorage::release_n(self.storage, self.holds) };
+-            }
+-        }
+-        struct DrainPending<'a, T, B, P>(&'a mut Pipeline<T, B, P>);
+-        impl<T, B, P> Drop for DrainPending<'_, T, B, P> {
+-            fn drop(&mut self) {
+-                while let Some(s_idx) = self.0.end_queue.pop_front() {
+-                    let s = s_idx as usize;
+-                    match core::mem::replace(&mut self.0.slots[s].kind, SlotKind::Free) {
+-                        SlotKind::WaitSingle { has_owner: true, .. } | SlotKind::WaitMulti { has_owner: true } => {
+-                            let ptr = self.0.owners.slot(s);
+-                            let _rest = DrainPending(&mut *self.0);
+-                            // Sound: a slot waiting with `has_owner` holds an owner no
+-                            // event took.
+-                            unsafe { (*ptr).assume_init_drop() };
+-                            core::mem::forget(_rest);
+-                        }
+-                        SlotKind::WaitBatch { .. } => {
+-                            let ptr = self.0.batches.slot(s);
+-                            let _rest = DrainPending(&mut *self.0);
+-                            // Sound: a WaitBatch slot holds its batch and digests.
+-                            unsafe { (*ptr).assume_init_drop() };
+-                            core::mem::forget(_rest);
+-                        }
+-                        _ => {}
+-                    }
+-                }
+-            }
+-        }
+-        // Guards run in LIFO order (`_drain` then `_release`), so even if
+-        // dropping the saved waker or one owner unwinds, every remaining owner
+-        // and batch still drops, `PipeSlot` returns to `FREE_PIPE_SLOTS`, and
+-        // `PipeStorage` is released cleanly.
+-        let _release = ReleaseStorage { storage: storage_ptr, holds: release_holds, slot: pipe_slot, next_group_epoch, next_loan_epoch };
+-        let _drain = DrainPending(self);
+-        pipe_slot.waker.clear();
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ trait OpenSlotMode {
+     fn install(&mut self, storage: &PipeStorage, slot: usize) -> SlotMode;
+ }
+ 
+ struct DefaultOpenMode;

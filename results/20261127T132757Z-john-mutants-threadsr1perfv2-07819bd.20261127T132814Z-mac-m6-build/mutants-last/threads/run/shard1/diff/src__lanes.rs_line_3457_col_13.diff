@@ -1,0 +1,44 @@
+--- src/lanes.rs
++++ replace sources::Source::take -> Option<Item> with None
+@@ -3449,40 +3449,17 @@
+             self.claimed.store(base + own, Ordering::Relaxed);
+             self.finish.published.store(target, Ordering::Release);
+             core::sync::atomic::fence(Ordering::SeqCst);
+             target
+         }
+ 
+         /// Claim the next published item, if any.
+         pub(crate) fn take(&self) -> Option<Item> {
+-            let mut c = self.claimed.load(Ordering::Acquire);
+-            loop {
+-                let p = self.finish.published.load(Ordering::Acquire);
+-                if c >= p {
+-                    return None;
+-                }
+-                if let Some(run) = self.action_run {
+-                    let slot = &self.actions[c % self.actions.len()];
+-                    let context = slot.context.load(Ordering::Relaxed) as *const ();
+-                    let arg = slot.arg.load(Ordering::Relaxed);
+-                    match self.claimed.compare_exchange_weak(c, c + 1, Ordering::AcqRel, Ordering::Acquire) {
+-                        Ok(_) => return Some(Item::Action { run, context, arg }),
+-                        Err(now) => {
+-                            c = now;
+-                            continue;
+-                        }
+-                    }
+-                }
+-                let n = Self::run_len(p - c, pool().threads);
+-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {
+-                    Ok(_) => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),
+-                    Err(now) => c = now,
+-                }
+-            }
++            None /* ~ changed by cargo-mutants ~ */
+         }
+ 
+         /// Get the number of pieces one claim takes of `waiting` pieces of a
+         /// job shared by `threads` threads: a 2 * threads-th of what waits,
+         /// one at least, so runs shrink toward the end (guided
+         /// self-scheduling).
+         fn run_len(waiting: usize, threads: usize) -> usize {
+             (waiting / (2 * threads)).max(1)

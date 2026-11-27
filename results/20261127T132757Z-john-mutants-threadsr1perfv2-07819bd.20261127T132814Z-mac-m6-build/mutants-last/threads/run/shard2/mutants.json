@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sources::serve\n@@ -3724,17 +3724,17 @@\n                 Item::Action { .. } => source.front_action_near(),\n                 Item::Pieces(..) => source.near.load(Ordering::Relaxed),\n             };\n             wake_speculative(&pool().park, near);\n         }\n         match item {\n             Item::Action { run, context, arg } => {\n                 // Sound: `publish_actions` published live `(context, arg)` valid until completion for this source's runner.\n-                unsafe { run(context, arg & !ACTION_SME2, pool_platform()) };\n+                unsafe { run(context, arg &  /* ~ changed by cargo-mutants ~ */ACTION_SME2, pool_platform()) };\n             }\n             Item::Pieces(job, index, n) => {\n                 // Sound: the job lives until its pieces are finished,\n                 // these among them; this thread alone took them.\n                 for i in index..index + n {\n                     unsafe { (*job).hash_piece(i, false) };\n                 }\n                 source.finished(n);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::serve",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3743
+        },
+        "start": {
+          "column": 5,
+          "line": 3719
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:3732:45: delete ! in sources::serve",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 46,
+        "line": 3732
+      },
+      "start": {
+        "column": 45,
+        "line": 3732
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace Task::members -> Task with Default::default()\n@@ -4246,17 +4246,17 @@\n const NO_MEMBER: Member = Member { input: core::ptr::null(), len: 0, out: core::ptr::null_mut() };\n \n // Sound: active prefix entries (`0..members`) carry caller-pinned input/output pointers synchronized by the task's claim/completion barrier; inactive trailing slots (`NO_MEMBER`) hold null pointers and are never dereferenced.\n unsafe impl Send for Task {}\n \n impl Task {\n     /// An empty task of short messages, or batches of one `(message_len, slot)` shape.\n     pub(crate) fn members(batch: Option<(usize, usize)>) -> Task {\n-        Task { batch, members: 0, member: [NO_MEMBER; MEMBERS] }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl Task {\n     /// The members' digests: two or more messages of one length side by side on\n     /// the multi-lane kernels (`hash_many`'s, from a table of pointers) where\n     /// that length is 1, 2, 4, 8, or 16 whole blocks (64 B to 1 KiB) across all\n     /// architectures; any others one at a time.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "Task::members",
+      "return_type": "-> Task",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 4255
+        },
+        "start": {
+          "column": 5,
+          "line": 4252
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:4254:9: replace Task::members -> Task with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 4254
+      },
+      "start": {
+        "column": 9,
+        "line": 4254
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace & with | in sme2_serve\n@@ -4326,17 +4326,17 @@\n     // first task on this worker allocates nothing.\n     #[cfg(target_arch = \"aarch64\")]\n     blake3_servil_core::thread_support::prepare_sme2_scratch();\n     loop {\n         if let Some(item) = sources::take_stream_item() {\n             match item {\n                 sources::Item::Action { run, context, arg } => {\n                     // Sound: `publish_actions` published live `(context, arg)` valid until completion for this source's runner.\n-                    if arg & sources::ACTION_SME2 == 0 {\n+                    if arg | /* ~ changed by cargo-mutants ~ */ sources::ACTION_SME2 == 0 {\n                         unsafe { run(context, arg, pool_platform()) };\n                     } else {\n                         let turn = Sme2Turn::take(Platform::detect(), true);\n                         unsafe { run(context, arg & !sources::ACTION_SME2, turn.platform()) };\n                         drop(turn);\n                     }\n                 }\n                 sources::Item::Pieces(..) => unreachable!(\"the SME2 thread takes stream and pipeline items alone\"),\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sme2_serve",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 4357
+        },
+        "start": {
+          "column": 1,
+          "line": 4323
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:4334:28: replace & with | in sme2_serve",
+    "package": "blake3-servil",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 4334
+      },
+      "start": {
+        "column": 28,
+        "line": 4334
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace & with | in sme2_serve\n@@ -4330,17 +4330,17 @@\n         if let Some(item) = sources::take_stream_item() {\n             match item {\n                 sources::Item::Action { run, context, arg } => {\n                     // Sound: `publish_actions` published live `(context, arg)` valid until completion for this source's runner.\n                     if arg & sources::ACTION_SME2 == 0 {\n                         unsafe { run(context, arg, pool_platform()) };\n                     } else {\n                         let turn = Sme2Turn::take(Platform::detect(), true);\n-                        unsafe { run(context, arg & !sources::ACTION_SME2, turn.platform()) };\n+                        unsafe { run(context, arg | /* ~ changed by cargo-mutants ~ */ !sources::ACTION_SME2, turn.platform()) };\n                         drop(turn);\n                     }\n                 }\n                 sources::Item::Pieces(..) => unreachable!(\"the SME2 thread takes stream and pipeline items alone\"),\n             }\n             continue;\n         }\n         // Park as a worker does: the flag, one more look, the token.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sme2_serve",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 4357
+        },
+        "start": {
+          "column": 1,
+          "line": 4323
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:4338:51: replace & with | in sme2_serve",
+    "package": "blake3-servil",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 52,
+        "line": 4338
+      },
+      "start": {
+        "column": 51,
+        "line": 4338
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sme2_serve\n@@ -4330,17 +4330,17 @@\n         if let Some(item) = sources::take_stream_item() {\n             match item {\n                 sources::Item::Action { run, context, arg } => {\n                     // Sound: `publish_actions` published live `(context, arg)` valid until completion for this source's runner.\n                     if arg & sources::ACTION_SME2 == 0 {\n                         unsafe { run(context, arg, pool_platform()) };\n                     } else {\n                         let turn = Sme2Turn::take(Platform::detect(), true);\n-                        unsafe { run(context, arg & !sources::ACTION_SME2, turn.platform()) };\n+                        unsafe { run(context, arg &  /* ~ changed by cargo-mutants ~ */sources::ACTION_SME2, turn.platform()) };\n                         drop(turn);\n                     }\n                 }\n                 sources::Item::Pieces(..) => unreachable!(\"the SME2 thread takes stream and pipeline items alone\"),\n             }\n             continue;\n         }\n         // Park as a worker does: the flag, one more look, the token.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sme2_serve",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 4357
+        },
+        "start": {
+          "column": 1,
+          "line": 4323
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:4338:53: delete ! in sme2_serve",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 54,
+        "line": 4338
+      },
+      "start": {
+        "column": 53,
+        "line": 4338
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 0, 0)\n@@ -471,36 +471,17 @@\n /// were freed and frees the run's `PipeSlot`s at its end.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n #[path = \"../tests/model/storages.rs\"]\n pub(crate) mod model_storages;\n \n impl PipeSlot {\n     fn acquire(actions: usize) -> (&'static PipeSlot, u64, u64) {\n-        let cap = actions.max(1024).checked_next_power_of_two().expect(\"admitted action capacity fits power of two\");\n-        let tier = slot_tier(cap);\n-        if let Some(FreeSlot { slot, next_group_epoch, next_loan_epoch }) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {\n-            return (slot, next_group_epoch, next_loan_epoch);\n-        }\n-        let max_slots = cap / MAX_SLOT_PIECES;\n-        let max_groups = max_slots.clamp(4, 256);\n-        #[cfg(any(test, shuttle))]\n-        PIPE_SLOTS_MADE.fetch_add(1, Ordering::Relaxed);\n-        let raw = Box::into_raw(Box::new(PipeSlot {\n-            source: Source::with_actions(cap, PipeStorage::run_action),\n-            waker: WakerSlot::new(),\n-            group_completed: (0..max_groups).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            loan_completed: (0..max_slots).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-        }));\n-        #[cfg(shuttle)]\n-        MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));\n-        // Sound: `raw` stays live for the process (freed only after all Shuttle\n-        // worker threads join in `model_storages::free_storages_for_model`).\n-        (unsafe { &*raw }, 1, 1)\n+        (Box::leak(Box::new(Default::default())), 0, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn release(slot: &'static PipeSlot, next_group_epoch: u64, next_loan_epoch: u64) {\n         let tier = slot_tier(slot.source.actions_len());\n         FREE_PIPE_SLOTS.lock().unwrap()[tier].push(FreeSlot { slot, next_group_epoch, next_loan_epoch });\n     }\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeSlot::acquire",
+      "return_type": "-> (&'static PipeSlot, u64, u64)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 499
+        },
+        "start": {
+          "column": 5,
+          "line": 478
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:479:9: replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 0, 0)",
+    "package": "blake3-servil",
+    "replacement": "(Box::leak(Box::new(Default::default())), 0, 0)",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 498
+      },
+      "start": {
+        "column": 9,
+        "line": 479
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 0, 1)\n@@ -471,36 +471,17 @@\n /// were freed and frees the run's `PipeSlot`s at its end.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n #[path = \"../tests/model/storages.rs\"]\n pub(crate) mod model_storages;\n \n impl PipeSlot {\n     fn acquire(actions: usize) -> (&'static PipeSlot, u64, u64) {\n-        let cap = actions.max(1024).checked_next_power_of_two().expect(\"admitted action capacity fits power of two\");\n-        let tier = slot_tier(cap);\n-        if let Some(FreeSlot { slot, next_group_epoch, next_loan_epoch }) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {\n-            return (slot, next_group_epoch, next_loan_epoch);\n-        }\n-        let max_slots = cap / MAX_SLOT_PIECES;\n-        let max_groups = max_slots.clamp(4, 256);\n-        #[cfg(any(test, shuttle))]\n-        PIPE_SLOTS_MADE.fetch_add(1, Ordering::Relaxed);\n-        let raw = Box::into_raw(Box::new(PipeSlot {\n-            source: Source::with_actions(cap, PipeStorage::run_action),\n-            waker: WakerSlot::new(),\n-            group_completed: (0..max_groups).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            loan_completed: (0..max_slots).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-        }));\n-        #[cfg(shuttle)]\n-        MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));\n-        // Sound: `raw` stays live for the process (freed only after all Shuttle\n-        // worker threads join in `model_storages::free_storages_for_model`).\n-        (unsafe { &*raw }, 1, 1)\n+        (Box::leak(Box::new(Default::default())), 0, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn release(slot: &'static PipeSlot, next_group_epoch: u64, next_loan_epoch: u64) {\n         let tier = slot_tier(slot.source.actions_len());\n         FREE_PIPE_SLOTS.lock().unwrap()[tier].push(FreeSlot { slot, next_group_epoch, next_loan_epoch });\n     }\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeSlot::acquire",
+      "return_type": "-> (&'static PipeSlot, u64, u64)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 499
+        },
+        "start": {
+          "column": 5,
+          "line": 478
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:479:9: replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 0, 1)",
+    "package": "blake3-servil",
+    "replacement": "(Box::leak(Box::new(Default::default())), 0, 1)",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 498
+      },
+      "start": {
+        "column": 9,
+        "line": 479
+      }
+    }
+  }
+]

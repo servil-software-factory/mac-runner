@@ -1,0 +1,200 @@
+[
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_many_on with ()\n@@ -74,78 +74,17 @@\n /// plain hashing), on `platform`: messages of up to a chunk go to\n /// the kernels TABLE at a time, 2 to 15 chunks side by side on SME2, others\n /// through the one-message path. Requires `input.len() == slot *\n /// outputs.len()` and every slot's bytes past `len` zero (a Batch's, or\n /// the crate's own).\n pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n     // One-block messages first, on the path they took before slots (a\n     // shared entry cost 64 B x 3 7% in the regression check).\n-    if len == BLOCK_LEN && outputs.len() >= 2 {\n-        crate::ran(crate::Ran::BlockRun);\n-        assert_slots(input, len, slot, outputs.len());\n-        for (messages, digests) in input.chunks(BLOCK_LEN * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-            hash_run(messages, key, flags, digests, platform);\n-        }\n-        return;\n-    }\n-    assert_slots(input, len, slot, outputs.len());\n-    if packed(len, slot) {\n-        return hash_packed(input, len, key, flags, outputs, platform);\n-    }\n-    // Empty messages: the NEON plans take a last block of 1 to 64 bytes\n-    // (hash_many_in's contract), so without this arm a batch of them stops\n-    // there (#251: CI's Cortex-A72, and every NEON machine since the pair\n-    // kernels left). Skip hashing altogether when no outputs are requested.\n-    if len == 0 {\n-        if !outputs.is_empty() {\n-            outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());\n-        }\n-        return;\n-    }\n-    #[cfg(target_arch = \"aarch64\")]\n-    if chunked(len) && platform_is_sme2(platform) && outputs.len() >= sme2_chunked_min(len) {\n-        return hash_chunked(input, len, key, flags, outputs, platform);\n-    }\n-    #[cfg(target_arch = \"aarch64\")]\n-    if (CHUNK_LEN + 1..=2 * CHUNK_LEN).contains(&len) && outputs.len() >= 2 {\n-        return hash_two_chunks(input, len, key, flags, outputs);\n-    }\n-    if outputs.len() < 2 || len > CHUNK_LEN {\n-        #[cfg(target_arch = \"x86_64\")]\n-        return hash_long_or_single(input, len, key, flags, outputs, platform);\n-        #[cfg(not(target_arch = \"x86_64\"))]\n-        {\n-            for (i, output) in outputs.iter_mut().enumerate() {\n-                *output = *crate::hash_serial_on(&input[i * slot..][..len], key, flags, platform).as_bytes();\n-            }\n-            return;\n-        }\n-    }\n-    crate::ran(crate::Ran::ShortRun);\n-    let last_len = len - (slot - BLOCK_LEN);\n-    #[cfg(target_arch = \"x86_64\")]\n-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= crate::ffi_output::X86_PAD8_MIN {\n-        let width = crate::ffi_output::lanes(platform);\n-        if width != 0 {\n-            crate::ffi_output::multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n-            return;\n-        }\n-    }\n-    let blocks = slot / BLOCK_LEN;\n-    for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-        if blocks == 1 {\n-            hash_run_short(messages, key, flags, digests, platform, last_len);\n-            continue;\n-        }\n-        #[cfg(target_arch = \"x86_64\")]\n-        crate::sse41::hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len);\n-        #[cfg(target_arch = \"aarch64\")]\n-        hash_blocks(messages, blocks, key, flags, digests, platform, last_len);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Packed messages (`len` bytes each, at a stride of `len`): full SIMD\n /// groups run directly on the zero-padding-free packed kernels in\n /// `ffi_packed` (#501) across SME2, AVX-512, AVX2, and NEON `8+3`; any\n /// short remainder (or SSE4.1 fallback) expands up to 16 messages at a\n /// time into a 1 KiB zero-padded stack buffer.\n #[inline(never)]\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 144
+        },
+        "start": {
+          "column": 1,
+          "line": 72
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:82:5: replace hash_many_on with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 143
+      },
+      "start": {
+        "column": 5,
+        "line": 82
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace == with != in hash_many_on\n@@ -90,17 +90,17 @@\n     assert_slots(input, len, slot, outputs.len());\n     if packed(len, slot) {\n         return hash_packed(input, len, key, flags, outputs, platform);\n     }\n     // Empty messages: the NEON plans take a last block of 1 to 64 bytes\n     // (hash_many_in's contract), so without this arm a batch of them stops\n     // there (#251: CI's Cortex-A72, and every NEON machine since the pair\n     // kernels left). Skip hashing altogether when no outputs are requested.\n-    if len == 0 {\n+    if len != /* ~ changed by cargo-mutants ~ */ 0 {\n         if !outputs.is_empty() {\n             outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());\n         }\n         return;\n     }\n     #[cfg(target_arch = \"aarch64\")]\n     if chunked(len) && platform_is_sme2(platform) && outputs.len() >= sme2_chunked_min(len) {\n         return hash_chunked(input, len, key, flags, outputs, platform);\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 144
+        },
+        "start": {
+          "column": 1,
+          "line": 72
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:98:12: replace == with != in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 98
+      },
+      "start": {
+        "column": 12,
+        "line": 98
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ delete ! in hash_many_on\n@@ -91,17 +91,17 @@\n     if packed(len, slot) {\n         return hash_packed(input, len, key, flags, outputs, platform);\n     }\n     // Empty messages: the NEON plans take a last block of 1 to 64 bytes\n     // (hash_many_in's contract), so without this arm a batch of them stops\n     // there (#251: CI's Cortex-A72, and every NEON machine since the pair\n     // kernels left). Skip hashing altogether when no outputs are requested.\n     if len == 0 {\n-        if !outputs.is_empty() {\n+        if  /* ~ changed by cargo-mutants ~ */outputs.is_empty() {\n             outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());\n         }\n         return;\n     }\n     #[cfg(target_arch = \"aarch64\")]\n     if chunked(len) && platform_is_sme2(platform) && outputs.len() >= sme2_chunked_min(len) {\n         return hash_chunked(input, len, key, flags, outputs, platform);\n     }\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 144
+        },
+        "start": {
+          "column": 1,
+          "line": 72
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/many.rs:99:12: delete ! in hash_many_on",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 99
+      },
+      "start": {
+        "column": 12,
+        "line": 99
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace < with <=\n@@ -188,17 +188,17 @@\n /// Fewer, alone or left over past whole groups, run through hash() one at\n /// a time. The count at which a padded group's time equals that many\n /// hash() calls, VM: 2 chunks 5.9, 3 8.4, 4 8.1, 6 9.5, 8 10.4, 12 11.4, 15\n /// 11.6; Mac P-core (jobs 268-271) about the same or lower. Each entry is\n /// the next count up.\n const SME2_CHUNKED_MIN: [usize; 16] = [0, 0, 7, 9, 9, 10, 10, 11, 11, 12, 12, 12, 12, 12, 12, 12];\n const _: () = {\n     let mut i = 2;\n-    while i < SME2_CHUNKED_MIN.len() {\n+    while i <= /* ~ changed by cargo-mutants ~ */ SME2_CHUNKED_MIN.len() {\n         assert!(SME2_CHUNKED_MIN[i] > 0 && SME2_CHUNKED_MIN[i] <= 16);\n         i += 1;\n     }\n };\n \n pub(crate) fn sme2_chunked_min(len: usize) -> usize {\n     SME2_CHUNKED_MIN[len.div_ceil(CHUNK_LEN)]\n }\n",
+    "file": "src/many.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:196:13: replace < with <=",
+    "package": "blake3-servil-core",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 196
+      },
+      "start": {
+        "column": 13,
+        "line": 196
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace += with -=\n@@ -190,17 +190,17 @@\n /// hash() calls, VM: 2 chunks 5.9, 3 8.4, 4 8.1, 6 9.5, 8 10.4, 12 11.4, 15\n /// 11.6; Mac P-core (jobs 268-271) about the same or lower. Each entry is\n /// the next count up.\n const SME2_CHUNKED_MIN: [usize; 16] = [0, 0, 7, 9, 9, 10, 10, 11, 11, 12, 12, 12, 12, 12, 12, 12];\n const _: () = {\n     let mut i = 2;\n     while i < SME2_CHUNKED_MIN.len() {\n         assert!(SME2_CHUNKED_MIN[i] > 0 && SME2_CHUNKED_MIN[i] <= 16);\n-        i += 1;\n+        i -= /* ~ changed by cargo-mutants ~ */ 1;\n     }\n };\n \n pub(crate) fn sme2_chunked_min(len: usize) -> usize {\n     SME2_CHUNKED_MIN[len.div_ceil(CHUNK_LEN)]\n }\n \n /// Whether hash_many_on takes messages of `len` bytes side by side on\n",
+    "file": "src/many.rs",
+    "function": null,
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:198:11: replace += with -=",
+    "package": "blake3-servil-core",
+    "replacement": "-=",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 198
+      },
+      "start": {
+        "column": 11,
+        "line": 198
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace sme2_sized -> bool with true\n@@ -511,27 +511,17 @@\n \n /// Whether a batch of `count` messages of `len` bytes at stride `slot` runs\n /// SME2 kernels (so takes the SME2 turn): never for empty messages or zero\n /// outputs; packed `16/32/48`-byte batches only from 16 messages (fewer run\n /// NEON `8+3` + serial tail); padded one-block messages from `ONE_BLOCK_PAD_MIN`;\n /// multi-block single-chunk messages from `SME2_TAIL_MIN`; 2 to 15 chunks from\n /// `sme2_chunked_min`; and any message long enough for `hash()` to take SME2.\n pub(crate) fn sme2_sized(len: usize, slot: usize, count: usize) -> bool {\n-    if len == 0 || count == 0 {\n-        return false;\n-    }\n-    if packed(len, slot) {\n-        return count >= crate::SME2_SIZED_BATCH;\n-    }\n-    count >= crate::SME2_SIZED_BATCH\n-        || (len <= BLOCK_LEN && count >= ONE_BLOCK_PAD_MIN)\n-        || (len > BLOCK_LEN && len <= CHUNK_LEN && count >= SME2_TAIL_MIN)\n-        || (chunked(len) && count >= sme2_chunked_min(len))\n-        || len >= crate::SME2_SIZED_LEN\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /// Up to TABLE one-block messages (N = BLOCK_LEN, whole blocks) in\n /// `messages`: whole SME2 groups on the message kernel, the last padded,\n /// where the count calls for it; otherwise on SME2 as the run of blocks\n /// they are (its parent kernel, `sme2::hash_block_run`), and elsewhere\n /// the platform's `hash_many` (the parent kernels and the NEON plans).\n /// Kept out of line:\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "sme2_sized",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 530
+        },
+        "start": {
+          "column": 1,
+          "line": 512
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:519:5: replace sme2_sized -> bool with true",
+    "package": "blake3-servil-core",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 529
+      },
+      "start": {
+        "column": 5,
+        "line": 519
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace sme2_sized -> bool with false\n@@ -511,27 +511,17 @@\n \n /// Whether a batch of `count` messages of `len` bytes at stride `slot` runs\n /// SME2 kernels (so takes the SME2 turn): never for empty messages or zero\n /// outputs; packed `16/32/48`-byte batches only from 16 messages (fewer run\n /// NEON `8+3` + serial tail); padded one-block messages from `ONE_BLOCK_PAD_MIN`;\n /// multi-block single-chunk messages from `SME2_TAIL_MIN`; 2 to 15 chunks from\n /// `sme2_chunked_min`; and any message long enough for `hash()` to take SME2.\n pub(crate) fn sme2_sized(len: usize, slot: usize, count: usize) -> bool {\n-    if len == 0 || count == 0 {\n-        return false;\n-    }\n-    if packed(len, slot) {\n-        return count >= crate::SME2_SIZED_BATCH;\n-    }\n-    count >= crate::SME2_SIZED_BATCH\n-        || (len <= BLOCK_LEN && count >= ONE_BLOCK_PAD_MIN)\n-        || (len > BLOCK_LEN && len <= CHUNK_LEN && count >= SME2_TAIL_MIN)\n-        || (chunked(len) && count >= sme2_chunked_min(len))\n-        || len >= crate::SME2_SIZED_LEN\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// Up to TABLE one-block messages (N = BLOCK_LEN, whole blocks) in\n /// `messages`: whole SME2 groups on the message kernel, the last padded,\n /// where the count calls for it; otherwise on SME2 as the run of blocks\n /// they are (its parent kernel, `sme2::hash_block_run`), and elsewhere\n /// the platform's `hash_many` (the parent kernels and the NEON plans).\n /// Kept out of line:\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "sme2_sized",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 530
+        },
+        "start": {
+          "column": 1,
+          "line": 512
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:519:5: replace sme2_sized -> bool with false",
+    "package": "blake3-servil-core",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 529
+      },
+      "start": {
+        "column": 5,
+        "line": 519
+      }
+    }
+  }
+]
