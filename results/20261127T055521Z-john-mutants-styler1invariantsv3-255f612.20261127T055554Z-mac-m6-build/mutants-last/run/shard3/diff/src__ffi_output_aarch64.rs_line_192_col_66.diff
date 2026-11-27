@@ -1,0 +1,21 @@
+--- src/ffi_output_aarch64.rs
++++ replace ^ with | in chunks_keyed_self_test_shape
+@@ -184,17 +184,17 @@
+ #[inline(never)]
+ fn chunks_keyed_self_test_shape(mut hash: impl FnMut(&[[u8; CHUNK_LEN]; 32], &[u64; 2], &[[u32; 8]; 2], &[u8; 2], &mut [[u8; OUT_LEN]; 32])) -> u64 {
+     // Initialize the 32 KiB input table in place (avoiding `core::array::from_fn`'s
+     // duplicate 32 KiB temporary on the stack) so startup fits easily in a 128 KiB
+     // thread stack (#509).
+     let mut chunks = [[0u8; CHUNK_LEN]; 32];
+     for (c, chunk) in chunks.iter_mut().enumerate() {
+         for (b, byte) in chunk.iter_mut().enumerate() {
+-            *byte = crate::low_byte((c * 37 + b * 17 + (b >> 6)) ^ 0x5a);
++            *byte = crate::low_byte((c * 37 + b * 17 + (b >> 6)) | /* ~ changed by cargo-mutants ~ */ 0x5a);
+         }
+     }
+     let counters = [u64::from(u32::MAX) - 5, 0x0000_0003_0000_0007];
+     let keys: [[u32; 8]; 2] = core::array::from_fn(|g| {
+         let g = u32::try_from(g).unwrap();
+         core::array::from_fn(|w| {
+             let w = u32::try_from(w).unwrap();
+             (0x2468_ace0u32.wrapping_add(g * 0x9e37_79b9).wrapping_add(w * 0x0102_0304)).wrapping_mul(0x85eb_ca6b)

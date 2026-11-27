@@ -1,0 +1,418 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace finalize_each with ()\n@@ -113,109 +113,17 @@\n /// `hash_by_blocks` and counter-zero final blocks via NEON `output8`.\n ///\n /// # Key-dependent timing\n ///\n /// Selected hashers may use different secret keys. Key values and key equality\n /// select neither the finalization path nor its amount of work.\n /// See the [key-independence contract](crate#key-dependent-timing).\n pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n-    assert_eq!(which.len(), out.len(), \"one digest per message named\");\n-    let mut marked = Marked { hashers, which, count: 0, active: true };\n-    for &i in which {\n-        assert!(i < marked.hashers.len(), \"finalize_each names hasher {i} of {}\", marked.hashers.len());\n-        assert!(!marked.hashers[i].mark_finishing(), \"each finalized index is distinct\");\n-        marked.count += 1;\n-    }\n-    let hashers = &mut *marked.hashers;\n-    if which.is_empty() {\n-        marked.active = false;\n-        return;\n-    }\n-    if which.len() == 1 {\n-        let i = which[0];\n-        out[0] = *hashers[i].take_root_hash().as_bytes();\n-        hashers[i].reset();\n-        marked.active = false;\n-        return;\n-    }\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        crate::ffi_partial::finalize_each(hashers, which, out);\n-        marked.active = false;\n-        return;\n-    }\n-    // AArch64: partition each 128-hasher slice in a single pass into plain\n-    // staged first chunks (`hash_by_blocks` when >= 2), remaining counter-zero\n-    // single-chunk hashers (keyed/derived/mixed `<= 64 B` staged or ChunkState-\n-    // resident -> NEON `output8` when >= 8, #336), and general hashers. Key\n-    // values never select grouping or dispatch.\n-    #[cfg(target_arch = \"aarch64\")]\n-    {\n-        const FINALIZE_BATCH: usize = 128;\n-        const { assert!(FINALIZE_BATCH <= u8::MAX as usize) };\n-        let platform = Platform::detect();\n-        for (w_chunk, o_chunk) in which.chunks(FINALIZE_BATCH).zip(out.chunks_mut(FINALIZE_BATCH)) {\n-            let mut plain = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-            let mut keyed = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-            let mut rest = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-            for (k, &i) in w_chunk.iter().enumerate() {\n-                let k = u8::try_from(k).expect(\"window index < TABLE (128)\");\n-                if hashers[i].is_plain_single_chunk_staged() {\n-                    plain.push(k);\n-                } else if crate::ffi_output::input(&hashers[i]).is_some() {\n-                    keyed.push(k);\n-                } else {\n-                    rest.push(k);\n-                }\n-            }\n-            if plain.len() >= 2 {\n-                for part in plain.as_slice().chunks(BY_BLOCKS_AT_ONCE) {\n-                    let bytes: crate::stack_vec::StackVec<&[u8], BY_BLOCKS_AT_ONCE> =\n-                        part.iter().map(|&k| hashers[w_chunk[usize::from(k)]].staged_bytes()).collect();\n-                    let mut digests = [[0u8; OUT_LEN]; BY_BLOCKS_AT_ONCE];\n-                    hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n-                    for (&k, digest) in part.iter().zip(&digests) {\n-                        o_chunk[usize::from(k)] = *digest;\n-                    }\n-                }\n-            } else {\n-                for &k in plain.as_slice() {\n-                    let k = usize::from(k);\n-                    o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-                }\n-            }\n-            let done = if keyed.len() >= 8 {\n-                let mut inputs = crate::stack_vec::StackVec::<crate::ffi_output::Input<'_>, FINALIZE_BATCH>::new();\n-                for &k in keyed.as_slice() {\n-                    inputs.push(crate::ffi_output::input(&hashers[w_chunk[usize::from(k)]]).unwrap());\n-                }\n-                let mut digests = [[0u8; OUT_LEN]; FINALIZE_BATCH];\n-                let done = crate::ffi_output::hash_groups_arm(inputs.as_slice(), &mut digests[..keyed.len()]);\n-                for (&k, digest) in keyed.as_slice()[..done].iter().zip(&digests[..done]) {\n-                    o_chunk[usize::from(k)] = *digest;\n-                }\n-                done\n-            } else {\n-                0\n-            };\n-            for &k in &keyed.as_slice()[done..] {\n-                let k = usize::from(k);\n-                o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-            }\n-            for &k in rest.as_slice() {\n-                let k = usize::from(k);\n-                o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-            }\n-            for &i in w_chunk {\n-                hashers[i].reset();\n-            }\n-        }\n-        marked.active = false;\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// A turn of pieces for many hashers, in caller order: each piece\n /// gathered into its hasher's stage; a stage that fills a whole group is\n /// held, and its hasher's later bytes (the rest of that piece, and its\n /// later pieces) wait, in order, until the held groups hash together, up\n /// to TABLE of them in one pass (one SME2 call for all; elsewhere a call\n /// per group, then each parent level in one call). A full table, a full\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 214
+        },
+        "start": {
+          "column": 1,
+          "line": 96
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:121:5: replace finalize_each with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 213
+      },
+      "start": {
+        "column": 5,
+        "line": 121
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace by_blocks_at_once with ()\n@@ -591,202 +591,17 @@\n     assert_eq!(items.len(), out.len(), \"one digest per item\");\n     assert!(items.iter().all(|i| i.len() <= CHUNK_LEN), \"items of up to a chunk\");\n     for (items, out) in items.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {\n         by_blocks_at_once(items, key, counter, flags, flags_end, out, platform);\n     }\n }\n \n fn by_blocks_at_once(items: &[&[u8]], key: &CVWords, counter: u64, flags: u8, flags_end: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n-    const GROUP: usize = 16;\n-    const BINS: usize = 16;\n-    const { assert!(BINS * crate::BLOCK_LEN == crate::CHUNK_LEN) };\n-    const { assert!(BY_BLOCKS_AT_ONCE <= u8::MAX as usize) };\n-    let n = items.len();\n-    if n == 0 {\n-        return;\n-    }\n-    // On SME2, a table of messages of one length, whole blocks, at counter 0,\n-    // with at least the work that pays for the SME2 turn: one call of the message\n-    // kernel for all of them (a turn's 1 KiB messages finishing together:\n-    // the NEON lanes took 30-64% longer on an Apple M4 Max, jobs 2016 and\n-    // 2019). A table of one-block messages never reaches the threshold\n-    // (BY_BLOCKS_AT_ONCE of 64 bytes is under SME2_SIZED_LEN).\n-    #[cfg(target_arch = \"aarch64\")]\n-    {\n-        let len = items[0].len();\n-        if counter == 0\n-            && matches!(platform, Platform::SME2)\n-            && items.len() * len >= crate::SME2_SIZED_LEN\n-            && len % crate::BLOCK_LEN == 0\n-            && items.iter().all(|item| item.len() == len)\n-        {\n-            let turn = crate::platform::Sme2Turn::take(platform, true);\n-            if matches!(turn.platform(), Platform::SME2) {\n-                macro_rules! run {\n-                    ($n:expr) => {{\n-                        let mut lanes: crate::stack_vec::StackVec<&[u8; $n], BY_BLOCKS_AT_ONCE> =\n-                            items.iter().map(|item| (*item).try_into().expect(\"equal whole-block lengths\")).collect();\n-                        while lanes.len() % GROUP != 0 {\n-                            lanes.push(*lanes.last().unwrap());\n-                        }\n-                        crate::counted(crate::Counted::ByBlocksCall);\n-                        // Sound: detection and the turn provide SME2. Every\n-                        // typed lane holds its whole input; spare lanes\n-                        // repeat a valid input and write no output.\n-                        unsafe { crate::sme2::hash_messages(&lanes, key, flags, CHUNK_START, flags_end, crate::BLOCK_LEN, out.as_flattened_mut()) };\n-                    }};\n-                }\n-                match len {\n-                    128 => run!(128),\n-                    192 => run!(192),\n-                    256 => run!(256),\n-                    320 => run!(320),\n-                    384 => run!(384),\n-                    448 => run!(448),\n-                    512 => run!(512),\n-                    576 => run!(576),\n-                    640 => run!(640),\n-                    704 => run!(704),\n-                    768 => run!(768),\n-                    832 => run!(832),\n-                    896 => run!(896),\n-                    960 => run!(960),\n-                    1024 => run!(1024),\n-                    _ => unreachable!(\"an SME2-sized table of whole blocks of up to a chunk\"),\n-                }\n-                return;\n-            }\n-        }\n-    }\n-    let whole = |item: &[u8]| item.len().saturating_sub(1) / crate::BLOCK_LEN;\n-    let mut order = [0u8; BY_BLOCKS_AT_ONCE];\n-    if items.is_sorted_by_key(|item| whole(item)) {\n-        for (slot, i) in order[..n].iter_mut().zip(0u8..) {\n-            *slot = i;\n-        }\n-    } else {\n-        let mut ends = [0u8; BINS];\n-        for item in items {\n-            ends[whole(item)] += 1;\n-        }\n-        let mut sum = 0u8;\n-        for end in &mut ends {\n-            sum += *end;\n-            *end = sum;\n-        }\n-        let n_u8 = u8::try_from(n).expect(\"chunk <= BY_BLOCKS_AT_ONCE\");\n-        for i in (0..n_u8).rev() {\n-            let bin = whole(items[usize::from(i)]);\n-            ends[bin] -= 1;\n-            order[usize::from(ends[bin])] = i;\n-        }\n-    }\n-    let order = &order[..n];\n-    // With SHA-3 the last block stays in the lanes too; other AArch64\n-    // CPUs keep the prefix kernels followed by scalar last blocks.\n-    #[cfg(target_arch = \"aarch64\")]\n-    let last_lanes = crate::neon_hybrid::sha3_detected();\n-    #[cfg(not(target_arch = \"aarch64\"))]\n-    let last_lanes = false;\n-    let mut cvs = [*key; BY_BLOCKS_AT_ONCE];\n-    // chunk_by always advances and returns nonempty groups, even if a\n-    // changed predicate groups the wrong items; no mutable loop bound.\n-    for same_blocks in order.chunk_by(|&a, &b| whole(items[usize::from(a)]) == whole(items[usize::from(b)])) {\n-        let k = whole(items[usize::from(same_blocks[0])]);\n-        #[cfg(target_arch = \"aarch64\")]\n-        if last_lanes {\n-            for group in same_blocks.chunks(GROUP) {\n-                let inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[usize::from(i)].as_ptr()).collect();\n-                let mut last_blocks = [[0u8; crate::BLOCK_LEN]; GROUP];\n-                let mut lengths = [0u32; GROUP];\n-                for ((&i, block), len) in group.iter().zip(&mut last_blocks).zip(&mut lengths) {\n-                    let tail = &items[usize::from(i)][k * crate::BLOCK_LEN..];\n-                    block[..tail.len()].copy_from_slice(tail);\n-                    *len = u32::from(u8::try_from(tail.len()).expect(\"tail block <= 64\"));\n-                }\n-                let lasts: crate::stack_vec::StackVec<*const u8, GROUP> = last_blocks[..group.len()].iter().map(|b| b.as_ptr()).collect();\n-                let mut digests = [0u8; GROUP * OUT_LEN];\n-                crate::counted(crate::Counted::ByBlocksCall);\n-                // Sound: SHA-3 is present; these items share k whole blocks\n-                // before their separately padded last block, 0 to 64 bytes.\n-                unsafe {\n-                    crate::neon_hybrid::hash_last_lanes(\n-                        &inputs,\n-                        &lasts,\n-                        &lengths[..group.len()],\n-                        k + 1,\n-                        key,\n-                        counter,\n-                        flags,\n-                        CHUNK_START,\n-                        flags_end,\n-                        &mut digests[..group.len() * OUT_LEN],\n-                    );\n-                }\n-                for (&i, digest) in group.iter().zip(digests.chunks_exact(OUT_LEN)) {\n-                    out[usize::from(i)].copy_from_slice(digest);\n-                }\n-            }\n-            continue;\n-        }\n-        if k > 0 {\n-            for group in same_blocks.chunks(GROUP) {\n-                #[cfg_attr(not(target_arch = \"x86_64\"), allow(unused_mut))]\n-                let mut inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[usize::from(i)].as_ptr()).collect();\n-                #[cfg(target_arch = \"x86_64\")]\n-                let padded = crate::ffi_output::pad_by_blocks_inputs(&mut inputs, platform);\n-                let mut lanes = [0u8; GROUP * OUT_LEN];\n-                crate::counted(crate::Counted::ByBlocksCall);\n-                // Sound: each item holds more than k whole blocks; the\n-                // caller selected this platform's block-group path.\n-                #[cfg(target_arch = \"x86_64\")]\n-                unsafe {\n-                    crate::pair::hash_many_blocks(platform, &inputs, k, key, counter, false, flags, CHUNK_START, 0, &mut lanes[..padded * OUT_LEN])\n-                };\n-                #[cfg(target_arch = \"aarch64\")]\n-                unsafe {\n-                    crate::neon_hybrid::hash_messages_raw(\n-                        inputs.as_ptr(),\n-                        group.len(),\n-                        k,\n-                        key,\n-                        counter,\n-                        flags,\n-                        CHUNK_START,\n-                        0,\n-                        crate::BLOCK_LEN,\n-                        &mut lanes[..group.len() * OUT_LEN],\n-                    )\n-                };\n-                for (n, &i) in group.iter().enumerate() {\n-                    cvs[usize::from(i)] = crate::platform::words_from_le_bytes_32(lanes[n * OUT_LEN..][..OUT_LEN].try_into().unwrap());\n-                }\n-            }\n-        }\n-    }\n-    if last_lanes {\n-        return;\n-    }\n-    #[cfg(target_arch = \"x86_64\")]\n-    let serial_start = crate::ffi_output::finish_last_blocks_order(&order, items, &cvs, counter, flags, flags_end, out, platform);\n-    #[cfg(not(target_arch = \"x86_64\"))]\n-    let serial_start = 0usize;\n-    for &i in &order[serial_start..] {\n-        let i = usize::from(i);\n-        let item = items[i];\n-        let k = whole(item);\n-        let mut cv = cvs[i];\n-        let mut block = [0u8; crate::BLOCK_LEN];\n-        let last = item.len() - k * crate::BLOCK_LEN;\n-        block[..last].copy_from_slice(&item[k * crate::BLOCK_LEN..]);\n-        let start = if k == 0 { CHUNK_START } else { 0 };\n-        platform.compress_in_place(&mut cv, &block, u8::try_from(last).expect(\"last block <= 64\"), counter, flags | start | flags_end);\n-        out[i] = crate::hasher::le_bytes(&cv);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// An item of a collection, as hash_each_on reads it: its bytes. The\n /// public calls' items are messages in blocks; the pool's ranges, bytes.\n pub(crate) trait Item {\n     fn bytes(&self) -> &[u8];\n }\n \n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "by_blocks_at_once",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 785
+        },
+        "start": {
+          "column": 1,
+          "line": 598
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:599:5: replace by_blocks_at_once with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 784
+      },
+      "start": {
+        "column": 5,
+        "line": 599
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace left_len -> usize with 0\n@@ -1141,18 +1141,17 @@\n     let split = left_len(cvs.len());\n     let left = subtree(&cvs[..split], key, flags, platform);\n     let right = subtree(&cvs[split..], key, flags, platform);\n     crate::hasher::parent_output(&left, &right, key, flags, platform).chaining_value()\n }\n \n /// The largest power of two below `n` (n of 2 or more).\n fn left_len(n: usize) -> usize {\n-    assert!(n >= 2, \"left_len requires at least 2 leaves\");\n-    1 << (usize::BITS - 1 - (n - 1).leading_zeros())\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(test)]\n mod test {\n     use super::*;\n \n     #[test]\n     #[should_panic(expected = \"only plain hashers share a cohort\")]\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "left_len",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1151
+        },
+        "start": {
+          "column": 1,
+          "line": 1147
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:1149:5: replace left_len -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 1150
+      },
+      "start": {
+        "column": 5,
+        "line": 1149
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace left_len -> usize with 1\n@@ -1141,18 +1141,17 @@\n     let split = left_len(cvs.len());\n     let left = subtree(&cvs[..split], key, flags, platform);\n     let right = subtree(&cvs[split..], key, flags, platform);\n     crate::hasher::parent_output(&left, &right, key, flags, platform).chaining_value()\n }\n \n /// The largest power of two below `n` (n of 2 or more).\n fn left_len(n: usize) -> usize {\n-    assert!(n >= 2, \"left_len requires at least 2 leaves\");\n-    1 << (usize::BITS - 1 - (n - 1).leading_zeros())\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(test)]\n mod test {\n     use super::*;\n \n     #[test]\n     #[should_panic(expected = \"only plain hashers share a cohort\")]\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "left_len",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1151
+        },
+        "start": {
+          "column": 1,
+          "line": 1147
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:1149:5: replace left_len -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 53,
+        "line": 1150
+      },
+      "start": {
+        "column": 5,
+        "line": 1149
+      }
+    }
+  },
+  {
+    "diff": "--- src/throughput.rs\n+++ replace TreeHasher::bare_parent_cvs_on with ()\n@@ -722,27 +722,17 @@\n     }\n \n     /// A layer of parents on `platform`: `out[i]` is the parent of\n     /// `children[2 * i]` and `children[2 * i + 1]`, side by side in the\n     /// CPU's lanes.\n     ///\n     /// Requires an even number of children and half as many outputs.\n     fn bare_parent_cvs_on(&self, platform: crate::platform::Platform, children: &[crate::CVBytes], out: &mut [crate::CVBytes]) {\n-        assert_eq!(children.len() % 2, 0, \"parents take their children in pairs\");\n-        assert_eq!(out.len(), children.len() / 2, \"one parent per pair of children\");\n-        // As many pairs a call as the kernels take.\n-        let pairs = crate::platform::MAX_SIMD_DEGREE;\n-        for (children, out) in children.chunks(2 * pairs).zip(out.chunks_mut(pairs)) {\n-            if children.len() == 2 {\n-                out[0] = crate::hasher::parent_output(&children[0], &children[1], self.domain.key(), self.domain.flags(), platform).chaining_value();\n-                continue;\n-            }\n-            let _ = crate::compress_parents_parallel(children.as_flattened(), self.domain.key(), self.domain.flags(), platform, out.as_flattened_mut());\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The hash of the message whose root has these two children: the\n     /// tree's top, where the chaining values end.\n     fn bare_root_hash(&self, left: &crate::CVBytes, right: &crate::CVBytes) -> Hash {\n         crate::hasher::parent_output(left, right, self.domain.key(), self.domain.flags(), self.parents_platform()).root_hash()\n     }\n \n",
+    "file": "src/throughput.rs",
+    "function": {
+      "function_name": "TreeHasher::bare_parent_cvs_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 741
+        },
+        "start": {
+          "column": 5,
+          "line": 724
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/throughput.rs:730:9: replace TreeHasher::bare_parent_cvs_on with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 740
+      },
+      "start": {
+        "column": 9,
+        "line": 730
+      }
+    }
+  },
+  {
+    "diff": "--- src/platform.rs\n+++ replace is_initialized_word -> bool with true\n@@ -153,17 +153,17 @@\n const fn with_platform(detected: u16, platform: u8) -> u16 {\n     (detected & 0xff00) + platform as u16\n }\n \n /// Whether `word` (loaded from `DETECTED`) holds a recorded platform in its\n /// low byte, independent of any high-byte family/width cache bits.\n #[inline]\n pub(crate) const fn is_initialized_word(word: u16) -> bool {\n-    crate::low_byte_u16(word) != 0\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /// Whether [`crate::initialize`] has finished recording the process platform.\n /// `Acquire` pairs with `Platform::record`'s `Release` so callers on weak-\n /// memory CPUs observe the recorded platform before proceeding.\n #[inline]\n pub(crate) fn is_initialized() -> bool {\n     is_initialized_word(DETECTED.load(core::sync::atomic::Ordering::Acquire))\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "is_initialized_word",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 162
+        },
+        "start": {
+          "column": 1,
+          "line": 157
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:161:5: replace is_initialized_word -> bool with true",
+    "package": "blake3-servil-core",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 35,
+        "line": 161
+      },
+      "start": {
+        "column": 5,
+        "line": 161
+      }
+    }
+  },
+  {
+    "diff": "--- src/platform.rs\n+++ replace is_initialized_word -> bool with false\n@@ -153,17 +153,17 @@\n const fn with_platform(detected: u16, platform: u8) -> u16 {\n     (detected & 0xff00) + platform as u16\n }\n \n /// Whether `word` (loaded from `DETECTED`) holds a recorded platform in its\n /// low byte, independent of any high-byte family/width cache bits.\n #[inline]\n pub(crate) const fn is_initialized_word(word: u16) -> bool {\n-    crate::low_byte_u16(word) != 0\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// Whether [`crate::initialize`] has finished recording the process platform.\n /// `Acquire` pairs with `Platform::record`'s `Release` so callers on weak-\n /// memory CPUs observe the recorded platform before proceeding.\n #[inline]\n pub(crate) fn is_initialized() -> bool {\n     is_initialized_word(DETECTED.load(core::sync::atomic::Ordering::Acquire))\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "is_initialized_word",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 162
+        },
+        "start": {
+          "column": 1,
+          "line": 157
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:161:5: replace is_initialized_word -> bool with false",
+    "package": "blake3-servil-core",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 35,
+        "line": 161
+      },
+      "start": {
+        "column": 5,
+        "line": 161
+      }
+    }
+  },
+  {
+    "diff": "--- src/platform.rs\n+++ replace != with == in is_initialized_word\n@@ -153,17 +153,17 @@\n const fn with_platform(detected: u16, platform: u8) -> u16 {\n     (detected & 0xff00) + platform as u16\n }\n \n /// Whether `word` (loaded from `DETECTED`) holds a recorded platform in its\n /// low byte, independent of any high-byte family/width cache bits.\n #[inline]\n pub(crate) const fn is_initialized_word(word: u16) -> bool {\n-    crate::low_byte_u16(word) != 0\n+    crate::low_byte_u16(word) == /* ~ changed by cargo-mutants ~ */ 0\n }\n \n /// Whether [`crate::initialize`] has finished recording the process platform.\n /// `Acquire` pairs with `Platform::record`'s `Release` so callers on weak-\n /// memory CPUs observe the recorded platform before proceeding.\n #[inline]\n pub(crate) fn is_initialized() -> bool {\n     is_initialized_word(DETECTED.load(core::sync::atomic::Ordering::Acquire))\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "is_initialized_word",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 162
+        },
+        "start": {
+          "column": 1,
+          "line": 157
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/platform.rs:161:31: replace != with == in is_initialized_word",
+    "package": "blake3-servil-core",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 161
+      },
+      "start": {
+        "column": 31,
+        "line": 161
+      }
+    }
+  },
+  {
+    "diff": "--- src/platform.rs\n+++ replace is_initialized -> bool with true\n@@ -161,17 +161,17 @@\n     crate::low_byte_u16(word) != 0\n }\n \n /// Whether [`crate::initialize`] has finished recording the process platform.\n /// `Acquire` pairs with `Platform::record`'s `Release` so callers on weak-\n /// memory CPUs observe the recorded platform before proceeding.\n #[inline]\n pub(crate) fn is_initialized() -> bool {\n-    is_initialized_word(DETECTED.load(core::sync::atomic::Ordering::Acquire))\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /// A call before `initialize`: the caller broke the contract. The crate's\n /// own unit tests, many small programs in one, initialize here instead.\n #[cold]\n #[inline(never)]\n fn not_initialized() -> u8 {\n     #[cfg(test)]\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "is_initialized",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 170
+        },
+        "start": {
+          "column": 1,
+          "line": 164
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:169:5: replace is_initialized -> bool with true",
+    "package": "blake3-servil-core",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 78,
+        "line": 169
+      },
+      "start": {
+        "column": 5,
+        "line": 169
+      }
+    }
+  },
+  {
+    "diff": "--- src/platform.rs\n+++ replace is_initialized -> bool with false\n@@ -161,17 +161,17 @@\n     crate::low_byte_u16(word) != 0\n }\n \n /// Whether [`crate::initialize`] has finished recording the process platform.\n /// `Acquire` pairs with `Platform::record`'s `Release` so callers on weak-\n /// memory CPUs observe the recorded platform before proceeding.\n #[inline]\n pub(crate) fn is_initialized() -> bool {\n-    is_initialized_word(DETECTED.load(core::sync::atomic::Ordering::Acquire))\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// A call before `initialize`: the caller broke the contract. The crate's\n /// own unit tests, many small programs in one, initialize here instead.\n #[cold]\n #[inline(never)]\n fn not_initialized() -> u8 {\n     #[cfg(test)]\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "is_initialized",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 170
+        },
+        "start": {
+          "column": 1,
+          "line": 164
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:169:5: replace is_initialized -> bool with false",
+    "package": "blake3-servil-core",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 78,
+        "line": 169
+      },
+      "start": {
+        "column": 5,
+        "line": 169
+      }
+    }
+  },
+  {
+    "diff": "--- src/platform.rs\n+++ replace Platform::detect -> Self with Default::default()\n@@ -209,22 +209,17 @@\n     }\n     /// The platform [`initialize`](crate::initialize) detected for this\n     /// process. The caller must have called `initialize` (or\n     /// `initialize_multithreaded`) before: a call before it panics, in every\n     /// build. The check costs nothing extra: it is the load of the platform,\n     /// which every call makes anyway.\n     #[inline]\n     pub fn detect() -> Self {\n-        let mut code = crate::low_byte_u16(DETECTED.load(core::sync::atomic::Ordering::Relaxed));\n-        if code == 0 {\n-            code = not_initialized();\n-        }\n-        // Sound: DETECTED's low byte holds 0 or a Platform's discriminant (`record`).\n-        unsafe { core::mem::transmute::<u8, Platform>(code) }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The detected platform's kernels that are a core's own: on a CPU\n     /// whose one SME2 accelerator serves every core, the NEON hybrids,\n     /// which no other core's work slows down; elsewhere the detected\n     /// platform (throughput::TreeHasher::on_this_core, and the pool's pieces).\n     #[inline]\n     pub fn own_core() -> Self {\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "Platform::detect",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 223
+        },
+        "start": {
+          "column": 5,
+          "line": 210
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:217:9: replace Platform::detect -> Self with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 62,
+        "line": 222
+      },
+      "start": {
+        "column": 9,
+        "line": 217
+      }
+    }
+  },
+  {
+    "diff": "--- src/platform.rs\n+++ replace Platform::record with ()\n@@ -235,21 +235,17 @@\n         Self::detect()\n     }\n \n     /// Make `self` what [`Platform::detect`] returns from now on, in every\n     /// thread: `initialize` does, once its self-test has passed.\n     pub(crate) fn record(self) {\n         // The other bits stay (the cores, asked by now or later). `Release`\n         // pairs with `is_initialized()`'s `Acquire` load.\n-        use core::sync::atomic::Ordering::{Relaxed, Release};\n-        let mut detected = DETECTED.load(Relaxed);\n-        while let Err(now) = DETECTED.compare_exchange_weak(detected, with_platform(detected, self as u8), Release, Relaxed) {\n-            detected = now;\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// [`Platform::detect`] without the startup self-test: an assembly\n     /// platform on every supported machine, or the process stops.\n     #[allow(unreachable_code)]\n     pub(crate) fn detect_unchecked() -> Self {\n         // Every x86-64 build assembles every kernel (build.rs), so a CPU\n         // runs the widest it has; one without SSE4.1 is not supported, and\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "Platform::record",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 248
+        },
+        "start": {
+          "column": 5,
+          "line": 238
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:243:9: replace Platform::record with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 247
+      },
+      "start": {
+        "column": 9,
+        "line": 243
+      }
+    }
+  },
+  {
+    "diff": "--- src/platform.rs\n+++ replace Platform::simd_degree -> usize with 0\n@@ -294,49 +294,17 @@\n             #[cfg(target_arch = \"aarch64\")]\n             Platform::NEON => \"NEON\",\n             #[cfg(target_arch = \"aarch64\")]\n             Platform::SME2 => \"SME2\",\n         }\n     }\n \n     pub fn simd_degree(&self) -> usize {\n-        #[cfg(target_arch = \"x86_64\")]\n-        const SSE41_DEGREE: usize = 4;\n-        #[cfg(target_arch = \"x86_64\")]\n-        const AVX2_DEGREE: usize = 8;\n-        #[cfg(target_arch = \"x86_64\")]\n-        const AVX512_DEGREE: usize = 32;\n-        #[cfg(target_arch = \"aarch64\")]\n-        const NEON_DEGREE: usize = 16;\n-        #[cfg(target_arch = \"x86_64\")]\n-        const {\n-            assert!(SSE41_DEGREE >= 2 && SSE41_DEGREE <= MAX_SIMD_DEGREE && SSE41_DEGREE.is_power_of_two());\n-            assert!(AVX2_DEGREE >= 2 && AVX2_DEGREE <= MAX_SIMD_DEGREE && AVX2_DEGREE.is_power_of_two());\n-            assert!(AVX512_DEGREE >= 2 && AVX512_DEGREE <= MAX_SIMD_DEGREE && AVX512_DEGREE.is_power_of_two());\n-        }\n-        #[cfg(target_arch = \"aarch64\")]\n-        const {\n-            assert!(NEON_DEGREE >= 2 && NEON_DEGREE <= MAX_SIMD_DEGREE && NEON_DEGREE.is_power_of_two());\n-            assert!(crate::sme2::DEGREE >= 2 && crate::sme2::DEGREE <= MAX_SIMD_DEGREE && crate::sme2::DEGREE.is_power_of_two());\n-        }\n-        match self {\n-            #[cfg(target_arch = \"x86_64\")]\n-            Platform::SSE41 => SSE41_DEGREE,\n-            #[cfg(target_arch = \"x86_64\")]\n-            Platform::AVX2 => AVX2_DEGREE,\n-            #[cfg(target_arch = \"x86_64\")]\n-            Platform::AVX512 => AVX512_DEGREE,\n-            // Sixteen chunks per call reach the k10 kernel (see\n-            // neon_hybrid), in both its families.\n-            #[cfg(target_arch = \"aarch64\")]\n-            Platform::NEON => NEON_DEGREE,\n-            #[cfg(target_arch = \"aarch64\")]\n-            Platform::SME2 => crate::sme2::DEGREE,\n-        }\n+        0 /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn compress_in_place_raw(&self, cv: &mut CVWords, block: &[u8; BLOCK_LEN], block_len: u8, counter: u64, flags: u8) {\n         match self {\n             // Sound: `Platform::SSE41`/`AVX2` is constructed only after CPUID verification.\n             #[cfg(target_arch = \"x86_64\")]\n             Platform::SSE41 | Platform::AVX2 => unsafe { crate::sse41::compress_in_place(cv, block, block_len, counter, flags) },\n",
+    "file": "src/platform.rs",
+    "function": {
+      "function_name": "Platform::simd_degree",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 335
+        },
+        "start": {
+          "column": 5,
+          "line": 301
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/platform.rs:302:9: replace Platform::simd_degree -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 334
+      },
+      "start": {
+        "column": 9,
+        "line": 302
+      }
+    }
+  }
+]

@@ -1,0 +1,418 @@
+[
+  {
+    "diff": "--- src/many.rs\n+++ replace * with + in across_prefix\n@@ -517,17 +517,17 @@\n /// AVX-512 batches of 16..=31 (`least == ACROSS_GROUP`) hash their full\n /// 16-message prefix across and leave the 0..=15 remainder serial, avoiding\n /// the +14% slowdown of running a short tail through `hash_group_across`\n /// (e.g. 15 KiB x 17). Larger batches (>= 32) and all other shapes stay\n /// all-across.\n #[cfg(any(target_arch = \"x86_64\", test))]\n #[inline]\n const fn across_prefix(least: usize, count: usize) -> usize {\n-    if least == ACROSS_GROUP && count < 2 * ACROSS_GROUP { ACROSS_GROUP } else { count }\n+    if least == ACROSS_GROUP && count < 2 + /* ~ changed by cargo-mutants ~ */ ACROSS_GROUP { ACROSS_GROUP } else { count }\n }\n \n /// Keep long-message tree work outside the short-message dispatcher's frame.\n #[cfg(target_arch = \"x86_64\")]\n #[inline(never)]\n fn hash_long_or_single(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n     let mut done = 0;\n     if let Some(least) = across_from(len, platform) {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "across_prefix",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 526
+        },
+        "start": {
+          "column": 1,
+          "line": 516
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:525:43: replace * with + in across_prefix",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 525
+      },
+      "start": {
+        "column": 43,
+        "line": 525
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace input -> Option<Input<'_>> with None\n@@ -22,35 +22,17 @@\n };\n \n /// A whole message whose root is one compression away: still in its first\n /// chunk, with no staged suffix or stacked subtree, its final block already\n /// padded by `ChunkState` (a turn's messages, `update_each`); or a block or\n /// less waiting in the stage, padded there (`Stage::first_block`). Other\n /// states keep `Hasher`'s existing finalization path.\n pub(crate) fn input(hasher: &Hasher) -> Option<Input<'_>> {\n-    let c = hasher.chunk_state();\n-    // Its first chunk, from the message's start: the counter counts every\n-    // chunk finished since chunk zero.\n-    if c.chunk_counter() != 0 {\n-        return None;\n-    }\n-    let staged = hasher.staged_len();\n-    if staged == 0 {\n-        let (block, cv, len, flags) = c.output_parts();\n-        return Some(Input { block, cv, len, flags: flags + ROOT });\n-    }\n-    const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n-    // Staged bytes behind a chunk state that holds none: the whole message.\n-    (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n-        block: hasher.stage_first_block(),\n-        cv: c.cv(),\n-        len: u8::try_from(staged).expect(\"staged length <= 64\"),\n-        flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n-    })\n+    None /* ~ changed by cargo-mutants ~ */\n }\n \n pub(crate) const SELF_TEST_EXPECTED: u64 = 0x153e0dfbeac2bb44;\n \n pub(crate) fn self_test_shape(mut hash: impl FnMut(&[Input<'_>; 16], &mut [[u8; OUT_LEN]])) -> u64 {\n     let mut lens: [u8; 16] = [0, 1, 31, 63, 64, 7, 32, 55, 3, 15, 48, 60, 2, 33, 62, 64];\n     let flags: [u8; 16] = core::array::from_fn(|i| {\n         let shape = [3u8, 2, 4][i % 3];\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 49
+        },
+        "start": {
+          "column": 1,
+          "line": 24
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/output_common.rs:30:5: replace input -> Option<Input<'_>> with None",
+    "package": "blake3-servil-core",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 48
+      },
+      "start": {
+        "column": 5,
+        "line": 30
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace input -> Option<Input<'_>> with Some(Default::default())\n@@ -22,35 +22,17 @@\n };\n \n /// A whole message whose root is one compression away: still in its first\n /// chunk, with no staged suffix or stacked subtree, its final block already\n /// padded by `ChunkState` (a turn's messages, `update_each`); or a block or\n /// less waiting in the stage, padded there (`Stage::first_block`). Other\n /// states keep `Hasher`'s existing finalization path.\n pub(crate) fn input(hasher: &Hasher) -> Option<Input<'_>> {\n-    let c = hasher.chunk_state();\n-    // Its first chunk, from the message's start: the counter counts every\n-    // chunk finished since chunk zero.\n-    if c.chunk_counter() != 0 {\n-        return None;\n-    }\n-    let staged = hasher.staged_len();\n-    if staged == 0 {\n-        let (block, cv, len, flags) = c.output_parts();\n-        return Some(Input { block, cv, len, flags: flags + ROOT });\n-    }\n-    const WHOLE_ROOT_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;\n-    // Staged bytes behind a chunk state that holds none: the whole message.\n-    (staged <= BLOCK_LEN && c.count() == 0).then(|| Input {\n-        block: hasher.stage_first_block(),\n-        cv: c.cv(),\n-        len: u8::try_from(staged).expect(\"staged length <= 64\"),\n-        flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n-    })\n+    Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n pub(crate) const SELF_TEST_EXPECTED: u64 = 0x153e0dfbeac2bb44;\n \n pub(crate) fn self_test_shape(mut hash: impl FnMut(&[Input<'_>; 16], &mut [[u8; OUT_LEN]])) -> u64 {\n     let mut lens: [u8; 16] = [0, 1, 31, 63, 64, 7, 32, 55, 3, 15, 48, 60, 2, 33, 62, 64];\n     let flags: [u8; 16] = core::array::from_fn(|i| {\n         let shape = [3u8, 2, 4][i % 3];\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "input",
+      "return_type": "-> Option<Input<'_>>",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 49
+        },
+        "start": {
+          "column": 1,
+          "line": 24
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/output_common.rs:30:5: replace input -> Option<Input<'_>> with Some(Default::default())",
+    "package": "blake3-servil-core",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 48
+      },
+      "start": {
+        "column": 5,
+        "line": 30
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace self_test_shape -> u64 with 0\n@@ -46,37 +46,17 @@\n         len: u8::try_from(staged).expect(\"staged length <= 64\"),\n         flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n     })\n }\n \n pub(crate) const SELF_TEST_EXPECTED: u64 = 0x153e0dfbeac2bb44;\n \n pub(crate) fn self_test_shape(mut hash: impl FnMut(&[Input<'_>; 16], &mut [[u8; OUT_LEN]])) -> u64 {\n-    let mut lens: [u8; 16] = [0, 1, 31, 63, 64, 7, 32, 55, 3, 15, 48, 60, 2, 33, 62, 64];\n-    let flags: [u8; 16] = core::array::from_fn(|i| {\n-        let shape = [3u8, 2, 4][i % 3];\n-        if shape == 4 {\n-            lens[i] = 64;\n-        }\n-        shape + [0u8, 16, 32, 64][i % 4]\n-    });\n-    let cvs: [[u32; 8]; 16] = core::array::from_fn(|i| {\n-        let i = u32::try_from(i).unwrap();\n-        core::array::from_fn(|w| {\n-            let w = u32::try_from(w).unwrap();\n-            (0x1234abcdu32.wrapping_add(i * 0x9e37).wrapping_add(w * 0x1020304)).wrapping_mul(0x85ebca6b)\n-        })\n-    });\n-    let blocks: [[u8; 64]; 16] =\n-        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) ^ 0x5a) } else { 0 }));\n-    let inputs = core::array::from_fn(|i| Input { block: &blocks[i], cv: &cvs[i], len: lens[i], flags: flags[i] + if (i / 4) % 2 == 0 { ROOT } else { 0 } });\n-    let mut out = [[0u8; OUT_LEN]; 16];\n-    hash(&inputs, &mut out);\n-    crate::self_test::fold(out.as_flattened())\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n pub(crate) fn check_self_test_value(answer: u64) -> bool {\n     answer == SELF_TEST_EXPECTED\n }\n \n pub(crate) fn check_self_test(answer: u64) {\n     if !check_self_test_value(answer) {\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "self_test_shape",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 75
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/output_common.rs:54:5: replace self_test_shape -> u64 with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 47,
+        "line": 74
+      },
+      "start": {
+        "column": 5,
+        "line": 54
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace self_test_shape -> u64 with 1\n@@ -46,37 +46,17 @@\n         len: u8::try_from(staged).expect(\"staged length <= 64\"),\n         flags: hasher.domain().flags() + WHOLE_ROOT_FLAGS,\n     })\n }\n \n pub(crate) const SELF_TEST_EXPECTED: u64 = 0x153e0dfbeac2bb44;\n \n pub(crate) fn self_test_shape(mut hash: impl FnMut(&[Input<'_>; 16], &mut [[u8; OUT_LEN]])) -> u64 {\n-    let mut lens: [u8; 16] = [0, 1, 31, 63, 64, 7, 32, 55, 3, 15, 48, 60, 2, 33, 62, 64];\n-    let flags: [u8; 16] = core::array::from_fn(|i| {\n-        let shape = [3u8, 2, 4][i % 3];\n-        if shape == 4 {\n-            lens[i] = 64;\n-        }\n-        shape + [0u8, 16, 32, 64][i % 4]\n-    });\n-    let cvs: [[u32; 8]; 16] = core::array::from_fn(|i| {\n-        let i = u32::try_from(i).unwrap();\n-        core::array::from_fn(|w| {\n-            let w = u32::try_from(w).unwrap();\n-            (0x1234abcdu32.wrapping_add(i * 0x9e37).wrapping_add(w * 0x1020304)).wrapping_mul(0x85ebca6b)\n-        })\n-    });\n-    let blocks: [[u8; 64]; 16] =\n-        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) ^ 0x5a) } else { 0 }));\n-    let inputs = core::array::from_fn(|i| Input { block: &blocks[i], cv: &cvs[i], len: lens[i], flags: flags[i] + if (i / 4) % 2 == 0 { ROOT } else { 0 } });\n-    let mut out = [[0u8; OUT_LEN]; 16];\n-    hash(&inputs, &mut out);\n-    crate::self_test::fold(out.as_flattened())\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n pub(crate) fn check_self_test_value(answer: u64) -> bool {\n     answer == SELF_TEST_EXPECTED\n }\n \n pub(crate) fn check_self_test(answer: u64) {\n     if !check_self_test_value(answer) {\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "self_test_shape",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 75
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/output_common.rs:54:5: replace self_test_shape -> u64 with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 47,
+        "line": 74
+      },
+      "start": {
+        "column": 5,
+        "line": 54
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace < with <= in self_test_shape\n@@ -62,17 +62,17 @@\n     let cvs: [[u32; 8]; 16] = core::array::from_fn(|i| {\n         let i = u32::try_from(i).unwrap();\n         core::array::from_fn(|w| {\n             let w = u32::try_from(w).unwrap();\n             (0x1234abcdu32.wrapping_add(i * 0x9e37).wrapping_add(w * 0x1020304)).wrapping_mul(0x85ebca6b)\n         })\n     });\n     let blocks: [[u8; 64]; 16] =\n-        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) ^ 0x5a) } else { 0 }));\n+        core::array::from_fn(|i| core::array::from_fn(|j| if j <= /* ~ changed by cargo-mutants ~ */ lens[i] as usize { crate::low_byte((i * 37 + j * 17) ^ 0x5a) } else { 0 }));\n     let inputs = core::array::from_fn(|i| Input { block: &blocks[i], cv: &cvs[i], len: lens[i], flags: flags[i] + if (i / 4) % 2 == 0 { ROOT } else { 0 } });\n     let mut out = [[0u8; OUT_LEN]; 16];\n     hash(&inputs, &mut out);\n     crate::self_test::fold(out.as_flattened())\n }\n \n pub(crate) fn check_self_test_value(answer: u64) -> bool {\n     answer == SELF_TEST_EXPECTED\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "self_test_shape",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 75
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/output_common.rs:70:64: replace < with <= in self_test_shape",
+    "package": "blake3-servil-core",
+    "replacement": "<=",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 70
+      },
+      "start": {
+        "column": 64,
+        "line": 70
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace ^ with | in self_test_shape\n@@ -62,17 +62,17 @@\n     let cvs: [[u32; 8]; 16] = core::array::from_fn(|i| {\n         let i = u32::try_from(i).unwrap();\n         core::array::from_fn(|w| {\n             let w = u32::try_from(w).unwrap();\n             (0x1234abcdu32.wrapping_add(i * 0x9e37).wrapping_add(w * 0x1020304)).wrapping_mul(0x85ebca6b)\n         })\n     });\n     let blocks: [[u8; 64]; 16] =\n-        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) ^ 0x5a) } else { 0 }));\n+        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) | /* ~ changed by cargo-mutants ~ */ 0x5a) } else { 0 }));\n     let inputs = core::array::from_fn(|i| Input { block: &blocks[i], cv: &cvs[i], len: lens[i], flags: flags[i] + if (i / 4) % 2 == 0 { ROOT } else { 0 } });\n     let mut out = [[0u8; OUT_LEN]; 16];\n     hash(&inputs, &mut out);\n     crate::self_test::fold(out.as_flattened())\n }\n \n pub(crate) fn check_self_test_value(answer: u64) -> bool {\n     answer == SELF_TEST_EXPECTED\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "self_test_shape",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 75
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/output_common.rs:70:119: replace ^ with | in self_test_shape",
+    "package": "blake3-servil-core",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 120,
+        "line": 70
+      },
+      "start": {
+        "column": 119,
+        "line": 70
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace ^ with & in self_test_shape\n@@ -62,17 +62,17 @@\n     let cvs: [[u32; 8]; 16] = core::array::from_fn(|i| {\n         let i = u32::try_from(i).unwrap();\n         core::array::from_fn(|w| {\n             let w = u32::try_from(w).unwrap();\n             (0x1234abcdu32.wrapping_add(i * 0x9e37).wrapping_add(w * 0x1020304)).wrapping_mul(0x85ebca6b)\n         })\n     });\n     let blocks: [[u8; 64]; 16] =\n-        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) ^ 0x5a) } else { 0 }));\n+        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) & /* ~ changed by cargo-mutants ~ */ 0x5a) } else { 0 }));\n     let inputs = core::array::from_fn(|i| Input { block: &blocks[i], cv: &cvs[i], len: lens[i], flags: flags[i] + if (i / 4) % 2 == 0 { ROOT } else { 0 } });\n     let mut out = [[0u8; OUT_LEN]; 16];\n     hash(&inputs, &mut out);\n     crate::self_test::fold(out.as_flattened())\n }\n \n pub(crate) fn check_self_test_value(answer: u64) -> bool {\n     answer == SELF_TEST_EXPECTED\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "self_test_shape",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 75
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/output_common.rs:70:119: replace ^ with & in self_test_shape",
+    "package": "blake3-servil-core",
+    "replacement": "&",
+    "span": {
+      "end": {
+        "column": 120,
+        "line": 70
+      },
+      "start": {
+        "column": 119,
+        "line": 70
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace + with - in self_test_shape\n@@ -62,17 +62,17 @@\n     let cvs: [[u32; 8]; 16] = core::array::from_fn(|i| {\n         let i = u32::try_from(i).unwrap();\n         core::array::from_fn(|w| {\n             let w = u32::try_from(w).unwrap();\n             (0x1234abcdu32.wrapping_add(i * 0x9e37).wrapping_add(w * 0x1020304)).wrapping_mul(0x85ebca6b)\n         })\n     });\n     let blocks: [[u8; 64]; 16] =\n-        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) ^ 0x5a) } else { 0 }));\n+        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 - /* ~ changed by cargo-mutants ~ */ j * 17) ^ 0x5a) } else { 0 }));\n     let inputs = core::array::from_fn(|i| Input { block: &blocks[i], cv: &cvs[i], len: lens[i], flags: flags[i] + if (i / 4) % 2 == 0 { ROOT } else { 0 } });\n     let mut out = [[0u8; OUT_LEN]; 16];\n     hash(&inputs, &mut out);\n     crate::self_test::fold(out.as_flattened())\n }\n \n pub(crate) fn check_self_test_value(answer: u64) -> bool {\n     answer == SELF_TEST_EXPECTED\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "self_test_shape",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 75
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/output_common.rs:70:109: replace + with - in self_test_shape",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 110,
+        "line": 70
+      },
+      "start": {
+        "column": 109,
+        "line": 70
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace * with + in self_test_shape\n@@ -62,17 +62,17 @@\n     let cvs: [[u32; 8]; 16] = core::array::from_fn(|i| {\n         let i = u32::try_from(i).unwrap();\n         core::array::from_fn(|w| {\n             let w = u32::try_from(w).unwrap();\n             (0x1234abcdu32.wrapping_add(i * 0x9e37).wrapping_add(w * 0x1020304)).wrapping_mul(0x85ebca6b)\n         })\n     });\n     let blocks: [[u8; 64]; 16] =\n-        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) ^ 0x5a) } else { 0 }));\n+        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i + /* ~ changed by cargo-mutants ~ */ 37 + j * 17) ^ 0x5a) } else { 0 }));\n     let inputs = core::array::from_fn(|i| Input { block: &blocks[i], cv: &cvs[i], len: lens[i], flags: flags[i] + if (i / 4) % 2 == 0 { ROOT } else { 0 } });\n     let mut out = [[0u8; OUT_LEN]; 16];\n     hash(&inputs, &mut out);\n     crate::self_test::fold(out.as_flattened())\n }\n \n pub(crate) fn check_self_test_value(answer: u64) -> bool {\n     answer == SELF_TEST_EXPECTED\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "self_test_shape",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 75
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/output_common.rs:70:104: replace * with + in self_test_shape",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 105,
+        "line": 70
+      },
+      "start": {
+        "column": 104,
+        "line": 70
+      }
+    }
+  },
+  {
+    "diff": "--- src/output_common.rs\n+++ replace * with + in self_test_shape\n@@ -62,17 +62,17 @@\n     let cvs: [[u32; 8]; 16] = core::array::from_fn(|i| {\n         let i = u32::try_from(i).unwrap();\n         core::array::from_fn(|w| {\n             let w = u32::try_from(w).unwrap();\n             (0x1234abcdu32.wrapping_add(i * 0x9e37).wrapping_add(w * 0x1020304)).wrapping_mul(0x85ebca6b)\n         })\n     });\n     let blocks: [[u8; 64]; 16] =\n-        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j * 17) ^ 0x5a) } else { 0 }));\n+        core::array::from_fn(|i| core::array::from_fn(|j| if j < lens[i] as usize { crate::low_byte((i * 37 + j + /* ~ changed by cargo-mutants ~ */ 17) ^ 0x5a) } else { 0 }));\n     let inputs = core::array::from_fn(|i| Input { block: &blocks[i], cv: &cvs[i], len: lens[i], flags: flags[i] + if (i / 4) % 2 == 0 { ROOT } else { 0 } });\n     let mut out = [[0u8; OUT_LEN]; 16];\n     hash(&inputs, &mut out);\n     crate::self_test::fold(out.as_flattened())\n }\n \n pub(crate) fn check_self_test_value(answer: u64) -> bool {\n     answer == SELF_TEST_EXPECTED\n",
+    "file": "src/output_common.rs",
+    "function": {
+      "function_name": "self_test_shape",
+      "return_type": "-> u64",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 75
+        },
+        "start": {
+          "column": 1,
+          "line": 53
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/output_common.rs:70:113: replace * with + in self_test_shape",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 114,
+        "line": 70
+      },
+      "start": {
+        "column": 113,
+        "line": 70
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace run -> usize with 0\n@@ -413,75 +413,17 @@\n }\n \n /// Run every case for the detected platform and stop on the first that differs\n /// from the reference; records the tested platform once on first initialization\n /// and returns how many cases ran (`CASES` and `platform`'s extra entries).\n fn run() -> usize {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n-    #[cfg(test)]\n-    if PLANTED_FAILURE.load(core::sync::atomic::Ordering::Relaxed) {\n-        panic!(\"a kernel's panic, planted by a test\");\n-    }\n-    compiled_features_present();\n-    let platform = Platform::detect_unchecked();\n-    let mut checked = 0;\n-    #[cfg(test)]\n-    let mut index = 0;\n-    let previous = chain(\n-        |case, input, previous, out| {\n-            let written = outputs(platform, case, input, previous, out);\n-            // A wrong digest a test plants in one case, as a CPU or build\n-            // that computes one would give.\n-            #[cfg(test)]\n-            {\n-                if index == PLANTED_WRONG_CASE.load(core::sync::atomic::Ordering::Relaxed) {\n-                    out[written - 1] ^= 1;\n-                }\n-                index += 1;\n-            }\n-            written\n-        },\n-        |index, folded| {\n-            checked += 1;\n-            if folded != EXPECTED[index] {\n-                stop(format_args!(\n-                    \"blake3-servil startup self-test failed: case {index}, {} (platform {}): this build or this CPU \\\n-                     computes wrong BLAKE3 digests on that path\",\n-                    CASES[index].1,\n-                    platform.name(),\n-                ));\n-            }\n-        },\n-    );\n-    #[cfg(target_arch = \"x86_64\")]\n-    if crate::platform::wide_avx512() {\n-        // Sound: `wide_avx512()` requires AVX-512, so `platform` is AVX-512\n-        // and hash_many dispatches to these kernels. Their wrapper checks\n-        // bounds on stack.\n-        checked += unsafe { crate::avx512_32::self_test(&previous) };\n-    }\n-    checked += crate::ffi_output::self_test(platform);\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        checked += crate::ffi_partial::self_test(platform);\n-    }\n-    checked += crate::ffi_packed::self_test(platform);\n-    checked += crate::ffi_counter::self_test(platform);\n-    let _ = previous;\n-    #[cfg(test)]\n-    if HOLD_RUN.load(core::sync::atomic::Ordering::Relaxed) {\n-        IN_RUN.store(true, core::sync::atomic::Ordering::Release);\n-        while HOLD_RUN.load(core::sync::atomic::Ordering::Acquire) {\n-            std::thread::yield_now();\n-        }\n-    }\n-    platform.record();\n-    checked\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Stop when this binary was compiled to assume an instruction that this\n /// CPU runs as another one instead of trapping: x86's LZCNT and TZCNT\n /// (BMI1) run as BSR and BSF on CPUs without them (Intel before Haswell),\n /// silently giving other values (QEMU's Ivy Bridge: leading_zeros(1 << 20)\n /// is 20, not 43). Every other instruction the compiler could assume traps\n /// on a CPU without it (SIGILL), which already stops the program. The\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "run",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 480
+        },
+        "start": {
+          "column": 1,
+          "line": 415
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:421:5: replace run -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 479
+      },
+      "start": {
+        "column": 5,
+        "line": 421
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace run -> usize with 1\n@@ -413,75 +413,17 @@\n }\n \n /// Run every case for the detected platform and stop on the first that differs\n /// from the reference; records the tested platform once on first initialization\n /// and returns how many cases ran (`CASES` and `platform`'s extra entries).\n fn run() -> usize {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n-    #[cfg(test)]\n-    if PLANTED_FAILURE.load(core::sync::atomic::Ordering::Relaxed) {\n-        panic!(\"a kernel's panic, planted by a test\");\n-    }\n-    compiled_features_present();\n-    let platform = Platform::detect_unchecked();\n-    let mut checked = 0;\n-    #[cfg(test)]\n-    let mut index = 0;\n-    let previous = chain(\n-        |case, input, previous, out| {\n-            let written = outputs(platform, case, input, previous, out);\n-            // A wrong digest a test plants in one case, as a CPU or build\n-            // that computes one would give.\n-            #[cfg(test)]\n-            {\n-                if index == PLANTED_WRONG_CASE.load(core::sync::atomic::Ordering::Relaxed) {\n-                    out[written - 1] ^= 1;\n-                }\n-                index += 1;\n-            }\n-            written\n-        },\n-        |index, folded| {\n-            checked += 1;\n-            if folded != EXPECTED[index] {\n-                stop(format_args!(\n-                    \"blake3-servil startup self-test failed: case {index}, {} (platform {}): this build or this CPU \\\n-                     computes wrong BLAKE3 digests on that path\",\n-                    CASES[index].1,\n-                    platform.name(),\n-                ));\n-            }\n-        },\n-    );\n-    #[cfg(target_arch = \"x86_64\")]\n-    if crate::platform::wide_avx512() {\n-        // Sound: `wide_avx512()` requires AVX-512, so `platform` is AVX-512\n-        // and hash_many dispatches to these kernels. Their wrapper checks\n-        // bounds on stack.\n-        checked += unsafe { crate::avx512_32::self_test(&previous) };\n-    }\n-    checked += crate::ffi_output::self_test(platform);\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        checked += crate::ffi_partial::self_test(platform);\n-    }\n-    checked += crate::ffi_packed::self_test(platform);\n-    checked += crate::ffi_counter::self_test(platform);\n-    let _ = previous;\n-    #[cfg(test)]\n-    if HOLD_RUN.load(core::sync::atomic::Ordering::Relaxed) {\n-        IN_RUN.store(true, core::sync::atomic::Ordering::Release);\n-        while HOLD_RUN.load(core::sync::atomic::Ordering::Acquire) {\n-            std::thread::yield_now();\n-        }\n-    }\n-    platform.record();\n-    checked\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Stop when this binary was compiled to assume an instruction that this\n /// CPU runs as another one instead of trapping: x86's LZCNT and TZCNT\n /// (BMI1) run as BSR and BSF on CPUs without them (Intel before Haswell),\n /// silently giving other values (QEMU's Ivy Bridge: leading_zeros(1 << 20)\n /// is 20, not 43). Every other instruction the compiler could assume traps\n /// on a CPU without it (SIGILL), which already stops the program. The\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "run",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 480
+        },
+        "start": {
+          "column": 1,
+          "line": 415
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:421:5: replace run -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 479
+      },
+      "start": {
+        "column": 5,
+        "line": 421
+      }
+    }
+  }
+]
