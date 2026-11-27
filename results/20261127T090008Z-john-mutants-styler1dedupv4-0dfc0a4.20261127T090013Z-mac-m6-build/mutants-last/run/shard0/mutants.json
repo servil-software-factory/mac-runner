@@ -1,0 +1,258 @@
+[
+  {
+    "diff": "--- src/each.rs\n+++ replace finalize_each with ()\n@@ -113,42 +113,17 @@\n /// `hash_by_blocks` and counter-zero final blocks via NEON `output8`.\n ///\n /// # Key-dependent timing\n ///\n /// Selected hashers may use different secret keys. Key values and key equality\n /// select neither the finalization path nor its amount of work.\n /// See the [key-independence contract](crate#key-dependent-timing).\n pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n-    assert_eq!(which.len(), out.len(), \"one digest per message named\");\n-    let mut marked = Marked { hashers, which, count: 0, active: true };\n-    for &i in which {\n-        assert!(i < marked.hashers.len(), \"finalize_each names hasher {i} of {}\", marked.hashers.len());\n-        assert!(!marked.hashers[i].mark_finishing(), \"each finalized index is distinct\");\n-        marked.count += 1;\n-    }\n-    let hashers = &mut *marked.hashers;\n-    if which.is_empty() {\n-        marked.active = false;\n-        return;\n-    }\n-    if which.len() == 1 {\n-        let i = which[0];\n-        out[0] = *hashers[i].take_root_hash().as_bytes();\n-        hashers[i].reset();\n-        marked.active = false;\n-        return;\n-    }\n-    // Delegate multi-hasher batching to an out-of-line architecture helper so\n-    // empty and singleton calls never reserve the 128-slot batch stack frame.\n-    #[cfg(target_arch = \"x86_64\")]\n-    crate::ffi_partial::finalize_each(hashers, which, out);\n-    #[cfg(target_arch = \"aarch64\")]\n-    crate::ffi_output::finalize_each(hashers, which, out);\n-    marked.active = false;\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n #[inline]\n pub(crate) fn finalize_indices_serial(hashers: &mut [Hasher], w_chunk: &[usize], slots: &[u8], o_chunk: &mut [[u8; OUT_LEN]]) {\n     for &k in slots {\n         let k = usize::from(k);\n         o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n     }\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 147
+        },
+        "start": {
+          "column": 1,
+          "line": 96
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:121:5: replace finalize_each with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 27,
+        "line": 146
+      },
+      "start": {
+        "column": 5,
+        "line": 121
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace finalize_indices_serial with ()\n@@ -143,20 +143,17 @@\n     crate::ffi_partial::finalize_each(hashers, which, out);\n     #[cfg(target_arch = \"aarch64\")]\n     crate::ffi_output::finalize_each(hashers, which, out);\n     marked.active = false;\n }\n \n #[inline]\n pub(crate) fn finalize_indices_serial(hashers: &mut [Hasher], w_chunk: &[usize], slots: &[u8], o_chunk: &mut [[u8; OUT_LEN]]) {\n-    for &k in slots {\n-        let k = usize::from(k);\n-        o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Hash each held stage's 16 leaf chunks serially per stage on `platform` into\n /// `level`, using each hasher's own domain key and flags.\n pub(crate) fn hash_held_leaves_serial(hashers: &[Hasher], held: &[usize], platform: Platform, level: &mut [[u8; OUT_LEN]]) {\n     const PER: usize = crate::STAGE_LEN / CHUNK_LEN;\n     for (k, &i) in held.iter().enumerate() {\n         let h = &hashers[i];\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "finalize_indices_serial",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 155
+        },
+        "start": {
+          "column": 1,
+          "line": 149
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:151:5: replace finalize_indices_serial with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 154
+      },
+      "start": {
+        "column": 5,
+        "line": 151
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace hash_held_leaves_serial with ()\n@@ -152,33 +152,17 @@\n         let k = usize::from(k);\n         o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n     }\n }\n \n /// Hash each held stage's 16 leaf chunks serially per stage on `platform` into\n /// `level`, using each hasher's own domain key and flags.\n pub(crate) fn hash_held_leaves_serial(hashers: &[Hasher], held: &[usize], platform: Platform, level: &mut [[u8; OUT_LEN]]) {\n-    const PER: usize = crate::STAGE_LEN / CHUNK_LEN;\n-    for (k, &i) in held.iter().enumerate() {\n-        let h = &hashers[i];\n-        let (counter, bytes) = h.held_group().expect(\"a held group\");\n-        let refs: [&[u8; CHUNK_LEN]; PER] = core::array::from_fn(|j| bytes[j * CHUNK_LEN..(j + 1) * CHUNK_LEN].try_into().unwrap());\n-        let domain = h.domain();\n-        platform.hash_many(\n-            &refs,\n-            domain.key(),\n-            counter,\n-            IncrementCounter::Yes,\n-            domain.flags(),\n-            CHUNK_START,\n-            CHUNK_END,\n-            level[k * PER..(k + 1) * PER].as_flattened_mut(),\n-        );\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Commit the four-level held-group reduction back into each `Hasher`: when\n /// `counter == 0`, four swaps leave the final root parent's two child CVs in\n /// `next[2 * k..2 * k + 2]`; otherwise the subtree CV is in `level[k]`.\n pub(crate) fn commit_held_groups(hashers: &mut [Hasher], held: &[usize], level: &[[u8; OUT_LEN]], next: &[[u8; OUT_LEN]]) {\n     for (k, &i) in held.iter().enumerate() {\n         let (counter, _) = hashers[i].held_group().unwrap();\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "hash_held_leaves_serial",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 177
+        },
+        "start": {
+          "column": 1,
+          "line": 157
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/each.rs:160:5: replace hash_held_leaves_serial with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 176
+      },
+      "start": {
+        "column": 5,
+        "line": 160
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace / with % in hash_held_leaves_serial\n@@ -152,17 +152,17 @@\n         let k = usize::from(k);\n         o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();\n     }\n }\n \n /// Hash each held stage's 16 leaf chunks serially per stage on `platform` into\n /// `level`, using each hasher's own domain key and flags.\n pub(crate) fn hash_held_leaves_serial(hashers: &[Hasher], held: &[usize], platform: Platform, level: &mut [[u8; OUT_LEN]]) {\n-    const PER: usize = crate::STAGE_LEN / CHUNK_LEN;\n+    const PER: usize = crate::STAGE_LEN % /* ~ changed by cargo-mutants ~ */ CHUNK_LEN;\n     for (k, &i) in held.iter().enumerate() {\n         let h = &hashers[i];\n         let (counter, bytes) = h.held_group().expect(\"a held group\");\n         let refs: [&[u8; CHUNK_LEN]; PER] = core::array::from_fn(|j| bytes[j * CHUNK_LEN..(j + 1) * CHUNK_LEN].try_into().unwrap());\n         let domain = h.domain();\n         platform.hash_many(\n             &refs,\n             domain.key(),\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "hash_held_leaves_serial",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 177
+        },
+        "start": {
+          "column": 1,
+          "line": 157
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:160:41: replace / with % in hash_held_leaves_serial",
+    "package": "blake3-servil-core",
+    "replacement": "%",
+    "span": {
+      "end": {
+        "column": 42,
+        "line": 160
+      },
+      "start": {
+        "column": 41,
+        "line": 160
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace * with + in hash_held_leaves_serial\n@@ -156,17 +156,17 @@\n \n /// Hash each held stage's 16 leaf chunks serially per stage on `platform` into\n /// `level`, using each hasher's own domain key and flags.\n pub(crate) fn hash_held_leaves_serial(hashers: &[Hasher], held: &[usize], platform: Platform, level: &mut [[u8; OUT_LEN]]) {\n     const PER: usize = crate::STAGE_LEN / CHUNK_LEN;\n     for (k, &i) in held.iter().enumerate() {\n         let h = &hashers[i];\n         let (counter, bytes) = h.held_group().expect(\"a held group\");\n-        let refs: [&[u8; CHUNK_LEN]; PER] = core::array::from_fn(|j| bytes[j * CHUNK_LEN..(j + 1) * CHUNK_LEN].try_into().unwrap());\n+        let refs: [&[u8; CHUNK_LEN]; PER] = core::array::from_fn(|j| bytes[j + /* ~ changed by cargo-mutants ~ */ CHUNK_LEN..(j + 1) * CHUNK_LEN].try_into().unwrap());\n         let domain = h.domain();\n         platform.hash_many(\n             &refs,\n             domain.key(),\n             counter,\n             IncrementCounter::Yes,\n             domain.flags(),\n             CHUNK_START,\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "hash_held_leaves_serial",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 177
+        },
+        "start": {
+          "column": 1,
+          "line": 157
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:164:78: replace * with + in hash_held_leaves_serial",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 79,
+        "line": 164
+      },
+      "start": {
+        "column": 78,
+        "line": 164
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace * with + in hash_held_leaves_serial\n@@ -156,17 +156,17 @@\n \n /// Hash each held stage's 16 leaf chunks serially per stage on `platform` into\n /// `level`, using each hasher's own domain key and flags.\n pub(crate) fn hash_held_leaves_serial(hashers: &[Hasher], held: &[usize], platform: Platform, level: &mut [[u8; OUT_LEN]]) {\n     const PER: usize = crate::STAGE_LEN / CHUNK_LEN;\n     for (k, &i) in held.iter().enumerate() {\n         let h = &hashers[i];\n         let (counter, bytes) = h.held_group().expect(\"a held group\");\n-        let refs: [&[u8; CHUNK_LEN]; PER] = core::array::from_fn(|j| bytes[j * CHUNK_LEN..(j + 1) * CHUNK_LEN].try_into().unwrap());\n+        let refs: [&[u8; CHUNK_LEN]; PER] = core::array::from_fn(|j| bytes[j * CHUNK_LEN..(j + 1) + /* ~ changed by cargo-mutants ~ */ CHUNK_LEN].try_into().unwrap());\n         let domain = h.domain();\n         platform.hash_many(\n             &refs,\n             domain.key(),\n             counter,\n             IncrementCounter::Yes,\n             domain.flags(),\n             CHUNK_START,\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "hash_held_leaves_serial",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 177
+        },
+        "start": {
+          "column": 1,
+          "line": 157
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:164:99: replace * with + in hash_held_leaves_serial",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 100,
+        "line": 164
+      },
+      "start": {
+        "column": 99,
+        "line": 164
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace + with - in hash_held_leaves_serial\n@@ -156,17 +156,17 @@\n \n /// Hash each held stage's 16 leaf chunks serially per stage on `platform` into\n /// `level`, using each hasher's own domain key and flags.\n pub(crate) fn hash_held_leaves_serial(hashers: &[Hasher], held: &[usize], platform: Platform, level: &mut [[u8; OUT_LEN]]) {\n     const PER: usize = crate::STAGE_LEN / CHUNK_LEN;\n     for (k, &i) in held.iter().enumerate() {\n         let h = &hashers[i];\n         let (counter, bytes) = h.held_group().expect(\"a held group\");\n-        let refs: [&[u8; CHUNK_LEN]; PER] = core::array::from_fn(|j| bytes[j * CHUNK_LEN..(j + 1) * CHUNK_LEN].try_into().unwrap());\n+        let refs: [&[u8; CHUNK_LEN]; PER] = core::array::from_fn(|j| bytes[j * CHUNK_LEN..(j - /* ~ changed by cargo-mutants ~ */ 1) * CHUNK_LEN].try_into().unwrap());\n         let domain = h.domain();\n         platform.hash_many(\n             &refs,\n             domain.key(),\n             counter,\n             IncrementCounter::Yes,\n             domain.flags(),\n             CHUNK_START,\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "hash_held_leaves_serial",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 177
+        },
+        "start": {
+          "column": 1,
+          "line": 157
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:164:94: replace + with - in hash_held_leaves_serial",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 95,
+        "line": 164
+      },
+      "start": {
+        "column": 94,
+        "line": 164
+      }
+    }
+  },
+  {
+    "diff": "--- src/each.rs\n+++ replace * with + in hash_held_leaves_serial\n@@ -166,17 +166,17 @@\n         platform.hash_many(\n             &refs,\n             domain.key(),\n             counter,\n             IncrementCounter::Yes,\n             domain.flags(),\n             CHUNK_START,\n             CHUNK_END,\n-            level[k * PER..(k + 1) * PER].as_flattened_mut(),\n+            level[k + /* ~ changed by cargo-mutants ~ */ PER..(k + 1) * PER].as_flattened_mut(),\n         );\n     }\n }\n \n /// Commit the four-level held-group reduction back into each `Hasher`: when\n /// `counter == 0`, four swaps leave the final root parent's two child CVs in\n /// `next[2 * k..2 * k + 2]`; otherwise the subtree CV is in `level[k]`.\n pub(crate) fn commit_held_groups(hashers: &mut [Hasher], held: &[usize], level: &[[u8; OUT_LEN]], next: &[[u8; OUT_LEN]]) {\n",
+    "file": "src/each.rs",
+    "function": {
+      "function_name": "hash_held_leaves_serial",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 177
+        },
+        "start": {
+          "column": 1,
+          "line": 157
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/each.rs:174:21: replace * with + in hash_held_leaves_serial",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 174
+      },
+      "start": {
+        "column": 21,
+        "line": 174
+      }
+    }
+  }
+]

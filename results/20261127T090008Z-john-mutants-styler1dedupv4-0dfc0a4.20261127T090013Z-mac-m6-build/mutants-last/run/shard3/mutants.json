@@ -1,0 +1,258 @@
+[
+  {
+    "diff": "--- src/throughput.rs\n+++ replace TreeHasher::bare_root_hash -> Hash with Default::default()\n@@ -749,17 +749,17 @@\n             }\n             let _ = crate::compress_parents_parallel(children.as_flattened(), self.domain.key(), self.domain.flags(), platform, out.as_flattened_mut());\n         }\n     }\n \n     /// The hash of the message whose root has these two children: the\n     /// tree's top, where the chaining values end.\n     fn bare_root_hash(&self, left: &crate::CVBytes, right: &crate::CVBytes) -> Hash {\n-        crate::hasher::parent_output(left, right, self.domain.key(), self.domain.flags(), self.platform()).root_hash()\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The extended output of the message whose root has these two\n     /// children: its first 32 bytes are [`bare_root_hash`](TreeHasher::bare_root_hash)'s.\n     fn bare_root_output(&self, left: &crate::CVBytes, right: &crate::CVBytes) -> crate::OutputReader {\n         crate::OutputReader::new(crate::hasher::parent_output(left, right, self.domain.key(), self.domain.flags(), self.platform()))\n     }\n     /// The chaining value of a whole subtree: the `index`-th of 2^`level`\n",
+    "file": "src/throughput.rs",
+    "function": {
+      "function_name": "TreeHasher::bare_root_hash",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 758
+        },
+        "start": {
+          "column": 5,
+          "line": 754
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/throughput.rs:757:9: replace TreeHasher::bare_root_hash -> Hash with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 119,
+        "line": 757
+      },
+      "start": {
+        "column": 9,
+        "line": 757
+      }
+    }
+  },
+  {
+    "diff": "--- src/throughput.rs\n+++ replace TreeHasher::bare_root_output -> crate::OutputReader with Default::default()\n@@ -755,17 +755,17 @@\n     /// tree's top, where the chaining values end.\n     fn bare_root_hash(&self, left: &crate::CVBytes, right: &crate::CVBytes) -> Hash {\n         crate::hasher::parent_output(left, right, self.domain.key(), self.domain.flags(), self.platform()).root_hash()\n     }\n \n     /// The extended output of the message whose root has these two\n     /// children: its first 32 bytes are [`bare_root_hash`](TreeHasher::bare_root_hash)'s.\n     fn bare_root_output(&self, left: &crate::CVBytes, right: &crate::CVBytes) -> crate::OutputReader {\n-        crate::OutputReader::new(crate::hasher::parent_output(left, right, self.domain.key(), self.domain.flags(), self.platform()))\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n     /// The chaining value of a whole subtree: the `index`-th of 2^`level`\n     /// chunks.\n     ///\n     /// Requires `input.len() == 1024 << level`, checked in every build.\n     pub fn subtree_cv(&self, level: u32, index: u64, input: &[u8]) -> Cv {\n         let place = subtree_place(level, index, input.len());\n         let turn = self.turn(input.len());\n",
+    "file": "src/throughput.rs",
+    "function": {
+      "function_name": "TreeHasher::bare_root_output",
+      "return_type": "-> crate::OutputReader",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 764
+        },
+        "start": {
+          "column": 5,
+          "line": 760
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/throughput.rs:763:9: replace TreeHasher::bare_root_output -> crate::OutputReader with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 133,
+        "line": 763
+      },
+      "start": {
+        "column": 9,
+        "line": 763
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace held_groups_in with ()\n@@ -60,95 +60,17 @@\n         for chunk in held.chunks(16) {\n             held_groups_in::<16, 128>(hashers, chunk, platform);\n         }\n     }\n }\n \n #[inline(never)]\n fn held_groups_in<const S: usize, const MAX_PARENTS: usize>(hashers: &mut [Hasher], held: &[usize], platform: Platform) {\n-    const PER: usize = crate::STAGE_LEN / CHUNK_LEN;\n-    const { assert!(PER == 16 && MAX_PARENTS == S * (PER / 2)) };\n-    let n = held.len();\n-    let mut work = crate::each::HeldWorkspace::<S>::new();\n-    let (mut level, mut next) = work.buffers(n);\n-\n-    // 1. Leaf chunks: on SME2, one multi-group kernel entry hashes all `n`\n-    //    keyed/mixed stages together with zero key comparisons; on NEON (or if\n-    //    SME2 is busy / declined on nonzero TPIDR2_EL0 reserved bytes), each\n-    //    stage runs at full 16-chunk NEON width.\n-    let leaves_done = {\n-        let turn = crate::platform::Sme2Turn::take(platform, true);\n-        if matches!(turn.platform(), Platform::SME2) {\n-            let mut chunks = crate::stack_vec::StackVec::<[*const u8; PER], S>::new();\n-            let mut counters = crate::stack_vec::StackVec::<u64, S>::new();\n-            let mut keys = crate::stack_vec::StackVec::<[u32; 8], S>::new();\n-            let mut flags = crate::stack_vec::StackVec::<u8, S>::new();\n-            for &i in held {\n-                let h = &hashers[i];\n-                let (counter, bytes) = h.held_group().expect(\"a held group\");\n-                let domain = h.domain();\n-                chunks.push(core::array::from_fn(|j| bytes[j * CHUNK_LEN..].as_ptr()));\n-                counters.push(counter);\n-                keys.push(*domain.key());\n-                flags.push(domain.flags());\n-            }\n-            // Sound: `Platform::SME2` verified SME2 support; `chunks` holds\n-            // `16 * n` pointers to readable 1024-byte chunks, `counters`/`keys`/\n-            // `flags` have length `n`, and `level` has room for `16 * n` CVs.\n-            let svl = unsafe {\n-                blake3_servil_sme2_chunks_keyed(\n-                    chunks.as_slice().as_flattened().as_ptr(),\n-                    counters.as_slice().as_ptr(),\n-                    keys.as_slice().as_ptr(),\n-                    flags.as_slice().as_ptr(),\n-                    level.as_flattened_mut().as_mut_ptr(),\n-                    n as u64,\n-                )\n-            };\n-            if svl == 16 {\n-                crate::ran_kernel(blake3_servil_sme2_chunks_keyed as *const ());\n-                true\n-            } else {\n-                false\n-            }\n-        } else {\n-            false\n-        }\n-    };\n-    if !leaves_done {\n-        crate::each::hash_held_leaves_serial(hashers, held, Platform::NEON, level);\n-    }\n-\n-    // 2. Four parent levels across all `n` stages (<= 128 parents per level) on NEON output8.\n-    for depth in 0..4 {\n-        let per_message = PER >> (depth + 1);\n-        let count = n * per_message;\n-        let mut inputs = crate::stack_vec::StackVec::<Input<'_>, MAX_PARENTS>::new();\n-        for j in 0..count {\n-            let h = &hashers[held[j / per_message]];\n-            let domain = h.domain();\n-            inputs.push(Input {\n-                block: level.as_flattened()[j * BLOCK_LEN..(j + 1) * BLOCK_LEN].try_into().unwrap(),\n-                cv: domain.key(),\n-                len: u8::try_from(BLOCK_LEN).unwrap(),\n-                flags: domain.flags() | crate::PARENT,\n-            });\n-        }\n-        let done = hash_groups_arm(inputs.as_slice(), &mut next[..count]);\n-        for j in done..count {\n-            let inp = inputs.as_slice()[j];\n-            let mut cv = *inp.cv;\n-            Platform::NEON.compress_in_place(&mut cv, inp.block, inp.len, 0, inp.flags);\n-            next[j] = crate::hasher::le_bytes(&cv);\n-        }\n-        core::mem::swap(&mut level, &mut next);\n-    }\n-\n-    crate::each::commit_held_groups(hashers, held, level, next);\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Out-of-line AArch64 batch finalizer called by `each::finalize_each` for\n /// multi-hasher calls, keeping empty and singleton calls free of the 128-slot\n /// batch stack frame.\n #[inline(never)]\n pub(crate) fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n     const FINALIZE_BATCH: usize = 128;\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "held_groups_in",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 147
+        },
+        "start": {
+          "column": 1,
+          "line": 66
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_output_aarch64.rs:68:5: replace held_groups_in with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 146
+      },
+      "start": {
+        "column": 5,
+        "line": 68
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ delete ! in held_groups_in\n@@ -109,17 +109,17 @@\n                 true\n             } else {\n                 false\n             }\n         } else {\n             false\n         }\n     };\n-    if !leaves_done {\n+    if  /* ~ changed by cargo-mutants ~ */leaves_done {\n         crate::each::hash_held_leaves_serial(hashers, held, Platform::NEON, level);\n     }\n \n     // 2. Four parent levels across all `n` stages (<= 128 parents per level) on NEON output8.\n     for depth in 0..4 {\n         let per_message = PER >> (depth + 1);\n         let count = n * per_message;\n         let mut inputs = crate::stack_vec::StackVec::<Input<'_>, MAX_PARENTS>::new();\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "held_groups_in",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 147
+        },
+        "start": {
+          "column": 1,
+          "line": 66
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/ffi_output_aarch64.rs:117:8: delete ! in held_groups_in",
+    "package": "blake3-servil-core",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 117
+      },
+      "start": {
+        "column": 8,
+        "line": 117
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace | with & in held_groups_in\n@@ -125,17 +125,17 @@\n         let mut inputs = crate::stack_vec::StackVec::<Input<'_>, MAX_PARENTS>::new();\n         for j in 0..count {\n             let h = &hashers[held[j / per_message]];\n             let domain = h.domain();\n             inputs.push(Input {\n                 block: level.as_flattened()[j * BLOCK_LEN..(j + 1) * BLOCK_LEN].try_into().unwrap(),\n                 cv: domain.key(),\n                 len: u8::try_from(BLOCK_LEN).unwrap(),\n-                flags: domain.flags() | crate::PARENT,\n+                flags: domain.flags() & /* ~ changed by cargo-mutants ~ */ crate::PARENT,\n             });\n         }\n         let done = hash_groups_arm(inputs.as_slice(), &mut next[..count]);\n         for j in done..count {\n             let inp = inputs.as_slice()[j];\n             let mut cv = *inp.cv;\n             Platform::NEON.compress_in_place(&mut cv, inp.block, inp.len, 0, inp.flags);\n             next[j] = crate::hasher::le_bytes(&cv);\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "held_groups_in",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 147
+        },
+        "start": {
+          "column": 1,
+          "line": 66
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:133:39: replace | with & in held_groups_in",
+    "package": "blake3-servil-core",
+    "replacement": "&",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 133
+      },
+      "start": {
+        "column": 39,
+        "line": 133
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace finalize_each with ()\n@@ -146,66 +146,17 @@\n     crate::each::commit_held_groups(hashers, held, level, next);\n }\n \n /// Out-of-line AArch64 batch finalizer called by `each::finalize_each` for\n /// multi-hasher calls, keeping empty and singleton calls free of the 128-slot\n /// batch stack frame.\n #[inline(never)]\n pub(crate) fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {\n-    const FINALIZE_BATCH: usize = 128;\n-    const { assert!(FINALIZE_BATCH <= u8::MAX as usize) };\n-    let platform = Platform::detect();\n-    for (w_chunk, o_chunk) in which.chunks(FINALIZE_BATCH).zip(out.chunks_mut(FINALIZE_BATCH)) {\n-        let mut plain = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-        let mut keyed = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-        let mut rest = crate::stack_vec::StackVec::<u8, FINALIZE_BATCH>::new();\n-        for (k, &i) in w_chunk.iter().enumerate() {\n-            let k = u8::try_from(k).expect(\"window index < TABLE (128)\");\n-            if hashers[i].is_plain_single_chunk_staged() {\n-                plain.push(k);\n-            } else if input(&hashers[i]).is_some() {\n-                keyed.push(k);\n-            } else {\n-                rest.push(k);\n-            }\n-        }\n-        if plain.len() >= 2 {\n-            for part in plain.as_slice().chunks(crate::each::BY_BLOCKS_AT_ONCE) {\n-                let bytes: crate::stack_vec::StackVec<&[u8], { crate::each::BY_BLOCKS_AT_ONCE }> =\n-                    part.iter().map(|&k| hashers[w_chunk[usize::from(k)]].staged_bytes()).collect();\n-                let mut digests = [[0u8; OUT_LEN]; crate::each::BY_BLOCKS_AT_ONCE];\n-                crate::each::hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n-                for (&k, digest) in part.iter().zip(&digests) {\n-                    o_chunk[usize::from(k)] = *digest;\n-                }\n-            }\n-        } else {\n-            crate::each::finalize_indices_serial(hashers, w_chunk, plain.as_slice(), o_chunk);\n-        }\n-        let done = if keyed.len() >= 8 {\n-            let mut inputs = crate::stack_vec::StackVec::<Input<'_>, FINALIZE_BATCH>::new();\n-            for &k in keyed.as_slice() {\n-                inputs.push(input(&hashers[w_chunk[usize::from(k)]]).unwrap());\n-            }\n-            let mut digests = [[0u8; OUT_LEN]; FINALIZE_BATCH];\n-            let done = hash_groups_arm(inputs.as_slice(), &mut digests[..keyed.len()]);\n-            for (&k, digest) in keyed.as_slice()[..done].iter().zip(&digests[..done]) {\n-                o_chunk[usize::from(k)] = *digest;\n-            }\n-            done\n-        } else {\n-            0\n-        };\n-        crate::each::finalize_indices_serial(hashers, w_chunk, &keyed.as_slice()[done..], o_chunk);\n-        crate::each::finalize_indices_serial(hashers, w_chunk, rest.as_slice(), o_chunk);\n-        for &i in w_chunk {\n-            hashers[i].reset();\n-        }\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(target_arch = \"aarch64\")]\n const CHUNKS_KEYED_SELF_TEST_EXPECTED: u64 = 0x199d_615f_c41e_830b;\n \n /// Planted corruption selector for subprocess fail-stop tests:\n /// 1 = corrupt last output byte of NEON `output8`,\n /// 2 = corrupt last output byte of SME2 `chunks_keyed`.\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 204
+        },
+        "start": {
+          "column": 1,
+          "line": 149
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_output_aarch64.rs:154:5: replace finalize_each with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 203
+      },
+      "start": {
+        "column": 5,
+        "line": 154
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace >= with < in finalize_each\n@@ -163,17 +163,17 @@\n             if hashers[i].is_plain_single_chunk_staged() {\n                 plain.push(k);\n             } else if input(&hashers[i]).is_some() {\n                 keyed.push(k);\n             } else {\n                 rest.push(k);\n             }\n         }\n-        if plain.len() >= 2 {\n+        if plain.len() < /* ~ changed by cargo-mutants ~ */ 2 {\n             for part in plain.as_slice().chunks(crate::each::BY_BLOCKS_AT_ONCE) {\n                 let bytes: crate::stack_vec::StackVec<&[u8], { crate::each::BY_BLOCKS_AT_ONCE }> =\n                     part.iter().map(|&k| hashers[w_chunk[usize::from(k)]].staged_bytes()).collect();\n                 let mut digests = [[0u8; OUT_LEN]; crate::each::BY_BLOCKS_AT_ONCE];\n                 crate::each::hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n                 for (&k, digest) in part.iter().zip(&digests) {\n                     o_chunk[usize::from(k)] = *digest;\n                 }\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 204
+        },
+        "start": {
+          "column": 1,
+          "line": 149
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:171:24: replace >= with < in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 26,
+        "line": 171
+      },
+      "start": {
+        "column": 24,
+        "line": 171
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_output_aarch64.rs\n+++ replace >= with < in finalize_each\n@@ -176,17 +176,17 @@\n                 crate::each::hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);\n                 for (&k, digest) in part.iter().zip(&digests) {\n                     o_chunk[usize::from(k)] = *digest;\n                 }\n             }\n         } else {\n             crate::each::finalize_indices_serial(hashers, w_chunk, plain.as_slice(), o_chunk);\n         }\n-        let done = if keyed.len() >= 8 {\n+        let done = if keyed.len() < /* ~ changed by cargo-mutants ~ */ 8 {\n             let mut inputs = crate::stack_vec::StackVec::<Input<'_>, FINALIZE_BATCH>::new();\n             for &k in keyed.as_slice() {\n                 inputs.push(input(&hashers[w_chunk[usize::from(k)]]).unwrap());\n             }\n             let mut digests = [[0u8; OUT_LEN]; FINALIZE_BATCH];\n             let done = hash_groups_arm(inputs.as_slice(), &mut digests[..keyed.len()]);\n             for (&k, digest) in keyed.as_slice()[..done].iter().zip(&digests[..done]) {\n                 o_chunk[usize::from(k)] = *digest;\n",
+    "file": "src/ffi_output_aarch64.rs",
+    "function": {
+      "function_name": "finalize_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 204
+        },
+        "start": {
+          "column": 1,
+          "line": 149
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_output_aarch64.rs:184:35: replace >= with < in finalize_each",
+    "package": "blake3-servil-core",
+    "replacement": "<",
+    "span": {
+      "end": {
+        "column": 37,
+        "line": 184
+      },
+      "start": {
+        "column": 35,
+        "line": 184
+      }
+    }
+  }
+]

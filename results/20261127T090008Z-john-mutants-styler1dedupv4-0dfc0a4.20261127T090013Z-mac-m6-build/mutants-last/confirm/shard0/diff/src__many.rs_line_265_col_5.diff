@@ -1,0 +1,56 @@
+--- src/many.rs
++++ replace hash_blocks_x86 with ()
+@@ -257,52 +257,17 @@
+ /// (`128..=1024 B`): short-last batches (`last_len < BLOCK_LEN`, when not
+ /// already taken by AVX `multi_block_short_last`) run serially over their
+ /// logical length, whole-chunk (`16`-block) runs delegate to
+ /// `hash_many_rounded`, and whole-block `2..=15`-block runs dispatch through
+ /// `pair::hash_many_blocks`.
+ #[cfg(target_arch = "x86_64")]
+ #[inline(never)]
+ fn hash_blocks_x86(messages: &[u8], blocks: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {
+-    let count = outputs.len();
+-    assert!((2..=16).contains(&blocks) && (1..=BLOCK_LEN).contains(&last_len), "x86 multi-block shape out of range");
+-    let slot = blocks * BLOCK_LEN;
+-    assert_eq!(messages.len(), count.checked_mul(slot).expect("slot byte count fits"), "exact slot bytes for count outputs");
+-    if count == 0 {
+-        return;
+-    }
+-    if last_len != BLOCK_LEN {
+-        let len = slot - BLOCK_LEN + last_len;
+-        for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(slot)) {
+-            *output = *crate::hash_serial_on(&message[..len], key, flags, platform).as_bytes();
+-        }
+-        return;
+-    }
+-    let flags_end = CHUNK_END | ROOT;
+-    if blocks == 16 {
+-        // Whole-chunk batches delegate to `hash_many_rounded` (preserving
+-        // Zen 5 `hash32` for 17..=31).
+-        let mut lanes = crate::stack_vec::StackVec::<&[u8; CHUNK_LEN], TABLE>::new();
+-        lanes.extend(messages.chunks_exact(CHUNK_LEN).map(|m| m.try_into().expect("CHUNK_LEN chunk")));
+-        crate::hash_many_rounded(platform, &lanes, key, 0, IncrementCounter::No, flags, CHUNK_START, flags_end, outputs.as_flattened_mut());
+-        return;
+-    }
+-    let mut ptrs = crate::stack_vec::StackVec::<*const u8, TABLE>::new();
+-    ptrs.extend(messages.chunks_exact(slot).map(|m| m.as_ptr()));
+-    assert_eq!(ptrs.len(), count, "one message per output");
+-    let (full, target) = round_x86_blocks(platform, blocks, count);
+-    if target == 0 {
+-        // Sound: every pointer in `ptrs` reaches `blocks` whole blocks inside `messages`, and `platform` is a detected x86-64 ISA.
+-        unsafe {
+-            crate::pair::hash_many_blocks(platform, &ptrs, blocks, key, 0, false, flags, CHUNK_START, flags_end, outputs.as_flattened_mut());
+-        }
+-        return;
+-    }
+-    // Sound: every pointer in `ptrs` reaches `blocks` whole blocks inside `messages`, and `platform` is a detected x86-64 ISA.
+-    unsafe { hash_blocks_rounded_x86(&ptrs, blocks, full, target, key, flags, flags_end, outputs, platform) };
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Compute `(full_prefix_lanes, rounded_tail_width)` once for x86-64 multi-block
+ /// (`2..=15` blocks) batches across AVX-512, AVX2, and SSE4.1. Returns `(0, 0)`
+ /// when no tail rounding applies (exact widths, `1..=2` remainders, or
+ /// `128..192 B` `n = 9..=10` remainders on AVX-512 where `8 + 1/2` avoids
+ /// wide-kernel setup overhead).
+ #[cfg(target_arch = "x86_64")]
