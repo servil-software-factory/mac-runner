@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace merge_to_children -> (ChainingValue, LastCv) with (Default::default(), Default::default())\n@@ -842,49 +842,17 @@\n /// piece's.\n ///\n /// At each size the longer pieces are an untouched prefix; the values\n /// after it are that size's whole subtrees. They are paired through the\n /// kernels, and an odd one out is the last subtree's left sibling. The\n /// tree's calls keep each join to siblings, in every build: a cut that\n /// was not BLAKE3's would stop here.\n fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], mut last: LastCv, tree: &TreeHasher) -> (ChainingValue, LastCv) {\n-    let whole = &pieces[..pieces.len() - 1];\n-    assert_eq!(whole.len(), cvs.len(), \"a value for every whole piece\");\n-    assert!(!whole.is_empty(), \"two pieces or more\");\n-    let mut count = cvs.len();\n-    let mut width = MIN_PIECE_LEN;\n-    let mut out = [ChainingValue::unset(); crate::MAX_SIMD_DEGREE];\n-    while count > 1 {\n-        let prefix = whole.partition_point(|p| p.len > width);\n-        // Debug-only: `partition_point` over `whole` (len `count`) is bounded by `count`.\n-        debug_assert!(prefix <= count);\n-        let mut read = prefix;\n-        let mut write = prefix;\n-        while read + 1 < count {\n-            // Whole pairs: an odd one out joins the last subtree below.\n-            let children = (count - read).min(2 * crate::MAX_SIMD_DEGREE) & !1;\n-            // The inner loop's variant: each call merges at least one pair.\n-            assert!(children >= 2, \"a parents call with under two children\");\n-            let parents = children / 2;\n-            tree.parent_cvs(&cvs[read..read + children], &mut out[..parents]);\n-            cvs[write..write + parents].copy_from_slice(&out[..parents]);\n-            read += children;\n-            write += parents;\n-        }\n-        if read < count {\n-            last = tree.last_parent_cv(&cvs[read], &last);\n-        }\n-        // The loop's variant: a level merges at least one pair, or joins\n-        // its one value to the last.\n-        assert!(write < count, \"a level of the tree merged nothing\");\n-        count = write;\n-        width *= 2;\n-    }\n-    (cvs[0], last)\n+    (Default::default(), Default::default()) /* ~ changed by cargo-mutants ~ */\n }\n \n /// The tests' way to the pool: the public call, the bytes in blocks.\n #[cfg(test)]\n fn hash_mt(input: &[u8], mode: crate::Mode) -> Hash {\n     let mut blocks = std::vec![crate::throughput::Block([0; 64]); input.len().div_ceil(64)];\n     crate::throughput::Block::bytes_mut(&mut blocks)[..input.len()].copy_from_slice(input);\n     crate::throughput::hash_multithreaded(mode, &blocks, input.len())\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "merge_to_children",
+      "return_type": "-> (ChainingValue, LastCv)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 883
+        },
+        "start": {
+          "column": 1,
+          "line": 840
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:850:5: replace merge_to_children -> (ChainingValue, LastCv) with (Default::default(), Default::default())",
+    "package": "blake3-servil",
+    "replacement": "(Default::default(), Default::default())",
+    "span": {
+      "end": {
+        "column": 19,
+        "line": 882
+      },
+      "start": {
+        "column": 5,
+        "line": 850
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find_from -> Option<usize> with None\n@@ -3600,27 +3600,17 @@\n     /// The first registered source for which `f` says yes.\n     fn find(f: impl FnMut(&'static Source) -> bool) -> bool {\n         find_from(0, f).is_some()\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     fn find_from(start: usize, mut f: impl FnMut(&'static Source) -> bool) -> Option<usize> {\n-        let mut active = ACTIVE.load(Ordering::SeqCst).rotate_right(u32::try_from(start).expect(\"start fits in u32\"));\n-        while active != 0 {\n-            let slot = (active.trailing_zeros() as usize + start) % SLOTS;\n-            active &= active - 1;\n-            let ptr = REGISTERED[slot].load(Ordering::Acquire);\n-            // Sound: sources are never freed (they are recycled).\n-            if !ptr.is_null() && f(unsafe { &*ptr }) {\n-                return Some(slot);\n-            }\n-        }\n-        None\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The items a worker takes lowest slot first before it takes one in\n     /// turn ([`run_one`]).\n     pub(crate) const TURN: u32 = 16;\n \n     /// A worker's count toward its next turn, and where that turn's walk\n     /// begins.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3619
+        },
+        "start": {
+          "column": 5,
+          "line": 3605
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3608:9: replace sources::find_from -> Option<usize> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 3618
+      },
+      "start": {
+        "column": 9,
+        "line": 3608
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find_from -> Option<usize> with Some(0)\n@@ -3600,27 +3600,17 @@\n     /// The first registered source for which `f` says yes.\n     fn find(f: impl FnMut(&'static Source) -> bool) -> bool {\n         find_from(0, f).is_some()\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     fn find_from(start: usize, mut f: impl FnMut(&'static Source) -> bool) -> Option<usize> {\n-        let mut active = ACTIVE.load(Ordering::SeqCst).rotate_right(u32::try_from(start).expect(\"start fits in u32\"));\n-        while active != 0 {\n-            let slot = (active.trailing_zeros() as usize + start) % SLOTS;\n-            active &= active - 1;\n-            let ptr = REGISTERED[slot].load(Ordering::Acquire);\n-            // Sound: sources are never freed (they are recycled).\n-            if !ptr.is_null() && f(unsafe { &*ptr }) {\n-                return Some(slot);\n-            }\n-        }\n-        None\n+        Some(0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The items a worker takes lowest slot first before it takes one in\n     /// turn ([`run_one`]).\n     pub(crate) const TURN: u32 = 16;\n \n     /// A worker's count toward its next turn, and where that turn's walk\n     /// begins.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3619
+        },
+        "start": {
+          "column": 5,
+          "line": 3605
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3608:9: replace sources::find_from -> Option<usize> with Some(0)",
+    "package": "blake3-servil",
+    "replacement": "Some(0)",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 3618
+      },
+      "start": {
+        "column": 9,
+        "line": 3608
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::find_from -> Option<usize> with Some(1)\n@@ -3600,27 +3600,17 @@\n     /// The first registered source for which `f` says yes.\n     fn find(f: impl FnMut(&'static Source) -> bool) -> bool {\n         find_from(0, f).is_some()\n     }\n \n     /// The slot of the first registered source for which `f` says yes, in\n     /// a walk of the slots from `start` up and then of those below it.\n     fn find_from(start: usize, mut f: impl FnMut(&'static Source) -> bool) -> Option<usize> {\n-        let mut active = ACTIVE.load(Ordering::SeqCst).rotate_right(u32::try_from(start).expect(\"start fits in u32\"));\n-        while active != 0 {\n-            let slot = (active.trailing_zeros() as usize + start) % SLOTS;\n-            active &= active - 1;\n-            let ptr = REGISTERED[slot].load(Ordering::Acquire);\n-            // Sound: sources are never freed (they are recycled).\n-            if !ptr.is_null() && f(unsafe { &*ptr }) {\n-                return Some(slot);\n-            }\n-        }\n-        None\n+        Some(1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// The items a worker takes lowest slot first before it takes one in\n     /// turn ([`run_one`]).\n     pub(crate) const TURN: u32 = 16;\n \n     /// A worker's count toward its next turn, and where that turn's walk\n     /// begins.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::find_from",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3619
+        },
+        "start": {
+          "column": 5,
+          "line": 3605
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3608:9: replace sources::find_from -> Option<usize> with Some(1)",
+    "package": "blake3-servil",
+    "replacement": "Some(1)",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 3618
+      },
+      "start": {
+        "column": 9,
+        "line": 3608
+      }
+    }
+  }
+]
