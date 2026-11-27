@@ -1,0 +1,162 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sources::serve\n@@ -3724,17 +3724,17 @@\n                 Item::Action { .. } => source.front_action_near(),\n                 Item::Pieces(..) => source.near.load(Ordering::Relaxed),\n             };\n             wake_speculative(&pool().park, near);\n         }\n         match item {\n             Item::Action { run, context, arg } => {\n                 // Sound: `publish_actions` published live `(context, arg)` valid until completion for this source's runner.\n-                unsafe { run(context, arg & !ACTION_SME2, pool_platform()) };\n+                unsafe { run(context, arg &  /* ~ changed by cargo-mutants ~ */ACTION_SME2, pool_platform()) };\n             }\n             Item::Pieces(job, index, n) => {\n                 // Sound: the job lives until its pieces are finished,\n                 // these among them; this thread alone took them.\n                 for i in index..index + n {\n                     unsafe { (*job).hash_piece(i, false) };\n                 }\n                 source.finished(n);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::serve",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3743
+        },
+        "start": {
+          "column": 5,
+          "line": 3719
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:3732:45: delete ! in sources::serve",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 46,
+        "line": 3732
+      },
+      "start": {
+        "column": 45,
+        "line": 3732
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sme2_serve\n@@ -4330,17 +4330,17 @@\n         if let Some(item) = sources::take_stream_item() {\n             match item {\n                 sources::Item::Action { run, context, arg } => {\n                     // Sound: `publish_actions` published live `(context, arg)` valid until completion for this source's runner.\n                     if arg & sources::ACTION_SME2 == 0 {\n                         unsafe { run(context, arg, pool_platform()) };\n                     } else {\n                         let turn = Sme2Turn::take(Platform::detect(), true);\n-                        unsafe { run(context, arg & !sources::ACTION_SME2, turn.platform()) };\n+                        unsafe { run(context, arg &  /* ~ changed by cargo-mutants ~ */sources::ACTION_SME2, turn.platform()) };\n                         drop(turn);\n                     }\n                 }\n                 sources::Item::Pieces(..) => unreachable!(\"the SME2 thread takes stream and pipeline items alone\"),\n             }\n             continue;\n         }\n         // Park as a worker does: the flag, one more look, the token.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sme2_serve",
+      "return_type": "-> !",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 4357
+        },
+        "start": {
+          "column": 1,
+          "line": 4323
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:4338:53: delete ! in sme2_serve",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 54,
+        "line": 4338
+      },
+      "start": {
+        "column": 53,
+        "line": 4338
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::publish_open with ()\n@@ -2291,35 +2291,17 @@\n         match self.slots[front as usize].kind {\n             SlotKind::WaitSingle { group, .. } | SlotKind::WaitBatch { group, .. } | SlotKind::WaitAborted { group, .. } => group == open_g,\n             _ => false,\n         }\n     }\n \n     #[inline(never)]\n     fn publish_open(&mut self) {\n-        let Some((group_idx, epoch)) = self.open_group.take() else { return };\n-        let count = self.local_count;\n-        let group = &self.storage().groups[group_idx as usize];\n-        let custom_slot = self.local_custom_slot;\n-        // Sound: the group is not in flight (acquire_free_group gave it), so\n-        // its task, metas, and epoch are the owner's to write before the\n-        // dispatch below.\n-        unsafe {\n-            let task = &mut *group.task.get();\n-            task.batch = self.local_batch;\n-            task.members = count;\n-            task.member[..count].copy_from_slice(&self.bufs.local_members[..count]);\n-            let rooms = &mut *group.rooms.get();\n-            rooms[..count].copy_from_slice(&self.bufs.local_rooms[..count]);\n-            *group.epoch.get() = epoch;\n-        }\n-        self.assigned_group_epoch[group_idx as usize] = epoch;\n-        let arg = pack_arg(KIND_GROUP, group_idx, custom_slot, false);\n-        self.dispatch_one(arg);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline]\n     fn dispatch_one(&mut self, arg: u64) {\n         let ctx = self.storage as *const PipeStorage as *const ();\n         match self.source_slot {\n             // Sound: this Pipeline exclusively publishes to its `PipeSlot`'s\n             // source (whose runner is `PipeStorage::run_action`), and\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::publish_open",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2318
+        },
+        "start": {
+          "column": 5,
+          "line": 2297
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2299:9: replace Pipeline<T, B, P>::publish_open with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 2317
+      },
+      "start": {
+        "column": 9,
+        "line": 2299
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::dispatch_one with ()\n@@ -2314,25 +2314,17 @@\n         }\n         self.assigned_group_epoch[group_idx as usize] = epoch;\n         let arg = pack_arg(KIND_GROUP, group_idx, custom_slot, false);\n         self.dispatch_one(arg);\n     }\n \n     #[inline]\n     fn dispatch_one(&mut self, arg: u64) {\n-        let ctx = self.storage as *const PipeStorage as *const ();\n-        match self.source_slot {\n-            // Sound: this Pipeline exclusively publishes to its `PipeSlot`'s\n-            // source (whose runner is `PipeStorage::run_action`), and\n-            // `*self.storage` stays live until this action publishes completion.\n-            Some(_) => unsafe { self.pipe_slot.source.publish_actions(ctx, core::slice::from_ref(&arg), false) },\n-            // Sound: `ctx` is this Pipeline's `PipeStorage`, as run_action requires.\n-            None => unsafe { PipeStorage::run_action(ctx, arg, pool_platform()) },\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn dispatch_many(&mut self, count: usize, near: bool) {\n         let ctx = self.storage as *const PipeStorage as *const ();\n         match self.source_slot {\n             // Sound: as dispatch_one's.\n             Some(_) => unsafe { self.pipe_slot.source.publish_actions(ctx, &self.bufs.action_buf[..count], near) },\n             None => {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::dispatch_one",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2331
+        },
+        "start": {
+          "column": 5,
+          "line": 2320
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2322:9: replace Pipeline<T, B, P>::dispatch_one with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2330
+      },
+      "start": {
+        "column": 9,
+        "line": 2322
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::dispatch_many with ()\n@@ -2326,28 +2326,17 @@\n             // `*self.storage` stays live until this action publishes completion.\n             Some(_) => unsafe { self.pipe_slot.source.publish_actions(ctx, core::slice::from_ref(&arg), false) },\n             // Sound: `ctx` is this Pipeline's `PipeStorage`, as run_action requires.\n             None => unsafe { PipeStorage::run_action(ctx, arg, pool_platform()) },\n         }\n     }\n \n     fn dispatch_many(&mut self, count: usize, near: bool) {\n-        let ctx = self.storage as *const PipeStorage as *const ();\n-        match self.source_slot {\n-            // Sound: as dispatch_one's.\n-            Some(_) => unsafe { self.pipe_slot.source.publish_actions(ctx, &self.bufs.action_buf[..count], near) },\n-            None => {\n-                for i in 0..count {\n-                    let arg = self.bufs.action_buf[i];\n-                    // Sound: as dispatch_one's.\n-                    unsafe { PipeStorage::run_action(ctx, arg, pool_platform()) };\n-                }\n-            }\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn group_ready(&mut self, group: u32, epoch: u64) -> bool {\n         if group == NONE {\n             return true;\n         }\n         let gi = group as usize;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::dispatch_many",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2346
+        },
+        "start": {
+          "column": 5,
+          "line": 2333
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2334:9: replace Pipeline<T, B, P>::dispatch_many with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 2345
+      },
+      "start": {
+        "column": 9,
+        "line": 2334
+      }
+    }
+  }
+]

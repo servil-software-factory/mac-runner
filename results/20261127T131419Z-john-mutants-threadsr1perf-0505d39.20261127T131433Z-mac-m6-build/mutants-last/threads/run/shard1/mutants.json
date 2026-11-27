@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/lanes.rs\n+++ replace & with | in sources::Source::run_waiting_action\n@@ -3409,17 +3409,17 @@\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n             match self.take() {\n                 Some(Item::Action { run, context, arg }) => {\n                     // Sound: `publish_actions` published live `(context, arg)` valid until completion for `self.action_run`.\n-                    unsafe { run(context, arg & !ACTION_SME2, pool_platform()) };\n+                    unsafe { run(context, arg | /* ~ changed by cargo-mutants ~ */ !ACTION_SME2, pool_platform()) };\n                     true\n                 }\n                 Some(_) => unreachable!(\"an action source carries actions\"),\n                 None => false,\n             }\n         }\n \n         #[cfg(test)]\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3423
+        },
+        "start": {
+          "column": 9,
+          "line": 3411
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3417:47: replace & with | in sources::Source::run_waiting_action",
+    "package": "blake3-servil",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 48,
+        "line": 3417
+      },
+      "start": {
+        "column": 47,
+        "line": 3417
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ delete ! in sources::Source::run_waiting_action\n@@ -3409,17 +3409,17 @@\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n             match self.take() {\n                 Some(Item::Action { run, context, arg }) => {\n                     // Sound: `publish_actions` published live `(context, arg)` valid until completion for `self.action_run`.\n-                    unsafe { run(context, arg & !ACTION_SME2, pool_platform()) };\n+                    unsafe { run(context, arg &  /* ~ changed by cargo-mutants ~ */ACTION_SME2, pool_platform()) };\n                     true\n                 }\n                 Some(_) => unreachable!(\"an action source carries actions\"),\n                 None => false,\n             }\n         }\n \n         #[cfg(test)]\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3423
+        },
+        "start": {
+          "column": 9,
+          "line": 3411
+        }
+      }
+    },
+    "genre": "UnaryOperator",
+    "name": "src/lanes.rs:3417:49: delete ! in sources::Source::run_waiting_action",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 50,
+        "line": 3417
+      },
+      "start": {
+        "column": 49,
+        "line": 3417
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::take -> Option<Item> with None\n@@ -3449,40 +3449,17 @@\n             self.claimed.store(base + own, Ordering::Relaxed);\n             self.finish.published.store(target, Ordering::Release);\n             core::sync::atomic::fence(Ordering::SeqCst);\n             target\n         }\n \n         /// Claim the next published item, if any.\n         pub(crate) fn take(&self) -> Option<Item> {\n-            let mut c = self.claimed.load(Ordering::Acquire);\n-            loop {\n-                let p = self.finish.published.load(Ordering::Acquire);\n-                if c >= p {\n-                    return None;\n-                }\n-                if let Some(run) = self.action_run {\n-                    let slot = &self.actions[c % self.actions.len()];\n-                    let context = slot.context.load(Ordering::Relaxed) as *const ();\n-                    let arg = slot.arg.load(Ordering::Relaxed);\n-                    match self.claimed.compare_exchange_weak(c, c + 1, Ordering::AcqRel, Ordering::Acquire) {\n-                        Ok(_) => return Some(Item::Action { run, context, arg }),\n-                        Err(now) => {\n-                            c = now;\n-                            continue;\n-                        }\n-                    }\n-                }\n-                let n = Self::run_len(p - c, pool().threads);\n-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n-                    Ok(_) => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n-                    Err(now) => c = now,\n-                }\n-            }\n+            None /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Get the number of pieces one claim takes of `waiting` pieces of a\n         /// job shared by `threads` threads: a 2 * threads-th of what waits,\n         /// one at least, so runs shrink toward the end (guided\n         /// self-scheduling).\n         fn run_len(waiting: usize, threads: usize) -> usize {\n             (waiting / (2 * threads)).max(1)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3481
+        },
+        "start": {
+          "column": 9,
+          "line": 3455
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3457:13: replace sources::Source::take -> Option<Item> with None",
+    "package": "blake3-servil",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3480
+      },
+      "start": {
+        "column": 13,
+        "line": 3457
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::take -> Option<Item> with Some(Default::default())\n@@ -3449,40 +3449,17 @@\n             self.claimed.store(base + own, Ordering::Relaxed);\n             self.finish.published.store(target, Ordering::Release);\n             core::sync::atomic::fence(Ordering::SeqCst);\n             target\n         }\n \n         /// Claim the next published item, if any.\n         pub(crate) fn take(&self) -> Option<Item> {\n-            let mut c = self.claimed.load(Ordering::Acquire);\n-            loop {\n-                let p = self.finish.published.load(Ordering::Acquire);\n-                if c >= p {\n-                    return None;\n-                }\n-                if let Some(run) = self.action_run {\n-                    let slot = &self.actions[c % self.actions.len()];\n-                    let context = slot.context.load(Ordering::Relaxed) as *const ();\n-                    let arg = slot.arg.load(Ordering::Relaxed);\n-                    match self.claimed.compare_exchange_weak(c, c + 1, Ordering::AcqRel, Ordering::Acquire) {\n-                        Ok(_) => return Some(Item::Action { run, context, arg }),\n-                        Err(now) => {\n-                            c = now;\n-                            continue;\n-                        }\n-                    }\n-                }\n-                let n = Self::run_len(p - c, pool().threads);\n-                match self.claimed.compare_exchange_weak(c, c + n, Ordering::AcqRel, Ordering::Acquire) {\n-                    Ok(_) => return Some(Item::Pieces(self.job.load(Ordering::Relaxed), c - self.base.load(Ordering::Relaxed), n)),\n-                    Err(now) => c = now,\n-                }\n-            }\n+            Some(Default::default()) /* ~ changed by cargo-mutants ~ */\n         }\n \n         /// Get the number of pieces one claim takes of `waiting` pieces of a\n         /// job shared by `threads` threads: a 2 * threads-th of what waits,\n         /// one at least, so runs shrink toward the end (guided\n         /// self-scheduling).\n         fn run_len(waiting: usize, threads: usize) -> usize {\n             (waiting / (2 * threads)).max(1)\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3481
+        },
+        "start": {
+          "column": 9,
+          "line": 3455
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3457:13: replace sources::Source::take -> Option<Item> with Some(Default::default())",
+    "package": "blake3-servil",
+    "replacement": "Some(Default::default())",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3480
+      },
+      "start": {
+        "column": 13,
+        "line": 3457
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace % with + in sources::Source::take\n@@ -3456,17 +3456,17 @@\n         pub(crate) fn take(&self) -> Option<Item> {\n             let mut c = self.claimed.load(Ordering::Acquire);\n             loop {\n                 let p = self.finish.published.load(Ordering::Acquire);\n                 if c >= p {\n                     return None;\n                 }\n                 if let Some(run) = self.action_run {\n-                    let slot = &self.actions[c % self.actions.len()];\n+                    let slot = &self.actions[c + /* ~ changed by cargo-mutants ~ */ self.actions.len()];\n                     let context = slot.context.load(Ordering::Relaxed) as *const ();\n                     let arg = slot.arg.load(Ordering::Relaxed);\n                     match self.claimed.compare_exchange_weak(c, c + 1, Ordering::AcqRel, Ordering::Acquire) {\n                         Ok(_) => return Some(Item::Action { run, context, arg }),\n                         Err(now) => {\n                             c = now;\n                             continue;\n                         }\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::take",
+      "return_type": "-> Option<Item>",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3481
+        },
+        "start": {
+          "column": 9,
+          "line": 3455
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3464:48: replace % with + in sources::Source::take",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 49,
+        "line": 3464
+      },
+      "start": {
+        "column": 48,
+        "line": 3464
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::serve with ()\n@@ -3714,37 +3714,17 @@\n         } else {\n             park.wake_one();\n         }\n     }\n \n     /// Hash `item` of `source` on this thread, waking the next worker first\n     /// when two or more wait and one is parked.\n     fn serve(source: &'static Source, item: Item) {\n-        if source.waiting() >= 2 {\n-            let near = match item {\n-                Item::Action { .. } => source.front_action_near(),\n-                Item::Pieces(..) => source.near.load(Ordering::Relaxed),\n-            };\n-            wake_speculative(&pool().park, near);\n-        }\n-        match item {\n-            Item::Action { run, context, arg } => {\n-                // Sound: `publish_actions` published live `(context, arg)` valid until completion for this source's runner.\n-                unsafe { run(context, arg & !ACTION_SME2, pool_platform()) };\n-            }\n-            Item::Pieces(job, index, n) => {\n-                // Sound: the job lives until its pieces are finished,\n-                // these among them; this thread alone took them.\n-                for i in index..index + n {\n-                    unsafe { (*job).hash_piece(i, false) };\n-                }\n-                source.finished(n);\n-            }\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// An item from any stream or pipeline (the SME2 thread takes these alone).\n     pub(crate) fn take_stream_item() -> Option<Item> {\n         let mut found = None;\n         find(|source| {\n             found = if source.carries_tasks() { source.take() } else { None };\n             found.is_some()\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::serve",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3743
+        },
+        "start": {
+          "column": 5,
+          "line": 3719
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3722:9: replace sources::serve with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 3742
+      },
+      "start": {
+        "column": 9,
+        "line": 3722
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace & with | in sources::serve\n@@ -3724,17 +3724,17 @@\n                 Item::Action { .. } => source.front_action_near(),\n                 Item::Pieces(..) => source.near.load(Ordering::Relaxed),\n             };\n             wake_speculative(&pool().park, near);\n         }\n         match item {\n             Item::Action { run, context, arg } => {\n                 // Sound: `publish_actions` published live `(context, arg)` valid until completion for this source's runner.\n-                unsafe { run(context, arg & !ACTION_SME2, pool_platform()) };\n+                unsafe { run(context, arg | /* ~ changed by cargo-mutants ~ */ !ACTION_SME2, pool_platform()) };\n             }\n             Item::Pieces(job, index, n) => {\n                 // Sound: the job lives until its pieces are finished,\n                 // these among them; this thread alone took them.\n                 for i in index..index + n {\n                     unsafe { (*job).hash_piece(i, false) };\n                 }\n                 source.finished(n);\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::serve",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 3743
+        },
+        "start": {
+          "column": 5,
+          "line": 3719
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lanes.rs:3732:43: replace & with | in sources::serve",
+    "package": "blake3-servil",
+    "replacement": "|",
+    "span": {
+      "end": {
+        "column": 44,
+        "line": 3732
+      },
+      "start": {
+        "column": 43,
+        "line": 3732
+      }
+    }
+  }
+]

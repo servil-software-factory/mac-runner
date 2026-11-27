@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/lib.rs\n+++ replace throughput::hash_each_multithreaded with ()\n@@ -667,27 +667,11 @@\n     /// let blocks: Vec<Vec<Block>> = (0..100).map(|i| vec![Block([i as u8; 64]); (1000 * i as usize).div_ceil(64)]).collect();\n     /// let items: Vec<(&[Block], usize)> = blocks.iter().enumerate().map(|(i, b)| (&b[..], 1000 * i)).collect();\n     /// let (mut a, mut b) = (vec![[0u8; 32]; 100], vec![[0u8; 32]; 100]);\n     /// throughput::hash_each_multithreaded(Mode::Plain, &items, &mut a);\n     /// throughput::hash_each(Mode::Plain, &items, &mut b);\n     /// assert_eq!(a, b);\n     /// ```\n     pub fn hash_each_multithreaded(mode: Mode, items: &[(&[Block], usize)], out: &mut [[u8; OUT_LEN]]) {\n-        crate::lanes::require();\n-        assert_eq!(items.len(), out.len(), \"one digest per item\");\n-        let tree = TreeHasher::new(mode);\n-        let alone = |len: usize| len >= crate::lanes::MIN_SPLIT_LEN;\n-        // The items that hash alone are set aside in the collection's\n-        // call and hashed after, each over the whole pool.\n-        let small_bytes = items.iter().map(|i| i.1).filter(|&len| !alone(len)).fold(0usize, usize::saturating_add);\n-        if small_bytes < crate::lanes::MIN_SPLIT_LEN {\n-            crate::lanes::hash_each_small(&tree, items, out);\n-        } else {\n-            crate::lanes::hash_each(&tree, items, small_bytes, out);\n-        }\n-        for (item, out) in items.iter().zip(out.iter_mut()) {\n-            if alone(item.1) {\n-                *out = *crate::lanes::hash_over_pool(&tree, &Block::bytes(item.0)[..item.1]).as_bytes();\n-            }\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "throughput::hash_each_multithreaded",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 692
+        },
+        "start": {
+          "column": 5,
+          "line": 659
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:675:9: replace throughput::hash_each_multithreaded with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 691
+      },
+      "start": {
+        "column": 9,
+        "line": 675
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace with_scratch -> T with Default::default()\n@@ -363,23 +363,17 @@\n         blake3_servil_core::thread_support::prepare_sme2_scratch();\n     }\n }\n \n /// `cut` fills this thread's scratch with a job's pieces; `job` runs with\n /// what `cut` returned, the pieces, and this thread's reusable chaining-value\n /// vector (left untouched for non-tree jobs that do not need CVs).\n fn with_scratch<C, T>(cut: impl FnOnce(&mut Vec<Piece>) -> C, job: impl FnOnce(C, &[Piece], &mut Vec<ChainingValue>) -> T) -> T {\n-    SCRATCH.with(|s| {\n-        let mut s = s.try_borrow_mut().expect(\"one pool call at a time on a thread\");\n-        let Scratch { pieces, cvs } = &mut *s;\n-        pieces.clear();\n-        let c = cut(pieces);\n-        job(c, pieces, cvs)\n-    })\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// The subtree pieces of `input` at chunk `counter` and their chaining\n /// values, hashed over the pool (the SME2 thread's prefix first, where it\n /// takes one), handed to `merge`: the whole pieces' values (every piece\n /// but the last), then the last piece's.\n /// `merge` gets `tree` kept to a core's own kernels too, as the pieces\n /// ran: the merges are the pool's work like them.\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "with_scratch",
+      "return_type": "-> T",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 378
+        },
+        "start": {
+          "column": 1,
+          "line": 367
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:371:5: replace with_scratch -> T with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 377
+      },
+      "start": {
+        "column": 5,
+        "line": 371
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace tree_cvs -> T with Default::default()\n@@ -379,35 +379,17 @@\n \n /// The subtree pieces of `input` at chunk `counter` and their chaining\n /// values, hashed over the pool (the SME2 thread's prefix first, where it\n /// takes one), handed to `merge`: the whole pieces' values (every piece\n /// but the last), then the last piece's.\n /// `merge` gets `tree` kept to a core's own kernels too, as the pieces\n /// ran: the merges are the pool's work like them.\n fn tree_cvs<T>(pool: &Pool, input: &[u8], tree: &TreeHasher, counter: u64, merge: impl FnOnce(&[Piece], &mut [ChainingValue], LastCv, &TreeHasher) -> T) -> T {\n-    let turn = Sme2Turn::take(Platform::detect(), true);\n-    let plan = pool.plan(places::Kind::Tree, input.len());\n-    let threads = tree_threads(input.len(), plan.threads, turn.platform().simd_degree());\n-    let prefix = prefix_for(&turn, input.len(), threads);\n-    with_scratch(\n-        |pieces| cut_with_prefix(pieces, input.len(), threads, prefix),\n-        |own, pieces, cvs| {\n-            cvs.clear();\n-            cvs.resize(pieces.len(), ChainingValue::unset());\n-            let own_core = tree.clone().on_this_core();\n-            let mut last = None;\n-            let work = Work::Tree { input, pieces, cvs: cvs.as_mut_ptr(), last: &mut last, tree: own_core.clone(), counter, own_platform: turn.platform() };\n-            pool.run_job(work, pieces.len(), own, threads, plan.near());\n-            plan.done();\n-            drop(turn);\n-            let whole = pieces.len() - 1;\n-            merge(pieces, &mut cvs[..whole], last.expect(\"the job hashed its last piece\"), &own_core)\n-        },\n-    )\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// The halves of the whole subtree the Hasher asks for (at least\n /// MIN_SPLIT_LEN), over the machine's threads. The Hasher checks the\n /// returned places before its stack takes the values.\n pub(crate) fn subtree_halves(tree: &TreeHasher, level: u32, index: u64, input: &[u8]) -> [ChainingValue; 2] {\n     let Some((pool, _caller)) = spare_pool() else { return tree.clone().on_this_core().subtree_halves(level, index, input) };\n     tree_cvs(pool, input, tree, index << level, |pieces, cvs, last, own| {\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "tree_cvs",
+      "return_type": "-> T",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 406
+        },
+        "start": {
+          "column": 1,
+          "line": 380
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:387:5: replace tree_cvs -> T with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 405
+      },
+      "start": {
+        "column": 5,
+        "line": 387
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace hash_each with ()\n@@ -442,33 +442,17 @@\n }\n \n /// [`crate::throughput::hash_each_multithreaded`]'s pool job: the items under\n /// MIN_SPLIT_LEN (totaling `small_bytes`), cut into ranges of about\n /// [`next_piece_len`] of the bytes that remain, each range hashed by one\n /// thread. An item of MIN_SPLIT_LEN or more is set aside here (its digest\n /// zero, a stand-in) and hashed by the caller over the whole pool after.\n pub(crate) fn hash_each(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], small_bytes: usize, out: &mut [[u8; crate::OUT_LEN]]) {\n-    let Some((pool, _caller)) = spare_pool() else {\n-        return hash_each_small(tree, items, out);\n-    };\n-    let plan = pool.plan(places::Kind::Each, small_bytes);\n-    with_scratch(\n-        |pieces| {\n-            cut_items(pieces, items, plan.threads, |item| {\n-                let n = crate::throughput::Block::bytes(item.0)[..item.1].len();\n-                if n >= MIN_SPLIT_LEN { 0 } else { n }\n-            })\n-        },\n-        |(), pieces, _| {\n-            let work = Work::Each { items, tree: tree.clone().on_this_core(), pieces, outputs: out.as_mut_ptr() };\n-            pool.run_job(work, pieces.len(), 0, plan.threads, plan.near());\n-            plan.done();\n-        },\n-    )\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// The hashes of a collection's items under MIN_SPLIT_LEN, on this\n /// thread, in `tree`'s mode: each run of them between the longer items\n /// is a collection of its own. An item of MIN_SPLIT_LEN or more is left\n /// as it was: the caller hashes it over the pool after.\n pub(crate) fn hash_each_small(tree: &TreeHasher, items: &[(&[crate::throughput::Block], usize)], out: &mut [[u8; crate::OUT_LEN]]) {\n     let mut start = 0;\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "hash_each",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 467
+        },
+        "start": {
+          "column": 1,
+          "line": 444
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:450:5: replace hash_each with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 466
+      },
+      "start": {
+        "column": 5,
+        "line": 450
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::with_actions -> Source with Default::default()\n@@ -3308,32 +3308,17 @@\n                 base: AtomicUsize::new(0),\n                 near: core::sync::atomic::AtomicBool::new(false),\n                 finish: crate::finish::Finish::new(),\n             }\n         }\n \n         /// A source with `actions` slots and a fixed `run` handler for a pipeline's items.\n         pub(crate) fn with_actions(actions: usize, run: unsafe fn(*const (), u64, Platform)) -> Source {\n-            assert!(actions > 0, \"an action source has at least one slot\");\n-            Source {\n-                claimed: OwnLine(AtomicUsize::new(0)),\n-                actions: (0..actions)\n-                    .map(|_| Action {\n-                        context: AtomicPtr::new(core::ptr::null_mut()),\n-                        arg: AtomicU64::new(0),\n-                        near: core::sync::atomic::AtomicBool::new(false),\n-                    })\n-                    .collect(),\n-                action_run: Some(run),\n-                job: AtomicPtr::new(core::ptr::null_mut()),\n-                base: AtomicUsize::new(0),\n-                near: core::sync::atomic::AtomicBool::new(false),\n-                finish: crate::finish::Finish::new(),\n-            }\n+            Default::default() /* ~ changed by cargo-mutants ~ */\n         }\n \n         pub(crate) fn actions_len(&self) -> usize {\n             self.actions.len()\n         }\n \n         fn carries_tasks(&self) -> bool {\n             !self.actions.is_empty()\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::with_actions",
+      "return_type": "-> Source",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3332
+        },
+        "start": {
+          "column": 9,
+          "line": 3314
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3316:13: replace sources::Source::with_actions -> Source with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3331
+      },
+      "start": {
+        "column": 13,
+        "line": 3316
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::run_waiting_action -> bool with true\n@@ -3406,25 +3406,17 @@\n             let cap = self.actions.len();\n             assert!(p >= from && p - from <= cap, \"published action range exceeds ring capacity\");\n             (from..p).map(|idx| self.actions[idx % cap].near.load(Ordering::Relaxed)).collect()\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n-            match self.take() {\n-                Some(Item::Action { run, context, arg }) => {\n-                    // Sound: `publish_actions` published live `(context, arg)` valid until completion for `self.action_run`.\n-                    unsafe { run(context, arg & !ACTION_SME2, pool_platform()) };\n-                    true\n-                }\n-                Some(_) => unreachable!(\"an action source carries actions\"),\n-                None => false,\n-            }\n+            true /* ~ changed by cargo-mutants ~ */\n         }\n \n         #[cfg(test)]\n         pub(super) fn own_for_test(&self) {\n             self.finish.own();\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3423
+        },
+        "start": {
+          "column": 9,
+          "line": 3411
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3414:13: replace sources::Source::run_waiting_action -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3422
+      },
+      "start": {
+        "column": 13,
+        "line": 3414
+      }
+    }
+  },
+  {
+    "diff": "--- src/lanes.rs\n+++ replace sources::Source::run_waiting_action -> bool with false\n@@ -3406,25 +3406,17 @@\n             let cap = self.actions.len();\n             assert!(p >= from && p - from <= cap, \"published action range exceeds ring capacity\");\n             (from..p).map(|idx| self.actions[idx % cap].near.load(Ordering::Relaxed)).collect()\n         }\n \n         /// Run one unclaimed action from this source on the calling thread,\n         /// if any remains.\n         pub(crate) fn run_waiting_action(&self) -> bool {\n-            match self.take() {\n-                Some(Item::Action { run, context, arg }) => {\n-                    // Sound: `publish_actions` published live `(context, arg)` valid until completion for `self.action_run`.\n-                    unsafe { run(context, arg & !ACTION_SME2, pool_platform()) };\n-                    true\n-                }\n-                Some(_) => unreachable!(\"an action source carries actions\"),\n-                None => false,\n-            }\n+            false /* ~ changed by cargo-mutants ~ */\n         }\n \n         #[cfg(test)]\n         pub(super) fn own_for_test(&self) {\n             self.finish.own();\n         }\n \n         /// Make `job` the caller's current job, its pieces `0..own` the\n",
+    "file": "src/lanes.rs",
+    "function": {
+      "function_name": "sources::Source::run_waiting_action",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3423
+        },
+        "start": {
+          "column": 9,
+          "line": 3411
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lanes.rs:3414:13: replace sources::Source::run_waiting_action -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3422
+      },
+      "start": {
+        "column": 13,
+        "line": 3414
+      }
+    }
+  }
+]
