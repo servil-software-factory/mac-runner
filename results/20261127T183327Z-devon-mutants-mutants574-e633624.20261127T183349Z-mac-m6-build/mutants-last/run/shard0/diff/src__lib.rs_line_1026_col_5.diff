@@ -1,0 +1,55 @@
+--- src/lib.rs
++++ replace hash_one_chunk_root -> Hash with Default::default()
+@@ -1018,51 +1018,17 @@
+ // whole blocks are read in place, the final one too when it is full; a
+ // short final block (and the empty block for the empty input) is copied
+ // into a zero-padded buffer, which is the copy ChunkState::update() makes
+ // too. The scalar kernel runs on every AArch64 core, so this path needs no
+ // platform check.
+ #[cfg(target_arch = "aarch64")]
+ #[inline]
+ fn hash_one_chunk_root(input: &[u8], key: &CVWords, flags: u8) -> Hash {
+-    assert!(input.len() <= CHUNK_LEN, "one chunk or less");
+-    let blocks = cmp::max(1, input.len().div_ceil(BLOCK_LEN));
+-    let whole = (blocks - 1) * BLOCK_LEN;
+-    let tail = &input[whole..];
+-    /// The padded last block, 64-byte aligned as hasher::Output's is
+-    /// (src/hasher.rs explains).
+-    #[repr(align(64))]
+-    struct Aligned64([u8; BLOCK_LEN]);
+-    let padded;
+-    let last: &[u8; BLOCK_LEN] = match tail.try_into() {
+-        Ok(full) => full,
+-        Err(_) => {
+-            let mut block = Aligned64([0; BLOCK_LEN]);
+-            block.0[..tail.len()].copy_from_slice(tail);
+-            padded = block;
+-            &padded.0
+-        }
+-    };
+-    let mut out = [0u8; OUT_LEN];
+-    // Sound: `input` holds `(blocks - 1) * BLOCK_LEN` readable bytes before `tail`, `blocks` is in 1..=16, and `last` is 64 readable bytes.
+-    unsafe {
+-        neon_hybrid::hash_chunk(
+-            input.as_ptr(),
+-            blocks,
+-            last,
+-            u8::try_from(tail.len()).expect("tail block <= 64"),
+-            key,
+-            0,
+-            flags,
+-            CHUNK_START,
+-            CHUNK_END | ROOT,
+-            &mut out,
+-        );
+-    }
+-    Hash(out)
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Run the startup self-test and detect the CPU: every program calls this
+ /// once before hashing (any call that loads the detected platform before
+ /// `initialize` completes panics). Under 0.2 ms, once per process
+ /// (see the crate's documentation); later calls return at once.
+ ///
+ /// ```

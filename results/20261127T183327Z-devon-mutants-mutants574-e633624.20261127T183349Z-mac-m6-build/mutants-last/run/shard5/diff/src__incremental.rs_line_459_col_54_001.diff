@@ -1,0 +1,21 @@
+--- src/incremental.rs
++++ replace * with / in Hasher::gather_part
+@@ -451,17 +451,17 @@
+             let at = self.count() % STAGE_LEN as u64;
+             // On a 16 KiB boundary with nothing staged, the input's whole
+             // groups go to the core as they lie; what follows them is
+             // staged below, so the next groups start on a boundary too
+             // (BLAKE3 #393: sent whole, an input's ragged end left the
+             // core off the boundary, and every later piece hashed in the
+             // narrow subtrees that fit there, at half the speed).
+             if self.stage.is_empty() && at == 0 && input.len() >= STAGE_LEN {
+-                let groups = input.len() / STAGE_LEN * STAGE_LEN;
++                let groups = input.len() / STAGE_LEN / /* ~ changed by cargo-mutants ~ */ STAGE_LEN;
+                 // The loop's variant on this path: a group or more leaves the input.
+                 assert!(groups > 0, "no whole group went to the core");
+                 self.core.update_groups(&input[..groups], pooled);
+                 input = &input[groups..];
+                 continue;
+             }
+             let to_boundary = STAGE_LEN - usize::try_from(at).expect("at < STAGE_LEN");
+             let take = cmp::min(to_boundary, input.len());
