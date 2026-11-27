@@ -1,0 +1,42 @@
+--- src/many.rs
++++ replace hash_run_short with ()
+@@ -807,38 +807,17 @@
+ /// records 64 for every block), else the NEON plans, or one call each
+ /// without them.
+ #[inline(never)]
+ fn hash_run_short(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {
+     // One-block messages on x86-64 with the independent-compression kernels
+     // (AVX2's eight lanes, AVX-512's sixteen): whole groups and padded tails
+     // (4..=7 on output8, 9..=15 on output16), a batch's and a `Packed`'s alike;
+     // trailing 1..=3 messages, and every other platform, run as before.
+-    #[cfg(target_arch = "x86_64")]
+-    let done = one_block_groups(messages, outputs, last_len, key, flags, platform);
+-    #[cfg(not(target_arch = "x86_64"))]
+-    let done = 0;
+-    let (messages, outputs) = (&messages[done * BLOCK_LEN..], &mut outputs[done..]);
+-    #[cfg(target_arch = "aarch64")]
+-    if platform_is_sme2(platform) && outputs.len() >= ONE_BLOCK_PAD_MIN {
+-        return hash_run_padded(messages, key, flags, outputs, last_len);
+-    }
+-    #[cfg(target_arch = "aarch64")]
+-    {
+-        let mut slots: PtrSlots = [core::mem::MaybeUninit::uninit(); TABLE + 16];
+-        let lanes = fill_ptrs(&mut slots, messages, BLOCK_LEN, outputs.len(), outputs.len());
+-        // Sound: all supported AArch64 targets assume NEON; `fill_ptrs` verified `messages` holds `outputs.len()` blocks.
+-        unsafe { crate::neon_hybrid::hash_many_one_block_raw(lanes, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, outputs.as_flattened_mut()) };
+-    }
+-    #[cfg(not(target_arch = "aarch64"))]
+-    {
+-        for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(BLOCK_LEN)) {
+-            *output = *crate::hash_serial_on(&message[..last_len], key, flags, platform).as_bytes();
+-        }
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Fewest one-block messages that SME2 hashes as whole groups on the
+ /// message kernel, the last one padded: 11 in a batch of fewer than
+ /// sixteen (fewer run on the NEON parent plans), 5 left over past whole
+ /// groups (fewer left over run on the NEON plans). VM, ns per message,
+ /// before / padded: 10 18.3 / 20.9, 11 19.1 / 15.0, 15 18.2 / 10.8.
+ /// Past whole groups the padded group replaces the plans and the overlap

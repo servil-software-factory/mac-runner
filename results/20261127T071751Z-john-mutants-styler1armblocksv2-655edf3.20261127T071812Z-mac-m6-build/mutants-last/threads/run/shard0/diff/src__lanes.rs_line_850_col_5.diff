@@ -1,0 +1,53 @@
+--- src/lanes.rs
++++ replace merge_to_children -> (ChainingValue, LastCv) with (Default::default(), Default::default())
+@@ -842,49 +842,17 @@
+ /// piece's.
+ ///
+ /// At each size the longer pieces are an untouched prefix; the values
+ /// after it are that size's whole subtrees. They are paired through the
+ /// kernels, and an odd one out is the last subtree's left sibling. The
+ /// tree's calls keep each join to siblings, in every build: a cut that
+ /// was not BLAKE3's would stop here.
+ fn merge_to_children(pieces: &[Piece], cvs: &mut [ChainingValue], mut last: LastCv, tree: &TreeHasher) -> (ChainingValue, LastCv) {
+-    let whole = &pieces[..pieces.len() - 1];
+-    assert_eq!(whole.len(), cvs.len(), "a value for every whole piece");
+-    assert!(!whole.is_empty(), "two pieces or more");
+-    let mut count = cvs.len();
+-    let mut width = MIN_PIECE_LEN;
+-    let mut out = [ChainingValue::unset(); crate::MAX_SIMD_DEGREE];
+-    while count > 1 {
+-        let prefix = whole.partition_point(|p| p.len > width);
+-        // Debug-only: pieces longer than `width` carried forward from earlier rounds always stay within the live `count` entries.
+-        debug_assert!(prefix <= count);
+-        let mut read = prefix;
+-        let mut write = prefix;
+-        while read + 1 < count {
+-            // Whole pairs: an odd one out joins the last subtree below.
+-            let children = (count - read).min(2 * crate::MAX_SIMD_DEGREE) & !1;
+-            // The inner loop's variant: each call merges at least one pair.
+-            assert!(children >= 2, "a parents call with under two children");
+-            let parents = children / 2;
+-            tree.parent_cvs(&cvs[read..read + children], &mut out[..parents]);
+-            cvs[write..write + parents].copy_from_slice(&out[..parents]);
+-            read += children;
+-            write += parents;
+-        }
+-        if read < count {
+-            last = tree.last_parent_cv(&cvs[read], &last);
+-        }
+-        // The loop's variant: a level merges at least one pair, or joins
+-        // its one value to the last.
+-        assert!(write < count, "a level of the tree merged nothing");
+-        count = write;
+-        width *= 2;
+-    }
+-    (cvs[0], last)
++    (Default::default(), Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// The tests' way to the pool: the public call, the bytes in blocks.
+ #[cfg(test)]
+ fn hash_mt(input: &[u8], mode: crate::Mode) -> Hash {
+     let mut blocks = std::vec![crate::throughput::Block([0; 64]); input.len().div_ceil(64)];
+     crate::throughput::Block::bytes_mut(&mut blocks)[..input.len()].copy_from_slice(input);
+     crate::throughput::hash_multithreaded(mode, &blocks, input.len())
