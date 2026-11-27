@@ -1,0 +1,42 @@
+--- src/waker.rs
++++ replace WakerSlot::install_waker -> Option<Waker> with None
+@@ -65,38 +65,17 @@
+         fence(Ordering::SeqCst);
+         drop(old);
+     }
+ 
+     #[inline(always)]
+     fn install_waker(&self, cx: &Context<'_>) -> Option<Waker> {
+         // Fast path: if already REGISTERED with a waker that `will_wake` the
+         // caller's, keep it without cloning or running user code under WRITING.
+-        if self.state.0.compare_exchange(REGISTERED, WRITING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+-            // Sound: WRITING is held exclusively; `Waker::will_wake` compares
+-            // raw data/vtable pointers and invokes no user code.
+-            let same = unsafe { with_mut(&self.waker, |slot| slot.as_ref().is_some_and(|w| w.will_wake(cx.waker()))) };
+-            self.state.0.store(REGISTERED, Ordering::SeqCst);
+-            if same {
+-                return None;
+-            }
+-        }
+-        let next = cx.waker().clone();
+-        loop {
+-            let s = self.state.0.load(Ordering::SeqCst);
+-            if (s == IDLE || s == REGISTERED) && self.state.0.compare_exchange(s, WRITING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+-                // Sound: this thread's compare-and-swap made the state
+-                // WRITING, and no other touches the cell until the store
+-                // below ends that.
+-                let old = unsafe { with_mut(&self.waker, |slot| slot.replace(next)) };
+-                self.state.0.store(REGISTERED, Ordering::SeqCst);
+-                return old;
+-            }
+-            spin();
+-        }
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub(crate) fn clear(&self) {
+         loop {
+             let s = self.state.0.load(Ordering::SeqCst);
+             if s == IDLE {
+                 return;
+             }

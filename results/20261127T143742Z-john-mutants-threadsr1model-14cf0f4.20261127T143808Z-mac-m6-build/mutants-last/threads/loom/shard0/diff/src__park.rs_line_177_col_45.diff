@@ -1,0 +1,21 @@
+--- src/park.rs
++++ delete ! in Park::wake_one_of
+@@ -169,17 +169,17 @@
+ 
+     /// [`Park::wake_one`] among the workers of `among` (None: all).
+     fn wake_one_of(&self, among: Option<&[u64]>) -> bool {
+         for (i, (word, handles)) in self.parked.iter().zip(self.handles.chunks(64)).enumerate() {
+             let mask = among.map_or(u64::MAX, |m| m[i]);
+             let mut bits = word.load(Ordering::SeqCst) & mask;
+             while bits != 0 {
+                 let bit = 1u64 << bits.trailing_zeros();
+-                let before = word.fetch_and(!bit, Ordering::SeqCst);
++                let before = word.fetch_and( /* ~ changed by cargo-mutants ~ */bit, Ordering::SeqCst);
+                 if before & bit != 0 {
+                     handles[bit.trailing_zeros() as usize].get().expect("a parked worker has set its thread").unpark();
+                     return true;
+                 }
+                 bits = before & !bit & mask;
+             }
+         }
+         false

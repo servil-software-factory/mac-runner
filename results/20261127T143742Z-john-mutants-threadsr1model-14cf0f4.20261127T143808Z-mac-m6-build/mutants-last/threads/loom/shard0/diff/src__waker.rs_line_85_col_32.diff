@@ -1,0 +1,21 @@
+--- src/waker.rs
++++ replace == with != in WakerSlot::install_waker
+@@ -77,17 +77,17 @@
+             self.state.0.store(REGISTERED, Ordering::SeqCst);
+             if same {
+                 return None;
+             }
+         }
+         let next = cx.waker().clone();
+         loop {
+             let s = self.state.0.load(Ordering::SeqCst);
+-            if (s == IDLE || s == REGISTERED) && self.state.0.compare_exchange(s, WRITING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
++            if (s == IDLE || s != /* ~ changed by cargo-mutants ~ */ REGISTERED) && self.state.0.compare_exchange(s, WRITING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                 // Sound: this thread's compare-and-swap made the state
+                 // WRITING, and no other touches the cell until the store
+                 // below ends that.
+                 let old = unsafe { with_mut(&self.waker, |slot| slot.replace(next)) };
+                 self.state.0.store(REGISTERED, Ordering::SeqCst);
+                 return old;
+             }
+             spin();

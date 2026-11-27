@@ -1,0 +1,25 @@
+--- src/waker.rs
++++ replace WakerSlot::register with ()
+@@ -54,21 +54,17 @@
+         WakerSlot { state: Line(AtomicUsize::new(IDLE)), waker: UnsafeCell::new(None) }
+     }
+ 
+     /// Publish interest before the caller rechecks the completion predicate.
+     /// When an equivalent waker is already installed (`will_wake`), skips
+     /// cloning/dropping while still issuing the SeqCst fence before the
+     /// caller's completion re-check.
+     pub(crate) fn register(&self, cx: &Context<'_>) {
+-        let old = self.install_waker(cx);
+-        // The completion re-check may load with Acquire (RCpc
+-        // on Arm). It must not move before publishing the waiter.
+-        fence(Ordering::SeqCst);
+-        drop(old);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn install_waker(&self, cx: &Context<'_>) -> Option<Waker> {
+         // Fast path: if already REGISTERED with a waker that `will_wake` the
+         // caller's, keep it without cloning or running user code under WRITING.
+         if self.state.0.compare_exchange(REGISTERED, WRITING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+             // Sound: WRITING is held exclusively; `Waker::will_wake` compares

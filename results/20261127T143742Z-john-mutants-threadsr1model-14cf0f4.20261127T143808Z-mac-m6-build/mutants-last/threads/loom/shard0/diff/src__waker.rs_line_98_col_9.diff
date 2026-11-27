@@ -1,0 +1,35 @@
+--- src/waker.rs
++++ replace WakerSlot::clear with ()
+@@ -90,31 +90,17 @@
+                 self.state.0.store(REGISTERED, Ordering::SeqCst);
+                 return old;
+             }
+             spin();
+         }
+     }
+ 
+     pub(crate) fn clear(&self) {
+-        loop {
+-            let s = self.state.0.load(Ordering::SeqCst);
+-            if s == IDLE {
+-                return;
+-            }
+-            if s == REGISTERED && self.state.0.compare_exchange(REGISTERED, WRITING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+-                // Sound: as in `register`: WRITING is this thread's, until
+-                // the store below.
+-                let old = unsafe { with_mut(&self.waker, Option::take) };
+-                self.state.0.store(IDLE, Ordering::SeqCst);
+-                drop(old);
+-                return;
+-            }
+-            spin();
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     pub(crate) fn notify_after_seqcst(&self) {
+         if self.state.0.load(Ordering::SeqCst) == REGISTERED {
+             self.wake_slow();
+         }
+     }

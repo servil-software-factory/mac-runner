@@ -1,0 +1,34 @@
+--- src/park.rs
++++ replace Park::wake_one_of -> bool with true
+@@ -164,30 +164,17 @@
+     /// `beside[p]` those of p's socket, `here` the asking thread's place.
+     #[cfg(any(target_os = "linux", test))]
+     pub(crate) fn set_places(&self, places: Box<[Box<[u64]>]>, beside: Box<[Box<[u64]>]>, here: fn() -> usize) {
+         assert!(self.near.set((places, beside, here)).is_ok(), "the workers' places are set once");
+     }
+ 
+     /// [`Park::wake_one`] among the workers of `among` (None: all).
+     fn wake_one_of(&self, among: Option<&[u64]>) -> bool {
+-        for (i, (word, handles)) in self.parked.iter().zip(self.handles.chunks(64)).enumerate() {
+-            let mask = among.map_or(u64::MAX, |m| m[i]);
+-            let mut bits = word.load(Ordering::SeqCst) & mask;
+-            while bits != 0 {
+-                let bit = 1u64 << bits.trailing_zeros();
+-                let before = word.fetch_and(!bit, Ordering::SeqCst);
+-                if before & bit != 0 {
+-                    handles[bit.trailing_zeros() as usize].get().expect("a parked worker has set its thread").unpark();
+-                    return true;
+-                }
+-                bits = before & !bit & mask;
+-            }
+-        }
+-        false
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Wake workers for `wanted` pieces of new work, using this `Park`'s
+     /// total worker count: up to `fanout` now, the rest owed, which the woken
+     /// workers pay, `fanout` each, before they work. How many it woke. A
+     /// publisher's read of `parked` follows its publication (a SeqCst store
+     /// or a fence), as a parking worker's re-check follows its bit: one of
+     /// the two sees the other.

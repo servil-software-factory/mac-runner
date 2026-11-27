@@ -1,0 +1,33 @@
+--- src/park.rs
++++ replace Park::wake_all -> usize with 1
+@@ -112,29 +112,17 @@
+         self.wake_one_of(None)
+     }
+ 
+     /// Wake every worker that is parked now, each once: how many. (A
+     /// loop of `wake_one` would wake the first ones again as they park
+     /// again, and never reach the last.)
+     #[cfg(any(target_os = "linux", test))]
+     pub(crate) fn wake_all(&self) -> usize {
+-        let mut woken = 0;
+-        for (word, handles) in self.parked.iter().zip(self.handles.chunks(64)) {
+-            // Every bit taken at once: this thread is then the one to
+-            // unpark each of those workers.
+-            let bits = word.swap(0, Ordering::SeqCst);
+-            for (worker, handle) in handles.iter().enumerate() {
+-                if bits >> worker & 1 == 1 {
+-                    handle.get().expect("a parked worker has set its thread").unpark();
+-                    woken += 1;
+-                }
+-            }
+-        }
+-        woken
++        1 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Best-effort speculative wake: if the workers have places (Linux
+     /// multi-L3 topologies, where `assign` installs at least two places) and
+     /// every worker in the caller's own place is currently parked, wake one
+     /// worker of that place. Concurrent local publishers can each observe all
+     /// local bits set and wake an extra local worker; progress never depends on
+     /// this check because the existing progress wake remains unconditional.

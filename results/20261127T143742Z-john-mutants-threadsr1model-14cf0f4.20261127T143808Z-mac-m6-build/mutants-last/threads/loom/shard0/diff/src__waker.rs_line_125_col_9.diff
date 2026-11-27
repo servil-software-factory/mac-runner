@@ -1,0 +1,34 @@
+--- src/waker.rs
++++ replace WakerSlot::wake_slow with ()
+@@ -117,30 +117,11 @@
+         if self.state.0.load(Ordering::SeqCst) == REGISTERED {
+             self.wake_slow();
+         }
+     }
+ 
+     #[cold]
+     #[inline(never)]
+     fn wake_slow(&self) {
+-        if self.state.0.compare_exchange(REGISTERED, WAKING, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+-            // Sound: this thread's compare-and-swap made the state
+-            // WAKING, which keeps `register` and `clear` out of the cell
+-            // (they spin) until the store below.
+-            let waker = unsafe { with_mut(&self.waker, Option::take) };
+-            self.state.0.store(IDLE, Ordering::SeqCst);
+-            if let Some(w) = waker {
+-                // The waker is the program's code, and it runs here in the
+-                // middle of whatever gave the notice: a worker's task, or
+-                // a call of the Pipeline's owner that has just freed a
+-                // room and not yet recorded what it freed. A panic out of
+-                // it would leave that half done for the program to find (a
+-                // room's credit given back twice, a room handed out while
+-                // in use). It ends the process, on whichever thread, as a
+-                // panic on a worker does; the panic's own words come first.
+-                let ends = EndOnUnwind;
+-                w.wake();
+-                core::mem::forget(ends);
+-            }
+-        }
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ }

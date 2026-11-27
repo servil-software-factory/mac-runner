@@ -1,0 +1,21 @@
+--- src/hasher.rs
++++ replace |= with &= in CvStack::push_row_with
+@@ -299,17 +299,17 @@
+         for below in (self.len % ROWS..self.len).step_by(ROWS) {
+             if self.is_row(below) {
+                 self.narrow(k, below);
+             }
+         }
+         let slot = self.len % ROWS;
+         if self.ready >> slot & 1 == 0 {
+             self.rows[slot].fill(core::mem::MaybeUninit::new([0u8; 32]));
+-            self.ready |= 1 << slot;
++            self.ready &= /* ~ changed by cargo-mutants ~ */ 1 << slot;
+         }
+         // Sound: `self.rows[slot]` was fully initialized either just above or on its first use (`ready` bit set).
+         let width = fill(unsafe { &mut *self.rows[slot].as_mut_ptr().cast::<[Cv; ROW]>() });
+         assert!((4..=ROW).contains(&width) && width.is_power_of_two(), "a row of 4 to ROW values, a power of two");
+         self.widths[slot] = u8::try_from(width).expect("row width <= TILE");
+         self.wide |= 1 << self.len;
+         self.len += 1;
+     }
