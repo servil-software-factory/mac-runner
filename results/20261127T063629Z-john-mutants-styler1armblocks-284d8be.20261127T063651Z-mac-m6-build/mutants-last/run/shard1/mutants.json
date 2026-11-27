@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_many_on with ()\n@@ -75,76 +75,17 @@\n /// plain hashing), on `platform`: messages of up to a chunk go to\n /// the kernels TABLE at a time, 2 to 15 chunks side by side on SME2, others\n /// through the one-message path. Requires `input.len() == slot *\n /// outputs.len()` and every slot's bytes past `len` zero (a Batch's, or\n /// the crate's own).\n pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {\n     // One-block messages first, on the path they took before slots (a\n     // shared entry cost 64 B x 3 7% in the regression check).\n-    if len == BLOCK_LEN && outputs.len() >= 2 {\n-        crate::ran(crate::Ran::BlockRun);\n-        assert_slots(input, len, slot, outputs.len());\n-        for (messages, digests) in input.chunks(BLOCK_LEN * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-            hash_run(messages, key, flags, digests, platform);\n-        }\n-        return;\n-    }\n-    assert_slots(input, len, slot, outputs.len());\n-    if packed(len, slot) {\n-        return hash_packed(input, len, key, flags, outputs, platform);\n-    }\n-    // Empty messages: the NEON plans take a last block of 1 to 64 bytes\n-    // (hash_many_in's contract), so without this arm a batch of them stops\n-    // there (#251: CI's Cortex-A72, and every NEON machine since the pair\n-    // kernels left).\n-    if len == 0 {\n-        outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());\n-        return;\n-    }\n-    #[cfg(target_arch = \"aarch64\")]\n-    if chunked(len) && platform_is_sme2(platform) && (outputs.len() >= 16 || outputs.len() >= sme2_chunked_min(len)) {\n-        return hash_chunked(input, len, key, flags, outputs, platform);\n-    }\n-    #[cfg(target_arch = \"aarch64\")]\n-    if (CHUNK_LEN + 1..=2 * CHUNK_LEN).contains(&len) && outputs.len() >= 2 {\n-        return hash_two_chunks(input, len, key, flags, outputs);\n-    }\n-    if outputs.len() < 2 || len > CHUNK_LEN {\n-        #[cfg(target_arch = \"x86_64\")]\n-        return hash_long_or_single(input, len, key, flags, outputs, platform);\n-        #[cfg(not(target_arch = \"x86_64\"))]\n-        {\n-            for (i, output) in outputs.iter_mut().enumerate() {\n-                *output = *crate::hash_serial_on(&input[i * slot..][..len], key, flags, platform).as_bytes();\n-            }\n-            return;\n-        }\n-    }\n-    crate::ran(crate::Ran::ShortRun);\n-    let last_len = len - (slot - BLOCK_LEN);\n-    #[cfg(target_arch = \"x86_64\")]\n-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {\n-        let width = crate::ffi_output::lanes(platform);\n-        if width != 0 {\n-            multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);\n-            return;\n-        }\n-    }\n-    let blocks = slot / BLOCK_LEN;\n-    for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {\n-        if blocks == 1 {\n-            hash_run_short(messages, key, flags, digests, platform, last_len);\n-            continue;\n-        }\n-        #[cfg(target_arch = \"x86_64\")]\n-        crate::sse41::hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len);\n-        #[cfg(target_arch = \"aarch64\")]\n-        hash_blocks(messages, blocks, key, flags, digests, platform, last_len);\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Packed messages (`len` bytes each, at a stride of `len`): full SIMD\n /// groups run directly on the zero-padding-free packed kernels in\n /// `ffi_packed` (#501) across SME2, AVX-512, AVX2, and NEON `8+3`; any\n /// short remainder (or SSE4.1 fallback) expands up to 16 messages at a\n /// time into a 1 KiB zero-padded stack buffer.\n #[inline(never)]\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_many_on",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 143
+        },
+        "start": {
+          "column": 1,
+          "line": 73
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:83:5: replace hash_many_on with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 142
+      },
+      "start": {
+        "column": 5,
+        "line": 83
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_run_padded with ()\n@@ -791,20 +791,17 @@\n     }\n }\n \n /// One-block messages on SME2, every group on the message kernel, the\n /// last one padded, their last block `last_len` bytes.\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn hash_run_padded(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], last_len: usize) {\n-    let mut slots: PtrSlots = [core::mem::MaybeUninit::uninit(); TABLE + 16];\n-    let lanes = fill_ptrs(&mut slots, messages, BLOCK_LEN, outputs.len(), outputs.len().next_multiple_of(16));\n-    // Sound: the caller found SME2 (platform_is_sme2); `fill_ptrs` verified `messages` holds `outputs.len()` blocks.\n-    unsafe { crate::sme2::hash_messages_raw(lanes, 1, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, outputs.as_flattened_mut()) };\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// [`hash_run`] for messages of 1 to 63 bytes (one short block): on SME2\n /// the message kernel from ONE_BLOCK_PAD_MIN messages (the parent kernel\n /// records 64 for every block), else the NEON plans, or one call each\n /// without them.\n #[inline(never)]\n fn hash_run_short(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_run_padded",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 803
+        },
+        "start": {
+          "column": 1,
+          "line": 794
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:799:5: replace hash_run_padded with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 138,
+        "line": 802
+      },
+      "start": {
+        "column": 5,
+        "line": 799
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace + with - in hash_run_padded\n@@ -791,17 +791,17 @@\n     }\n }\n \n /// One-block messages on SME2, every group on the message kernel, the\n /// last one padded, their last block `last_len` bytes.\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn hash_run_padded(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], last_len: usize) {\n-    let mut slots: PtrSlots = [core::mem::MaybeUninit::uninit(); TABLE + 16];\n+    let mut slots: PtrSlots = [core::mem::MaybeUninit::uninit(); TABLE - /* ~ changed by cargo-mutants ~ */ 16];\n     let lanes = fill_ptrs(&mut slots, messages, BLOCK_LEN, outputs.len(), outputs.len().next_multiple_of(16));\n     // Sound: the caller found SME2 (platform_is_sme2); `fill_ptrs` verified `messages` holds `outputs.len()` blocks.\n     unsafe { crate::sme2::hash_messages_raw(lanes, 1, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, outputs.as_flattened_mut()) };\n }\n \n /// [`hash_run`] for messages of 1 to 63 bytes (one short block): on SME2\n /// the message kernel from ONE_BLOCK_PAD_MIN messages (the parent kernel\n /// records 64 for every block), else the NEON plans, or one call each\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_run_padded",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 803
+        },
+        "start": {
+          "column": 1,
+          "line": 794
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:799:72: replace + with - in hash_run_padded",
+    "package": "blake3-servil-core",
+    "replacement": "-",
+    "span": {
+      "end": {
+        "column": 73,
+        "line": 799
+      },
+      "start": {
+        "column": 72,
+        "line": 799
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace | with & in hash_run_padded\n@@ -794,17 +794,17 @@\n /// One-block messages on SME2, every group on the message kernel, the\n /// last one padded, their last block `last_len` bytes.\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn hash_run_padded(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], last_len: usize) {\n     let mut slots: PtrSlots = [core::mem::MaybeUninit::uninit(); TABLE + 16];\n     let lanes = fill_ptrs(&mut slots, messages, BLOCK_LEN, outputs.len(), outputs.len().next_multiple_of(16));\n     // Sound: the caller found SME2 (platform_is_sme2); `fill_ptrs` verified `messages` holds `outputs.len()` blocks.\n-    unsafe { crate::sme2::hash_messages_raw(lanes, 1, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, outputs.as_flattened_mut()) };\n+    unsafe { crate::sme2::hash_messages_raw(lanes, 1, key, flags, CHUNK_START, CHUNK_END & /* ~ changed by cargo-mutants ~ */ ROOT, last_len, outputs.as_flattened_mut()) };\n }\n \n /// [`hash_run`] for messages of 1 to 63 bytes (one short block): on SME2\n /// the message kernel from ONE_BLOCK_PAD_MIN messages (the parent kernel\n /// records 64 for every block), else the NEON plans, or one call each\n /// without them.\n #[inline(never)]\n fn hash_run_short(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_run_padded",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 803
+        },
+        "start": {
+          "column": 1,
+          "line": 794
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/many.rs:802:90: replace | with & in hash_run_padded",
+    "package": "blake3-servil-core",
+    "replacement": "&",
+    "span": {
+      "end": {
+        "column": 91,
+        "line": 802
+      },
+      "start": {
+        "column": 90,
+        "line": 802
+      }
+    }
+  }
+]

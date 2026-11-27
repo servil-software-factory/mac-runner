@@ -1,0 +1,80 @@
+--- src/many.rs
++++ replace hash_many_on with ()
+@@ -75,76 +75,17 @@
+ /// plain hashing), on `platform`: messages of up to a chunk go to
+ /// the kernels TABLE at a time, 2 to 15 chunks side by side on SME2, others
+ /// through the one-message path. Requires `input.len() == slot *
+ /// outputs.len()` and every slot's bytes past `len` zero (a Batch's, or
+ /// the crate's own).
+ pub fn hash_many_on(input: &[u8], len: usize, slot: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform) {
+     // One-block messages first, on the path they took before slots (a
+     // shared entry cost 64 B x 3 7% in the regression check).
+-    if len == BLOCK_LEN && outputs.len() >= 2 {
+-        crate::ran(crate::Ran::BlockRun);
+-        assert_slots(input, len, slot, outputs.len());
+-        for (messages, digests) in input.chunks(BLOCK_LEN * TABLE).zip(outputs.chunks_mut(TABLE)) {
+-            hash_run(messages, key, flags, digests, platform);
+-        }
+-        return;
+-    }
+-    assert_slots(input, len, slot, outputs.len());
+-    if packed(len, slot) {
+-        return hash_packed(input, len, key, flags, outputs, platform);
+-    }
+-    // Empty messages: the NEON plans take a last block of 1 to 64 bytes
+-    // (hash_many_in's contract), so without this arm a batch of them stops
+-    // there (#251: CI's Cortex-A72, and every NEON machine since the pair
+-    // kernels left).
+-    if len == 0 {
+-        outputs.fill(*crate::hash_serial_on(&[], key, flags, platform).as_bytes());
+-        return;
+-    }
+-    #[cfg(target_arch = "aarch64")]
+-    if chunked(len) && platform_is_sme2(platform) && (outputs.len() >= 16 || outputs.len() >= sme2_chunked_min(len)) {
+-        return hash_chunked(input, len, key, flags, outputs, platform);
+-    }
+-    #[cfg(target_arch = "aarch64")]
+-    if (CHUNK_LEN + 1..=2 * CHUNK_LEN).contains(&len) && outputs.len() >= 2 {
+-        return hash_two_chunks(input, len, key, flags, outputs);
+-    }
+-    if outputs.len() < 2 || len > CHUNK_LEN {
+-        #[cfg(target_arch = "x86_64")]
+-        return hash_long_or_single(input, len, key, flags, outputs, platform);
+-        #[cfg(not(target_arch = "x86_64"))]
+-        {
+-            for (i, output) in outputs.iter_mut().enumerate() {
+-                *output = *crate::hash_serial_on(&input[i * slot..][..len], key, flags, platform).as_bytes();
+-            }
+-            return;
+-        }
+-    }
+-    crate::ran(crate::Ran::ShortRun);
+-    let last_len = len - (slot - BLOCK_LEN);
+-    #[cfg(target_arch = "x86_64")]
+-    if slot > BLOCK_LEN && last_len < BLOCK_LEN && outputs.len() >= X86_PAD8_MIN {
+-        let width = crate::ffi_output::lanes(platform);
+-        if width != 0 {
+-            multi_block_short_last(input, slot, key, flags, last_len, outputs, platform, width);
+-            return;
+-        }
+-    }
+-    let blocks = slot / BLOCK_LEN;
+-    for (messages, digests) in input.chunks(slot * TABLE).zip(outputs.chunks_mut(TABLE)) {
+-        if blocks == 1 {
+-            hash_run_short(messages, key, flags, digests, platform, last_len);
+-            continue;
+-        }
+-        #[cfg(target_arch = "x86_64")]
+-        crate::sse41::hash_blocks_x86(messages, blocks, key, flags, digests, platform, last_len);
+-        #[cfg(target_arch = "aarch64")]
+-        hash_blocks(messages, blocks, key, flags, digests, platform, last_len);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Packed messages (`len` bytes each, at a stride of `len`): full SIMD
+ /// groups run directly on the zero-padding-free packed kernels in
+ /// `ffi_packed` (#501) across SME2, AVX-512, AVX2, and NEON `8+3`; any
+ /// short remainder (or SSE4.1 fallback) expands up to 16 messages at a
+ /// time into a 1 KiB zero-padded stack buffer.
+ #[inline(never)]
