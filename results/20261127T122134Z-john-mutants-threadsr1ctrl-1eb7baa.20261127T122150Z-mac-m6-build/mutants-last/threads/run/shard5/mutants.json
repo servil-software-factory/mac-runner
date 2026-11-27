@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/park.rs\n+++ replace - with + in Park::wake_for\n@@ -189,17 +189,17 @@\n     /// total worker count: up to `fanout` now, the rest owed, which the woken\n     /// workers pay, `fanout` each, before they work. How many it woke. A\n     /// publisher's read of `parked` follows its publication (a SeqCst store\n     /// or a fence), as a parking worker's re-check follows its bit: one of\n     /// the two sees the other.\n     pub(crate) fn wake_for(&self, wanted: usize) -> usize {\n         let parked = self.parked_count();\n         // Nobody parked, or enough awake: nothing to wake.\n-        let (now, later) = split(wanted.saturating_sub(self.handles.len() - parked).min(parked), self.fanout);\n+        let (now, later) = split(wanted.saturating_sub(self.handles.len() + /* ~ changed by cargo-mutants ~ */ parked).min(parked), self.fanout);\n         if later > 0 {\n             let add = later.min(u32::MAX as usize) as u64;\n             loop {\n                 let cur = self.owed.load(Ordering::SeqCst);\n                 let next_gen = (cur >> 32).wrapping_add(1);\n                 let next_count = (cur & OWED_COUNT_MASK).saturating_add(add).min(OWED_COUNT_MASK);\n                 if self.owed.compare_exchange(cur, (next_gen << 32) | next_count, Ordering::SeqCst, Ordering::SeqCst).is_ok() {\n                     break;\n",
+    "file": "src/park.rs",
+    "function": {
+      "function_name": "Park::wake_for",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 210
+        },
+        "start": {
+          "column": 5,
+          "line": 188
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/park.rs:197:75: replace - with + in Park::wake_for",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 76,
+        "line": 197
+      },
+      "start": {
+        "column": 75,
+        "line": 197
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for Room>::drop with ()\n@@ -702,46 +702,17 @@\n         self.storage().rooms.release_n(self.index, spent as usize);\n         self.commits += spent;\n     }\n }\n \n impl Drop for Room {\n     #[inline]\n     fn drop(&mut self) {\n-        let unused = ROOM_CREDITS - (self.commits as usize);\n-        // End the `&PipeStorage` borrow strictly BEFORE `fetch_sub`: on the\n-        // non-closing path (`prev & ROOM_CLOSING_BIT == 0`), once `fetch_sub`\n-        // drops `refs[i]` to 0, a concurrent `Pipeline::drop` may immediately\n-        // free `*self.storage`, so that path touches only `&'static WakerSlot`\n-        // afterwards. On the closing path, `Pipeline::drop` reserved a\n-        // `holders` ref keeping `*self.storage` live until `PipeStorage::release`.\n-        let (waker, ref_ptr) = {\n-            let st = self.storage();\n-            (&st.slot.get().waker, core::ptr::addr_of!(st.rooms.refs[self.index as usize]))\n-        };\n-        // Sound: `ref_ptr` points to `rooms.refs[self.index]` inside `*self.storage`,\n-        // which stays live until this `SeqCst` subtraction completes.\n-        let prev = unsafe { (*ref_ptr).fetch_sub(unused, Ordering::SeqCst) };\n-        if prev & ROOM_CLOSING_BIT != 0 {\n-            // `Pipeline::drop` stamped `ROOM_CLOSING_BIT` after all worker\n-            // tasks finished and reserved a `holders` ref for this Room; drop\n-            // that hold so the last survivor frees `PipeStorage` cleanly.\n-            assert_eq!(prev & !ROOM_CLOSING_BIT, unused, \"surviving room ref count\");\n-            // Sound: `Pipeline::drop` reserved one hold in `holders` for every\n-            // room that saw `prev != 0` when stamping `ROOM_CLOSING_BIT`, and\n-            // this `Room::drop` consumes that unique hold once and never reads\n-            // `self.storage` again.\n-            unsafe { PipeStorage::release_n(self.storage.as_ptr(), 1) };\n-        } else if prev == unused {\n-            // Even if `Pipeline::drop` raced right after `fetch_sub` and freed\n-            // `PipeStorage`, `waker` lives in `&'static PipeSlot` and waking it\n-            // is benign.\n-            waker.notify_after_seqcst();\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct PieceNode {\n     slot: UnsafeCell<u32>,\n     room: UnsafeCell<u32>,\n     offset: UnsafeCell<u32>,\n     len: UnsafeCell<u32>,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Room>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 740
+        },
+        "start": {
+          "column": 5,
+          "line": 708
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:710:9: replace <impl Drop for Room>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 739
+      },
+      "start": {
+        "column": 9,
+        "line": 710
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for Pipeline<T, B, P>>::drop with ()\n@@ -2536,105 +2536,17 @@\n             }\n         }\n         false\n     }\n }\n \n impl<T, B, P> Drop for Pipeline<T, B, P> {\n     fn drop(&mut self) {\n-        if self.has_in_flight_work() {\n-            stop_process(\"blake3-servil: Pipeline dropped while worker tasks are still in flight\\n\");\n-        }\n-        // Release any credits held on uncommitted short rooms sitting in un-ended slots\n-        // (e.g. during panic unwind after a precondition check failed with zero workers running).\n-        for s in 0..self.slots.len() {\n-            if let SlotKind::OpenShort { room: room_idx, .. } = self.slots[s].kind {\n-                self.storage().rooms.release_n(room_idx, 1);\n-            }\n-        }\n-        if self.open_group.take().is_some() {\n-            for &r in &self.bufs.local_rooms[..self.local_count] {\n-                if r != NONE {\n-                    self.storage().rooms.release_n(r, 1);\n-                }\n-            }\n-        }\n-        if let Some(slot) = self.source_slot {\n-            Source::unregister(slot);\n-        }\n-        crate::lanes::sources::closed();\n-        let storage_ptr = self.storage;\n-        let storage = self.storage();\n-        let pipe_slot = self.pipe_slot;\n-        // Pre-reserve one hold per room slot before stamping ROOM_CLOSING_BIT so\n-        // any surviving Room dropped concurrently on another thread cannot drop\n-        // `storage.holders` to 0 while this loop is still running.\n-        let room_count = storage.rooms.count;\n-        storage.holders.fetch_add(room_count, Ordering::Relaxed);\n-        let mut survivors = 0usize;\n-        for r in &storage.rooms.refs {\n-            let prev = r.fetch_or(ROOM_CLOSING_BIT, Ordering::SeqCst);\n-            if prev != 0 {\n-                survivors += 1;\n-            }\n-        }\n-        let release_holds = (room_count - survivors) + 1;\n-        let next_group_epoch = self.next_group_epoch;\n-        let next_loan_epoch = self.next_loan_epoch;\n-        struct ReleaseStorage {\n-            storage: *mut PipeStorage,\n-            holds: usize,\n-            slot: &'static PipeSlot,\n-            next_group_epoch: u64,\n-            next_loan_epoch: u64,\n-        }\n-        impl Drop for ReleaseStorage {\n-            fn drop(&mut self) {\n-                PipeSlot::release(self.slot, self.next_group_epoch, self.next_loan_epoch);\n-                // Sound: `Pipeline::drop` drained all worker work, reserved\n-                // `room_count` holds before stamping `ROOM_CLOSING_BIT`, and\n-                // holds `release_holds = (room_count - survivors) + 1` unique\n-                // references (all non-surviving rooms plus the Pipeline's own).\n-                unsafe { PipeStorage::release_n(self.storage, self.holds) };\n-            }\n-        }\n-        struct DrainPending<'a, T, B, P>(&'a mut Pipeline<T, B, P>);\n-        impl<T, B, P> Drop for DrainPending<'_, T, B, P> {\n-            fn drop(&mut self) {\n-                while let Some(s_idx) = self.0.end_queue.pop_front() {\n-                    let s = s_idx as usize;\n-                    match core::mem::replace(&mut self.0.slots[s].kind, SlotKind::Free) {\n-                        SlotKind::WaitSingle { has_owner: true, .. } | SlotKind::WaitMulti { has_owner: true } => {\n-                            let ptr = self.0.owners.slot(s);\n-                            let _rest = DrainPending(&mut *self.0);\n-                            // Sound: a slot waiting with `has_owner` holds an owner no\n-                            // event took.\n-                            unsafe { (*ptr).assume_init_drop() };\n-                            core::mem::forget(_rest);\n-                        }\n-                        SlotKind::WaitBatch { .. } => {\n-                            let ptr = self.0.batches.slot(s);\n-                            let _rest = DrainPending(&mut *self.0);\n-                            // Sound: a WaitBatch slot holds its batch and digests.\n-                            unsafe { (*ptr).assume_init_drop() };\n-                            core::mem::forget(_rest);\n-                        }\n-                        _ => {}\n-                    }\n-                }\n-            }\n-        }\n-        // Guards run in LIFO order (`_drain` then `_release`), so even if\n-        // dropping the saved waker or one owner unwinds, every remaining owner\n-        // and batch still drops, `PipeSlot` returns to `FREE_PIPE_SLOTS`, and\n-        // `PipeStorage` is released cleanly.\n-        let _release = ReleaseStorage { storage: storage_ptr, holds: release_holds, slot: pipe_slot, next_group_epoch, next_loan_epoch };\n-        let _drain = DrainPending(self);\n-        pipe_slot.waker.clear();\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n struct MessageFut<'a, T, B, P> {\n     pipe: &'a mut Pipeline<T, B, P>,\n     tag: Option<T>,\n     registered: bool,\n }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Pipeline<T, B, P>>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 2633
+        },
+        "start": {
+          "column": 5,
+          "line": 2543
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2544:9: replace <impl Drop for Pipeline<T, B, P>>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 2632
+      },
+      "start": {
+        "column": 9,
+        "line": 2544
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace <impl Drop for Pipeline<T, B, P>>::drop::<impl Drop for ReleaseStorage>::drop with ()\n@@ -2584,22 +2584,17 @@\n             storage: *mut PipeStorage,\n             holds: usize,\n             slot: &'static PipeSlot,\n             next_group_epoch: u64,\n             next_loan_epoch: u64,\n         }\n         impl Drop for ReleaseStorage {\n             fn drop(&mut self) {\n-                PipeSlot::release(self.slot, self.next_group_epoch, self.next_loan_epoch);\n-                // Sound: `Pipeline::drop` drained all worker work, reserved\n-                // `room_count` holds before stamping `ROOM_CLOSING_BIT`, and\n-                // holds `release_holds = (room_count - survivors) + 1` unique\n-                // references (all non-surviving rooms plus the Pipeline's own).\n-                unsafe { PipeStorage::release_n(self.storage, self.holds) };\n+                () /* ~ changed by cargo-mutants ~ */\n             }\n         }\n         struct DrainPending<'a, T, B, P>(&'a mut Pipeline<T, B, P>);\n         impl<T, B, P> Drop for DrainPending<'_, T, B, P> {\n             fn drop(&mut self) {\n                 while let Some(s_idx) = self.0.end_queue.pop_front() {\n                     let s = s_idx as usize;\n                     match core::mem::replace(&mut self.0.slots[s].kind, SlotKind::Free) {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "<impl Drop for Pipeline<T, B, P>>::drop::<impl Drop for ReleaseStorage>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 14,
+          "line": 2598
+        },
+        "start": {
+          "column": 13,
+          "line": 2591
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2592:17: replace <impl Drop for Pipeline<T, B, P>>::drop::<impl Drop for ReleaseStorage>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 77,
+        "line": 2597
+      },
+      "start": {
+        "column": 17,
+        "line": 2592
+      }
+    }
+  }
+]
