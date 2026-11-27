@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace << with >> in PipeStorage::run_multi_piece
+@@ -991,17 +991,17 @@
+             MultiKind::Slice { total_len, piece_level: level, .. } => {
+                 // Sound: the owner, or the Lent guard, keeps all the message's
+                 // bytes in place until the slot is done. The chunks of this slice
+                 // are the same partition the submitter put in the action list.
+                 let input = unsafe { core::slice::from_raw_parts(desc.input, total_len) };
+                 let bytes = input.chunks(CHUNK_LEN << level).nth(piece_idx).expect("a piece within its message");
+                 let values = self.cvs[slot].get();
+                 if piece_idx + 1 == desc.pieces {
+-                    let value = tree.last_cv_on(platform, (piece_idx as u64) << level, bytes);
++                    let value = tree.last_cv_on(platform, (piece_idx as u64) >> /* ~ changed by cargo-mutants ~ */ level, bytes);
+                     // Sound: only the last piece writes this field.
+                     unsafe { (*values).last = Some(value) };
+                 } else {
+                     let value = tree.subtree_cv_on(platform, level, piece_idx as u64, bytes);
+                     // Sound: a separate slot for each index (submit_multi_slice
+                     // limits the count); form no borrow of other workers' slots.
+                     unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };
+                 }
