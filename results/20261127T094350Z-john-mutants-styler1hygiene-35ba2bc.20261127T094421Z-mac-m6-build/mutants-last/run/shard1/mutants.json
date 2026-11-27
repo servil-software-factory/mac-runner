@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_two_chunks with ()\n@@ -240,72 +240,17 @@\n /// lane (q1) or a pair alone (k2); side by side the plans fill their\n /// lanes with the batch. VM, ns per message, one hash() each / side by\n /// side: 2000 B x 2 1018 / 927, x 3 1036 / 653, x 4 1050 / 697, x 8 690\n /// (SME2 from 7); 1100 B x 3 442 / 379. Commonware's four NEON lanes: 2000\n /// B x 4 824 (Mac P-core 914 against servil's 1050 before, job 283).\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn hash_two_chunks(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]]) {\n-    use crate::PARENT;\n-    let slot = slot_len(len);\n-    let second = len - CHUNK_LEN;\n-    let second_blocks = second.div_ceil(BLOCK_LEN);\n-    let last_len = second - (second_blocks - 1) * BLOCK_LEN;\n-    // Sixteen at a time, as the plans take them: small arrays to zero.\n-    const GROUP: usize = 16;\n-    for (messages, digests) in input.chunks(slot * GROUP).zip(outputs.chunks_mut(GROUP)) {\n-        let count = digests.len();\n-        let mut firsts = crate::stack_vec::StackVec::<&[u8; CHUNK_LEN], GROUP>::new();\n-        let mut seconds = crate::stack_vec::StackVec::<*const u8, GROUP>::new();\n-        firsts.extend(messages.chunks_exact(slot).map(|m| m[..CHUNK_LEN].try_into().expect(\"a whole first chunk\")));\n-        seconds.extend(messages.chunks_exact(slot).map(|m| m[CHUNK_LEN..].as_ptr()));\n-        assert_eq!(firsts.len(), count, \"one two-chunk slot per output\");\n-        assert_eq!(seconds.len(), count, \"one second chunk per output\");\n-        let mut cvs = [[0u8; OUT_LEN]; 2 * GROUP];\n-        let mut pairs = [[0u8; BLOCK_LEN]; GROUP];\n-        // Sound: `firsts` and `seconds` hold exactly `count` initialized\n-        // entries; each second-chunk pointer reaches `second_blocks` whole\n-        // blocks inside its slot, zero past the message; all supported AArch64\n-        // targets assume NEON (`build.rs` refuses non-NEON AArch64 targets).\n-        unsafe {\n-            crate::neon_hybrid::hash_many_last_len(\n-                &firsts,\n-                key,\n-                0,\n-                IncrementCounter::No,\n-                flags,\n-                CHUNK_START,\n-                CHUNK_END,\n-                BLOCK_LEN,\n-                cvs[..count].as_flattened_mut(),\n-            );\n-            crate::neon_hybrid::hash_messages_raw(\n-                seconds.as_ptr(),\n-                seconds.len(),\n-                second_blocks,\n-                key,\n-                1,\n-                flags,\n-                CHUNK_START,\n-                CHUNK_END,\n-                last_len,\n-                cvs[count..2 * count].as_flattened_mut(),\n-            );\n-        }\n-        for (i, pair) in pairs[..count].iter_mut().enumerate() {\n-            pair[..OUT_LEN].copy_from_slice(&cvs[i]);\n-            pair[OUT_LEN..].copy_from_slice(&cvs[count + i]);\n-        }\n-        let parents: crate::stack_vec::StackVec<&[u8; BLOCK_LEN], GROUP> = pairs[..count].iter().collect();\n-        // Sound: as above.\n-        unsafe {\n-            crate::neon_hybrid::hash_many_last_len(&parents, key, 0, IncrementCounter::No, flags | PARENT, 0, ROOT, BLOCK_LEN, digests.as_flattened_mut())\n-        };\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Number of messages to hash across when `count >= least`: whole-chunk\n /// AVX-512 batches of 16..=31 (`least == ACROSS_GROUP`) hash their full\n /// 16-message prefix across and leave the 0..=15 remainder serial, avoiding\n /// the +14% slowdown of running a short tail through `hash_group_across`\n /// (e.g. 15 KiB x 17). Larger batches (>= 32) and all other shapes stay\n /// all-across.\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_two_chunks",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 304
+        },
+        "start": {
+          "column": 1,
+          "line": 236
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:248:5: replace hash_two_chunks with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 303
+      },
+      "start": {
+        "column": 5,
+        "line": 248
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_blocks with ()\n@@ -706,48 +706,17 @@\n /// - SME2 with fewer left over past the groups: those on the integer +\n ///   NEON plans first, then the groups (NEON work right after the SME2\n ///   kernels runs in the SME unit's slow state on the VM: 17 x 256 B, 68\n ///   ns per message after, 44 before).\n /// - The integer + NEON plans (no SME2, or fewer messages): all at once.\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn hash_blocks(messages: &[u8], blocks: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n-    const GROUP: usize = 16;\n-    assert!((2..=16).contains(&blocks), \"2 to 16 whole blocks\");\n-    let count = outputs.len();\n-    if count == 0 {\n-        return;\n-    }\n-    let sme2 = platform_is_sme2(platform);\n-    let left = count % GROUP;\n-    let padded = sme2 && left >= if count > GROUP { SME2_TAIL_MIN_AFTER_GROUPS } else { SME2_TAIL_MIN };\n-    // Messages hashed on SME2 (the first `on_sme2`), and the table's lanes.\n-    let on_sme2 = if padded {\n-        count\n-    } else if sme2 {\n-        count - left\n-    } else {\n-        0\n-    };\n-    let lanes = if padded { count.next_multiple_of(GROUP) } else { count };\n-    let mut slots: PtrSlots = [core::mem::MaybeUninit::uninit(); TABLE + 16];\n-    let table = fill_ptrs(&mut slots, messages, blocks * BLOCK_LEN, count, lanes);\n-    let (groups, rest) = outputs.split_at_mut(on_sme2);\n-    if !rest.is_empty() {\n-        let rest_lanes = &table[on_sme2..count];\n-        // Sound: all supported AArch64 targets assume NEON; `fill_ptrs` verified `messages` holds `count` slots of `blocks * BLOCK_LEN` bytes.\n-        unsafe { crate::neon_hybrid::hash_many_raw(rest_lanes, blocks, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, rest.as_flattened_mut()) };\n-    }\n-    if on_sme2 > 0 {\n-        // Sound: platform_is_sme2 means detect() found SME2 with 512-bit\n-        // streaming vectors; `fill_ptrs` verified every pointer reaches `blocks * BLOCK_LEN` bytes.\n-        let sme2_lanes = &table[..if padded { lanes } else { on_sme2 }];\n-        unsafe { crate::sme2::hash_messages_raw(sme2_lanes, blocks, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, groups.as_flattened_mut()) };\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(target_arch = \"aarch64\")]\n #[inline(always)]\n fn platform_is_sme2(platform: Platform) -> bool {\n     matches!(platform, Platform::SME2)\n }\n \n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_blocks",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 746
+        },
+        "start": {
+          "column": 1,
+          "line": 698
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:714:5: replace hash_blocks with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 745
+      },
+      "start": {
+        "column": 5,
+        "line": 714
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace run_checks -> (Platform, usize) with (Default::default(), 0)\n@@ -413,67 +413,17 @@\n \n /// Run every case for the detected platform and stop on the first that differs\n /// from the reference, returning `(platform, checked)` without publishing.\n /// Separating verification from `platform.record()` guarantees every kernel\n /// self-test completes before publication.\n fn run_checks() -> (Platform, usize) {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n-    #[cfg(test)]\n-    if PLANTED_FAILURE.load(core::sync::atomic::Ordering::Relaxed) {\n-        panic!(\"a kernel's panic, planted by a test\");\n-    }\n-    compiled_features_present();\n-    let platform = Platform::detect_unchecked();\n-    let mut checked = 0;\n-    #[cfg(test)]\n-    let mut index = 0;\n-    let previous = chain(\n-        |case, input, previous, out| {\n-            let written = outputs(platform, case, input, previous, out);\n-            // A wrong digest a test plants in one case, as a CPU or build\n-            // that computes one would give.\n-            #[cfg(test)]\n-            {\n-                if index == PLANTED_WRONG_CASE.load(core::sync::atomic::Ordering::Relaxed) {\n-                    out[written - 1] ^= 1;\n-                }\n-                index += 1;\n-            }\n-            written\n-        },\n-        |index, folded| {\n-            checked += 1;\n-            if folded != EXPECTED[index] {\n-                stop(format_args!(\n-                    \"blake3-servil startup self-test failed: case {index}, {} (platform {}): this build or this CPU \\\n-                     computes wrong BLAKE3 digests on that path\",\n-                    CASES[index].1,\n-                    platform.name(),\n-                ));\n-            }\n-        },\n-    );\n-    #[cfg(target_arch = \"x86_64\")]\n-    if crate::platform::wide_avx512() {\n-        // Sound: `wide_avx512()` requires AVX-512, so `platform` is AVX-512\n-        // and hash_many dispatches to these kernels. Their wrapper checks\n-        // bounds on stack.\n-        checked += unsafe { crate::avx512_32::self_test(&previous) };\n-    }\n-    checked += crate::ffi_output::self_test(platform);\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        checked += crate::ffi_partial::self_test(platform);\n-    }\n-    checked += crate::ffi_packed::self_test(platform);\n-    checked += crate::ffi_counter::self_test(platform);\n-    let _ = previous;\n-    (platform, checked)\n+    (Default::default(), 0) /* ~ changed by cargo-mutants ~ */\n }\n \n /// Run every startup self-test case and publish the verified platform once.\n fn run() -> usize {\n     let (platform, checked) = run_checks();\n     #[cfg(test)]\n     if HOLD_RUN.load(core::sync::atomic::Ordering::Relaxed) {\n         IN_RUN.store(true, core::sync::atomic::Ordering::Release);\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "run_checks",
+      "return_type": "-> (Platform, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 472
+        },
+        "start": {
+          "column": 1,
+          "line": 414
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:421:5: replace run_checks -> (Platform, usize) with (Default::default(), 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Default::default(), 0)",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 471
+      },
+      "start": {
+        "column": 5,
+        "line": 421
+      }
+    }
+  }
+]
