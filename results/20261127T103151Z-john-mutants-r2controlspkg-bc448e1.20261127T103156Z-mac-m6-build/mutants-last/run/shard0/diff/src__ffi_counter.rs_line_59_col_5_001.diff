@@ -1,0 +1,102 @@
+--- src/ffi_counter.rs
++++ replace hash_counter_groups -> usize with 1
+@@ -51,98 +51,17 @@
+     blen_u8: u8,
+     counter_word: usize,
+     start: u32,
+     key: &CVWords,
+     root_flags: u8,
+     out: &mut [[u8; OUT_LEN]],
+     platform: Platform,
+ ) -> usize {
+-    let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) << 8);
+-    let mut done = 0usize;
+-
+-    #[cfg(target_arch = "aarch64")]
+-    if matches!(platform, Platform::SME2 { .. }) {
+-        let groups = out.len() / 16;
+-        if groups > 0 {
+-            let kernel: unsafe extern "C" fn(*const u32, *const u32, u64, u64, *mut u8, u64) -> u64 = ffi_sme2::blake3_servil_sme2_counter;
+-            // Sound: `Platform::SME2` verified SME2 support; `tmpl_words` holds
+-            // 16 readable `u32` words, `key` holds 8 readable `u32` words,
+-            // `counter_word < 16`, and `out` holds at least `16 * groups`
+-            // writable 32-byte slots. The kernel checks SVL == 16 and
+-            // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state
+-            // and returns 16 only when all `16 * groups` digests were written.
+-            let svl =
+-                unsafe { kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast(), groups as u64) };
+-            if svl == 16 {
+-                crate::ran_kernel(kernel as *const ());
+-                done += groups * 16;
+-            }
+-        }
+-        // Any remainder (< 16, SVL != 16, or nonzero TPIDR2_EL0 reserved bytes)
+-        // falls through to NEON 8+3 below.
+-    }
+-
+-    #[cfg(target_arch = "aarch64")]
+-    if matches!(platform, Platform::NEON { .. } | Platform::SME2 { .. }) {
+-        let rem = out.len() - done;
+-        let groups = rem / 11;
+-        if groups > 0 {
+-            let kernel: unsafe extern "C" fn(*const u32, *const u32, u64, u64, *mut u8, u64) = ffi_neon::blake3_servil_neon_p11_counter;
+-            crate::ran_kernel(kernel as *const ());
+-            let cur = wrapping_add_usize(start, done);
+-            // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`;
+-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8
+-            // readable `u32` words, `counter_word < 16`, and `out[done..]`
+-            // holds at least `11 * groups` writable 32-byte slots.
+-            unsafe {
+-                kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast(), groups as u64);
+-            }
+-            done += groups * 11;
+-        }
+-        return done;
+-    }
+-
+-    #[cfg(target_arch = "x86_64")]
+-    if matches!(platform, Platform::AVX512 { .. }) {
+-        let groups = out.len() / 16;
+-        if groups > 0 {
+-            let kernel: unsafe extern "C" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx512_counter;
+-            crate::ran_kernel(kernel as *const ());
+-            // Sound: `Platform::AVX512` verified AVX-512F+VL; `tmpl_words`
+-            // holds 16 readable `u32` words, `key` holds 8 readable `u32`
+-            // words, `counter_word < 16`, and `out` holds at least
+-            // `16 * groups` writable 32-byte slots.
+-            unsafe {
+-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast());
+-            }
+-            done += groups * 16;
+-        }
+-    }
+-
+-    #[cfg(target_arch = "x86_64")]
+-    if matches!(platform, Platform::AVX2 { .. } | Platform::AVX512 { .. }) {
+-        let rem = out.len() - done;
+-        let groups = rem / 8;
+-        if groups > 0 {
+-            let kernel: unsafe extern "C" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx2_counter;
+-            crate::ran_kernel(kernel as *const ());
+-            let cur = wrapping_add_usize(start, done);
+-            // Sound: `Platform::AVX2` and `Platform::AVX512` guarantee AVX2;
+-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8
+-            // readable `u32` words, `counter_word < 16`, and `out[done..]`
+-            // holds at least `8 * groups` writable 32-byte slots.
+-            unsafe {
+-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast());
+-            }
+-            done += groups * 8;
+-        }
+-    }
+-
+-    done
++    1 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Hash `out.len()` single-block messages derived from `template` on
+ /// `platform`, replacing the 4-byte little-endian word at `counter_word * 4`
+ /// with `start.wrapping_add(i)` (modulo 2^32) for `i in 0..out.len()`.
+ pub(crate) fn hash_counter_range_on(template: &[u8], counter_word: usize, start: u32, key: &CVWords, flags: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {
+     validate_counter_range(template, counter_word);
+     if out.is_empty() {

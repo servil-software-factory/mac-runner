@@ -1,0 +1,98 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::commit_multi with ()\n@@ -1840,85 +1840,17 @@\n             self.slots[s].kind = SlotKind::OpenShort { room: room.index, offset: start_offset, len: u32::try_from(written).expect(\"written < ROOM_LEN\") };\n             return;\n         }\n         self.commit_multi(s, room, written);\n     }\n \n     #[inline(never)]\n     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {\n-        let start_offset = room.offset;\n-        let room_idx = room.index;\n-\n-        match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                // Debug-only: an `OpenEmpty` slot always starts at offset 0 and finishes a full `ROOM_LEN` fill.\n-                debug_assert_eq!(written, ROOM_LEN);\n-                debug_assert_eq!(start_offset, 0);\n-                room.offset = u32::try_from(ROOM_LEN).unwrap();\n-                self.room_streams[s] = RoomStream::EMPTY;\n-                self.slots[s].kind = SlotKind::OpenRooms { sealed: false };\n-            }\n-            SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {\n-                panic!(\"commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room\");\n-            }\n-            SlotKind::OpenRooms { ref mut sealed } => {\n-                if written == ROOM_LEN {\n-                    // Debug-only: writing a full `ROOM_LEN` is only possible when starting at offset 0.\n-                    debug_assert_eq!(start_offset, 0);\n-                    room.offset = u32::try_from(ROOM_LEN).unwrap();\n-                } else {\n-                    *sealed = true;\n-                    room.offset = u32::try_from(((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN)).expect(\"bounded by ROOM_LEN\");\n-                    if written == 0 {\n-                        return;\n-                    }\n-                }\n-            }\n-            _ => unreachable!(\"Message token refers to a non-open slot\"),\n-        }\n-\n-        room.take_credit();\n-        let rs = &mut self.room_streams[s];\n-        // The earlier commits all filled a whole room. A short one\n-        // seals the message, so there can be no commit after it.\n-        let index = rs.len / ROOM_LEN as u64;\n-        rs.len = rs.len.checked_add(written as u64).expect(\"a message fits in u64 bytes\");\n-\n-        self.drain_slot_pieces(s);\n-        let pnode = self.alloc_piece_node(s);\n-        // Sound: as `storage()`. The node came off the free list, so no task\n-        // uses it: its fields are the owner's to write before the dispatch\n-        // below.\n-        let st = unsafe { &*self.storage };\n-        let node = &st.pieces[pnode as usize];\n-        unsafe {\n-            *node.slot.get() = u32::try_from(s).expect(\"slot fits u32\");\n-            *node.room.get() = room_idx;\n-            *node.offset.get() = start_offset;\n-            *node.len.get() = u32::try_from(written).expect(\"written <= ROOM_LEN\");\n-            *node.index.get() = index;\n-            *node.next.get() = NONE;\n-        }\n-        node.done.store(false, Ordering::Relaxed);\n-\n-        let rs = &mut self.room_streams[s];\n-        if rs.tail_piece == NONE {\n-            rs.head_piece = pnode;\n-            rs.piece_slot_pos = u32::try_from(self.piece_slots.len()).expect(\"piece_slots length fits u32\");\n-            self.piece_slots.push(u32::try_from(s).expect(\"slot fits u32\"));\n-        } else {\n-            // Sound: `next` is the owner's alone (workers read a node's other\n-            // fields).\n-            unsafe { *st.pieces[rs.tail_piece as usize].next.get() = pnode };\n-        }\n-        rs.tail_piece = pnode;\n-\n-        let arg = pack_arg(KIND_ROOM_PIECE, pnode, u32::from(self.slots[s].mode != SlotMode::Default), written >= SME2_MIN_LEN);\n-        self.dispatch_one(arg);\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn alloc_piece_node(&mut self, current_slot: usize) -> u32 {\n         if let Some(p) = self.free_pieces.pop_front() {\n             return p;\n         }\n         loop {\n             self.drain_slot_pieces(current_slot);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::commit_multi",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1917
+        },
+        "start": {
+          "column": 5,
+          "line": 1846
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1848:9: replace Pipeline<T, B, P>::commit_multi with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 1916
+      },
+      "start": {
+        "column": 9,
+        "line": 1848
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete match arm SlotKind::OpenEmpty in Pipeline<T, B, P>::commit_multi\n@@ -1844,24 +1844,17 @@\n     }\n \n     #[inline(never)]\n     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {\n         let start_offset = room.offset;\n         let room_idx = room.index;\n \n         match self.slots[s].kind {\n-            SlotKind::OpenEmpty => {\n-                // Debug-only: an `OpenEmpty` slot always starts at offset 0 and finishes a full `ROOM_LEN` fill.\n-                debug_assert_eq!(written, ROOM_LEN);\n-                debug_assert_eq!(start_offset, 0);\n-                room.offset = u32::try_from(ROOM_LEN).unwrap();\n-                self.room_streams[s] = RoomStream::EMPTY;\n-                self.slots[s].kind = SlotKind::OpenRooms { sealed: false };\n-            }\n+             /* ~ changed by cargo-mutants ~ */\n             SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {\n                 panic!(\"commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room\");\n             }\n             SlotKind::OpenRooms { ref mut sealed } => {\n                 if written == ROOM_LEN {\n                     // Debug-only: writing a full `ROOM_LEN` is only possible when starting at offset 0.\n                     debug_assert_eq!(start_offset, 0);\n                     room.offset = u32::try_from(ROOM_LEN).unwrap();\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::commit_multi",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1917
+        },
+        "start": {
+          "column": 5,
+          "line": 1846
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/pipeline.rs:1852:13: delete match arm SlotKind::OpenEmpty in Pipeline<T, B, P>::commit_multi",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1859
+      },
+      "start": {
+        "column": 13,
+        "line": 1852
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ delete match arm SlotKind::OpenRooms{ref mut sealed} in Pipeline<T, B, P>::commit_multi\n@@ -1855,29 +1855,17 @@\n                 debug_assert_eq!(start_offset, 0);\n                 room.offset = u32::try_from(ROOM_LEN).unwrap();\n                 self.room_streams[s] = RoomStream::EMPTY;\n                 self.slots[s].kind = SlotKind::OpenRooms { sealed: false };\n             }\n             SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {\n                 panic!(\"commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room\");\n             }\n-            SlotKind::OpenRooms { ref mut sealed } => {\n-                if written == ROOM_LEN {\n-                    // Debug-only: writing a full `ROOM_LEN` is only possible when starting at offset 0.\n-                    debug_assert_eq!(start_offset, 0);\n-                    room.offset = u32::try_from(ROOM_LEN).unwrap();\n-                } else {\n-                    *sealed = true;\n-                    room.offset = u32::try_from(((start_offset as usize + written).div_ceil(64) * 64).min(ROOM_LEN)).expect(\"bounded by ROOM_LEN\");\n-                    if written == 0 {\n-                        return;\n-                    }\n-                }\n-            }\n+             /* ~ changed by cargo-mutants ~ */\n             _ => unreachable!(\"Message token refers to a non-open slot\"),\n         }\n \n         room.take_credit();\n         let rs = &mut self.room_streams[s];\n         // The earlier commits all filled a whole room. A short one\n         // seals the message, so there can be no commit after it.\n         let index = rs.len / ROOM_LEN as u64;\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::commit_multi",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1917
+        },
+        "start": {
+          "column": 5,
+          "line": 1846
+        }
+      }
+    },
+    "genre": "MatchArm",
+    "name": "src/pipeline.rs:1863:13: delete match arm SlotKind::OpenRooms{ref mut sealed} in Pipeline<T, B, P>::commit_multi",
+    "package": "blake3-servil",
+    "replacement": "",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1875
+      },
+      "start": {
+        "column": 13,
+        "line": 1863
+      }
+    }
+  }
+]

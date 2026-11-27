@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace hash_counter_groups -> usize with 0\n@@ -51,98 +51,17 @@\n     blen_u8: u8,\n     counter_word: usize,\n     start: u32,\n     key: &CVWords,\n     root_flags: u8,\n     out: &mut [[u8; OUT_LEN]],\n     platform: Platform,\n ) -> usize {\n-    let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) << 8);\n-    let mut done = 0usize;\n-\n-    #[cfg(target_arch = \"aarch64\")]\n-    if matches!(platform, Platform::SME2 { .. }) {\n-        let groups = out.len() / 16;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) -> u64 = ffi_sme2::blake3_servil_sme2_counter;\n-            // Sound: `Platform::SME2` verified SME2 support; `tmpl_words` holds\n-            // 16 readable `u32` words, `key` holds 8 readable `u32` words,\n-            // `counter_word < 16`, and `out` holds at least `16 * groups`\n-            // writable 32-byte slots. The kernel checks SVL == 16 and\n-            // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state\n-            // and returns 16 only when all `16 * groups` digests were written.\n-            let svl =\n-                unsafe { kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast(), groups as u64) };\n-            if svl == 16 {\n-                crate::ran_kernel(kernel as *const ());\n-                done += groups * 16;\n-            }\n-        }\n-        // Any remainder (< 16, SVL != 16, or nonzero TPIDR2_EL0 reserved bytes)\n-        // falls through to NEON 8+3 below.\n-    }\n-\n-    #[cfg(target_arch = \"aarch64\")]\n-    if matches!(platform, Platform::NEON { .. } | Platform::SME2 { .. }) {\n-        let rem = out.len() - done;\n-        let groups = rem / 11;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) = ffi_neon::blake3_servil_neon_p11_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            let cur = wrapping_add_usize(start, done);\n-            // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`;\n-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n-            // readable `u32` words, `counter_word < 16`, and `out[done..]`\n-            // holds at least `11 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast(), groups as u64);\n-            }\n-            done += groups * 11;\n-        }\n-        return done;\n-    }\n-\n-    #[cfg(target_arch = \"x86_64\")]\n-    if matches!(platform, Platform::AVX512 { .. }) {\n-        let groups = out.len() / 16;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx512_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            // Sound: `Platform::AVX512` verified AVX-512F+VL; `tmpl_words`\n-            // holds 16 readable `u32` words, `key` holds 8 readable `u32`\n-            // words, `counter_word < 16`, and `out` holds at least\n-            // `16 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast());\n-            }\n-            done += groups * 16;\n-        }\n-    }\n-\n-    #[cfg(target_arch = \"x86_64\")]\n-    if matches!(platform, Platform::AVX2 { .. } | Platform::AVX512 { .. }) {\n-        let rem = out.len() - done;\n-        let groups = rem / 8;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx2_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            let cur = wrapping_add_usize(start, done);\n-            // Sound: `Platform::AVX2` and `Platform::AVX512` guarantee AVX2;\n-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n-            // readable `u32` words, `counter_word < 16`, and `out[done..]`\n-            // holds at least `8 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast());\n-            }\n-            done += groups * 8;\n-        }\n-    }\n-\n-    done\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Hash `out.len()` single-block messages derived from `template` on\n /// `platform`, replacing the 4-byte little-endian word at `counter_word * 4`\n /// with `start.wrapping_add(i)` (modulo 2^32) for `i in 0..out.len()`.\n pub(crate) fn hash_counter_range_on(template: &[u8], counter_word: usize, start: u32, key: &CVWords, flags: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n     validate_counter_range(template, counter_word);\n     if out.is_empty() {\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 141
+        },
+        "start": {
+          "column": 1,
+          "line": 47
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_counter.rs:59:5: replace hash_counter_groups -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 140
+      },
+      "start": {
+        "column": 5,
+        "line": 59
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_counter.rs\n+++ replace hash_counter_groups -> usize with 1\n@@ -51,98 +51,17 @@\n     blen_u8: u8,\n     counter_word: usize,\n     start: u32,\n     key: &CVWords,\n     root_flags: u8,\n     out: &mut [[u8; OUT_LEN]],\n     platform: Platform,\n ) -> usize {\n-    let flags_and_len = u64::from(root_flags) + (u64::from(blen_u8) << 8);\n-    let mut done = 0usize;\n-\n-    #[cfg(target_arch = \"aarch64\")]\n-    if matches!(platform, Platform::SME2 { .. }) {\n-        let groups = out.len() / 16;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) -> u64 = ffi_sme2::blake3_servil_sme2_counter;\n-            // Sound: `Platform::SME2` verified SME2 support; `tmpl_words` holds\n-            // 16 readable `u32` words, `key` holds 8 readable `u32` words,\n-            // `counter_word < 16`, and `out` holds at least `16 * groups`\n-            // writable 32-byte slots. The kernel checks SVL == 16 and\n-            // `TPIDR2_EL0` reserved bytes before touching ZA/streaming state\n-            // and returns 16 only when all `16 * groups` digests were written.\n-            let svl =\n-                unsafe { kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast(), groups as u64) };\n-            if svl == 16 {\n-                crate::ran_kernel(kernel as *const ());\n-                done += groups * 16;\n-            }\n-        }\n-        // Any remainder (< 16, SVL != 16, or nonzero TPIDR2_EL0 reserved bytes)\n-        // falls through to NEON 8+3 below.\n-    }\n-\n-    #[cfg(target_arch = \"aarch64\")]\n-    if matches!(platform, Platform::NEON { .. } | Platform::SME2 { .. }) {\n-        let rem = out.len() - done;\n-        let groups = rem / 11;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, *const u32, u64, u64, *mut u8, u64) = ffi_neon::blake3_servil_neon_p11_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            let cur = wrapping_add_usize(start, done);\n-            // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`;\n-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n-            // readable `u32` words, `counter_word < 16`, and `out[done..]`\n-            // holds at least `11 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast(), groups as u64);\n-            }\n-            done += groups * 11;\n-        }\n-        return done;\n-    }\n-\n-    #[cfg(target_arch = \"x86_64\")]\n-    if matches!(platform, Platform::AVX512 { .. }) {\n-        let groups = out.len() / 16;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx512_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            // Sound: `Platform::AVX512` verified AVX-512F+VL; `tmpl_words`\n-            // holds 16 readable `u32` words, `key` holds 8 readable `u32`\n-            // words, `counter_word < 16`, and `out` holds at least\n-            // `16 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(start, counter_word), flags_and_len, out.as_mut_ptr().cast());\n-            }\n-            done += groups * 16;\n-        }\n-    }\n-\n-    #[cfg(target_arch = \"x86_64\")]\n-    if matches!(platform, Platform::AVX2 { .. } | Platform::AVX512 { .. }) {\n-        let rem = out.len() - done;\n-        let groups = rem / 8;\n-        if groups > 0 {\n-            let kernel: unsafe extern \"C\" fn(*const u32, u64, *const u32, u64, u64, *mut u8) = ffi_x86::blake3_servil_avx2_counter;\n-            crate::ran_kernel(kernel as *const ());\n-            let cur = wrapping_add_usize(start, done);\n-            // Sound: `Platform::AVX2` and `Platform::AVX512` guarantee AVX2;\n-            // `tmpl_words` holds 16 readable `u32` words, `key` holds 8\n-            // readable `u32` words, `counter_word < 16`, and `out[done..]`\n-            // holds at least `8 * groups` writable 32-byte slots.\n-            unsafe {\n-                kernel(tmpl_words.as_ptr(), groups as u64, key.as_ptr(), base_and_word(cur, counter_word), flags_and_len, out[done..].as_mut_ptr().cast());\n-            }\n-            done += groups * 8;\n-        }\n-    }\n-\n-    done\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Hash `out.len()` single-block messages derived from `template` on\n /// `platform`, replacing the 4-byte little-endian word at `counter_word * 4`\n /// with `start.wrapping_add(i)` (modulo 2^32) for `i in 0..out.len()`.\n pub(crate) fn hash_counter_range_on(template: &[u8], counter_word: usize, start: u32, key: &CVWords, flags: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {\n     validate_counter_range(template, counter_word);\n     if out.is_empty() {\n",
+    "file": "src/ffi_counter.rs",
+    "function": {
+      "function_name": "hash_counter_groups",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 141
+        },
+        "start": {
+          "column": 1,
+          "line": 47
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_counter.rs:59:5: replace hash_counter_groups -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 9,
+        "line": 140
+      },
+      "start": {
+        "column": 5,
+        "line": 59
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_two_chunks with ()\n@@ -240,72 +240,17 @@\n /// lane (q1) or a pair alone (k2); side by side the plans fill their\n /// lanes with the batch. VM, ns per message, one hash() each / side by\n /// side: 2000 B x 2 1018 / 927, x 3 1036 / 653, x 4 1050 / 697, x 8 690\n /// (SME2 from 7); 1100 B x 3 442 / 379. Commonware's four NEON lanes: 2000\n /// B x 4 824 (Mac P-core 914 against servil's 1050 before, job 283).\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn hash_two_chunks(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]]) {\n-    use crate::PARENT;\n-    let slot = slot_len(len);\n-    let second = len - CHUNK_LEN;\n-    let second_blocks = second.div_ceil(BLOCK_LEN);\n-    let last_len = second - (second_blocks - 1) * BLOCK_LEN;\n-    // Sixteen at a time, as the plans take them: small arrays to zero.\n-    const GROUP: usize = 16;\n-    for (messages, digests) in input.chunks(slot * GROUP).zip(outputs.chunks_mut(GROUP)) {\n-        let count = digests.len();\n-        let mut firsts = crate::stack_vec::StackVec::<&[u8; CHUNK_LEN], GROUP>::new();\n-        let mut seconds = crate::stack_vec::StackVec::<*const u8, GROUP>::new();\n-        firsts.extend(messages.chunks_exact(slot).map(|m| m[..CHUNK_LEN].try_into().expect(\"a whole first chunk\")));\n-        seconds.extend(messages.chunks_exact(slot).map(|m| m[CHUNK_LEN..].as_ptr()));\n-        assert_eq!(firsts.len(), count, \"one two-chunk slot per output\");\n-        assert_eq!(seconds.len(), count, \"one second chunk per output\");\n-        let mut cvs = [[0u8; OUT_LEN]; 2 * GROUP];\n-        let mut pairs = [[0u8; BLOCK_LEN]; GROUP];\n-        // Sound: `firsts` and `seconds` hold exactly `count` initialized\n-        // entries; each second-chunk pointer reaches `second_blocks` whole\n-        // blocks inside its slot, zero past the message; NEON is mandatory on\n-        // AArch64 (checked by `Platform::detect` / `build.rs` target gate).\n-        unsafe {\n-            crate::neon_hybrid::hash_many_last_len(\n-                &firsts,\n-                key,\n-                0,\n-                IncrementCounter::No,\n-                flags,\n-                CHUNK_START,\n-                CHUNK_END,\n-                BLOCK_LEN,\n-                cvs[..count].as_flattened_mut(),\n-            );\n-            crate::neon_hybrid::hash_messages_raw(\n-                seconds.as_ptr(),\n-                seconds.len(),\n-                second_blocks,\n-                key,\n-                1,\n-                flags,\n-                CHUNK_START,\n-                CHUNK_END,\n-                last_len,\n-                cvs[count..2 * count].as_flattened_mut(),\n-            );\n-        }\n-        for (i, pair) in pairs[..count].iter_mut().enumerate() {\n-            pair[..OUT_LEN].copy_from_slice(&cvs[i]);\n-            pair[OUT_LEN..].copy_from_slice(&cvs[count + i]);\n-        }\n-        let parents: crate::stack_vec::StackVec<&[u8; BLOCK_LEN], GROUP> = pairs[..count].iter().collect();\n-        // Sound: as above.\n-        unsafe {\n-            crate::neon_hybrid::hash_many_last_len(&parents, key, 0, IncrementCounter::No, flags | PARENT, 0, ROOT, BLOCK_LEN, digests.as_flattened_mut())\n-        };\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Number of messages to hash across when `count >= least`: whole-chunk\n /// AVX-512 batches of 16..=31 (`least == ACROSS_GROUP`) hash their full\n /// 16-message prefix across and leave the 0..=15 remainder serial, avoiding\n /// the +14% slowdown of running a short tail through `hash_group_across`\n /// (e.g. 15 KiB x 17). Larger batches (>= 32) and all other shapes stay\n /// all-across.\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_two_chunks",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 304
+        },
+        "start": {
+          "column": 1,
+          "line": 236
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:248:5: replace hash_two_chunks with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 303
+      },
+      "start": {
+        "column": 5,
+        "line": 248
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace run_checks -> (Platform, usize) with (Default::default(), 0)\n@@ -413,74 +413,17 @@\n \n /// Run every case for the detected platform and stop on the first that differs\n /// from the reference, returning `(platform, checked)` without publishing.\n /// Separating verification from `platform.record()` guarantees every kernel\n /// self-test completes before publication.\n fn run_checks() -> (Platform, usize) {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n-    #[cfg(test)]\n-    if PLANTED_FAILURE.load(core::sync::atomic::Ordering::Relaxed) {\n-        panic!(\"a kernel's panic, planted by a test\");\n-    }\n-    compiled_features_present();\n-    let platform = Platform::detect_unchecked();\n-    let mut checked = 0;\n-    #[cfg(test)]\n-    let mut index = 0;\n-    let previous = chain(\n-        |case, input, previous, out| {\n-            let written = outputs(platform, case, input, previous, out);\n-            // A wrong digest a test plants in one case, as a CPU or build\n-            // that computes one would give.\n-            #[cfg(test)]\n-            {\n-                if index == PLANTED_WRONG_CASE.load(core::sync::atomic::Ordering::Relaxed) {\n-                    out[written - 1] ^= 1;\n-                }\n-                index += 1;\n-            }\n-            written\n-        },\n-        |index, folded| {\n-            checked += 1;\n-            if folded != EXPECTED[index] {\n-                stop(format_args!(\n-                    \"blake3-servil startup self-test failed: case {index}, {} (platform {}): this build or this CPU \\\n-                     computes wrong BLAKE3 digests on that path\",\n-                    CASES[index].1,\n-                    platform.name(),\n-                ));\n-            }\n-        },\n-    );\n-    #[cfg(target_arch = \"x86_64\")]\n-    if crate::platform::wide_avx512() {\n-        // Sound: `wide_avx512()` requires AVX-512, so `platform` is AVX-512\n-        // and hash_many dispatches to these kernels. Their wrapper checks\n-        // bounds on stack.\n-        checked += unsafe { crate::avx512_32::self_test(&previous) };\n-    }\n-    checked += crate::ffi_output::self_test(platform);\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        checked += crate::ffi_partial::self_test(platform);\n-    }\n-    checked += crate::ffi_packed::self_test(platform);\n-    #[cfg(test)]\n-    if HOLD_RUN.load(core::sync::atomic::Ordering::Relaxed) {\n-        IN_RUN.store(true, core::sync::atomic::Ordering::Release);\n-        while HOLD_RUN.load(core::sync::atomic::Ordering::Acquire) {\n-            std::thread::yield_now();\n-        }\n-    }\n-    checked += crate::ffi_counter::self_test(platform);\n-    let _ = previous;\n-    (platform, checked)\n+    (Default::default(), 0) /* ~ changed by cargo-mutants ~ */\n }\n \n /// Run every startup self-test case and publish the verified platform once.\n fn run() -> usize {\n     let (platform, checked) = run_checks();\n     platform.record();\n     checked\n }\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "run_checks",
+      "return_type": "-> (Platform, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 479
+        },
+        "start": {
+          "column": 1,
+          "line": 414
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:421:5: replace run_checks -> (Platform, usize) with (Default::default(), 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Default::default(), 0)",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 478
+      },
+      "start": {
+        "column": 5,
+        "line": 421
+      }
+    }
+  }
+]

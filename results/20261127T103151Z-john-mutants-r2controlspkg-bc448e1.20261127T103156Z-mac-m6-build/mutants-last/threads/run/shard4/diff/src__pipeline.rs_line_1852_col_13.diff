@@ -1,0 +1,28 @@
+--- src/pipeline.rs
++++ delete match arm SlotKind::OpenEmpty in Pipeline<T, B, P>::commit_multi
+@@ -1844,24 +1844,17 @@
+     }
+ 
+     #[inline(never)]
+     fn commit_multi(&mut self, s: usize, room: &mut Room, written: usize) {
+         let start_offset = room.offset;
+         let room_idx = room.index;
+ 
+         match self.slots[s].kind {
+-            SlotKind::OpenEmpty => {
+-                // Debug-only: an `OpenEmpty` slot always starts at offset 0 and finishes a full `ROOM_LEN` fill.
+-                debug_assert_eq!(written, ROOM_LEN);
+-                debug_assert_eq!(start_offset, 0);
+-                room.offset = u32::try_from(ROOM_LEN).unwrap();
+-                self.room_streams[s] = RoomStream::EMPTY;
+-                self.slots[s].kind = SlotKind::OpenRooms { sealed: false };
+-            }
++             /* ~ changed by cargo-mutants ~ */
+             SlotKind::OpenShort { .. } | SlotKind::OpenShortDispatched { .. } | SlotKind::OpenRooms { sealed: true } => {
+                 panic!("commit after a commit of less than ROOM_LEN: every commit to a message but its last is a whole room");
+             }
+             SlotKind::OpenRooms { ref mut sealed } => {
+                 if written == ROOM_LEN {
+                     // Debug-only: writing a full `ROOM_LEN` is only possible when starting at offset 0.
+                     debug_assert_eq!(start_offset, 0);
+                     room.offset = u32::try_from(ROOM_LEN).unwrap();
