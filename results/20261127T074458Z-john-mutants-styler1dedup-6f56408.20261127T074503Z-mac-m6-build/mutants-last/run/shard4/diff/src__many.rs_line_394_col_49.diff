@@ -1,0 +1,21 @@
+--- src/many.rs
++++ replace + with - in multi_block_short_last
+@@ -386,17 +386,17 @@
+     platform: Platform,
+     width: usize,
+ ) {
+     assert!(last_len > 0 && last_len < BLOCK_LEN, "short final block");
+     let prefix_len = slot - BLOCK_LEN;
+     let last_len_u8 = u8::try_from(last_len).expect("last block <= 64");
+     let done = crate::ffi_output::for_each_output_group(outputs.len(), width, |start, count, lane_width| {
+         let messages = &input[start * slot..(start + count) * slot];
+-        let digests = &mut outputs[start..start + count];
++        let digests = &mut outputs[start..start - /* ~ changed by cargo-mutants ~ */ count];
+         if lane_width == 16 {
+             multi_block_short_last_tile::<16>(messages, slot, key, flags, last_len_u8, digests, platform);
+         } else {
+             multi_block_short_last_tile::<8>(messages, slot, key, flags, last_len_u8, digests, platform);
+         }
+     });
+     for (i, output) in outputs[done..].iter_mut().enumerate() {
+         *output = *crate::hash_serial_on(&input[(done + i) * slot..][..prefix_len + last_len], key, flags, platform).as_bytes();
