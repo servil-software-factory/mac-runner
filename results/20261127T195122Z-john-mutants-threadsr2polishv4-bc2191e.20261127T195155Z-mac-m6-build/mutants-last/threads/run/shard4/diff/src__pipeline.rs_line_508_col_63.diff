@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace * with + in PipeSlot::acquire
+@@ -500,17 +500,17 @@
+ #[cfg(shuttle)]
+ #[allow(dead_code)]
+ #[path = "../tests/model/storages.rs"]
+ pub(crate) mod model_storages;
+ 
+ impl PipeSlot {
+     fn acquire(actions: usize, messages: usize) -> (&'static PipeSlot, u64, u64) {
+         let has_workers = crate::lanes::pool_has_workers();
+-        let need = if has_workers { actions } else { messages * MAX_SLOT_PIECES };
++        let need = if has_workers { actions } else { messages + /* ~ changed by cargo-mutants ~ */ MAX_SLOT_PIECES };
+         let cap = need.max(1024).checked_next_power_of_two().expect("admitted action capacity fits power of two");
+         let tier = slot_tier(cap);
+         if let Some(FreeSlot { slot, next_group_epoch, next_loan_epoch }) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {
+             return (slot, next_group_epoch, next_loan_epoch);
+         }
+         let max_slots = cap / MAX_SLOT_PIECES;
+         let max_groups = max_slots.clamp(4, 256);
+         #[cfg(any(test, shuttle))]

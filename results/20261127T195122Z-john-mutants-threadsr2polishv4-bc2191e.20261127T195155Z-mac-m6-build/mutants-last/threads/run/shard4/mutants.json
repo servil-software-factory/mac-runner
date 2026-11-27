@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace * with + in PipeSlot::acquire\n@@ -500,17 +500,17 @@\n #[cfg(shuttle)]\n #[allow(dead_code)]\n #[path = \"../tests/model/storages.rs\"]\n pub(crate) mod model_storages;\n \n impl PipeSlot {\n     fn acquire(actions: usize, messages: usize) -> (&'static PipeSlot, u64, u64) {\n         let has_workers = crate::lanes::pool_has_workers();\n-        let need = if has_workers { actions } else { messages * MAX_SLOT_PIECES };\n+        let need = if has_workers { actions } else { messages + /* ~ changed by cargo-mutants ~ */ MAX_SLOT_PIECES };\n         let cap = need.max(1024).checked_next_power_of_two().expect(\"admitted action capacity fits power of two\");\n         let tier = slot_tier(cap);\n         if let Some(FreeSlot { slot, next_group_epoch, next_loan_epoch }) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {\n             return (slot, next_group_epoch, next_loan_epoch);\n         }\n         let max_slots = cap / MAX_SLOT_PIECES;\n         let max_groups = max_slots.clamp(4, 256);\n         #[cfg(any(test, shuttle))]\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeSlot::acquire",
+      "return_type": "-> (&'static PipeSlot, u64, u64)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 533
+        },
+        "start": {
+          "column": 5,
+          "line": 506
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:508:63: replace * with + in PipeSlot::acquire",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 64,
+        "line": 508
+      },
+      "start": {
+        "column": 63,
+        "line": 508
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeSlot::release with ()\n@@ -528,18 +528,17 @@\n         #[cfg(shuttle)]\n         MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));\n         // Sound: `raw` stays live for the process (freed only after all Shuttle\n         // worker threads join in `model_storages::free_storages_for_model`).\n         (unsafe { &*raw }, 1, 1)\n     }\n \n     fn release(slot: &'static PipeSlot, next_group_epoch: u64, next_loan_epoch: u64) {\n-        let tier = slot_tier(slot.loan_completed.len() * MAX_SLOT_PIECES);\n-        FREE_PIPE_SLOTS.lock().unwrap()[tier].push(FreeSlot { slot, next_group_epoch, next_loan_epoch });\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Per-`Pipeline` heap-allocated backing storage (`Rooms`, short-message\n /// groups, piece nodes, per-slot buffers, and completion flags), freed cleanly\n /// when its `Pipeline` and any surviving [`Room`]s drop (#465).\n pub(crate) struct PipeStorage {\n     slot: crate::pipeline_sync::SlotRef<PipeSlot>,\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeSlot::release",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 538
+        },
+        "start": {
+          "column": 5,
+          "line": 535
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:536:9: replace PipeSlot::release with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 106,
+        "line": 537
+      },
+      "start": {
+        "column": 9,
+        "line": 536
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace * with + in PipeSlot::release\n@@ -528,17 +528,17 @@\n         #[cfg(shuttle)]\n         MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));\n         // Sound: `raw` stays live for the process (freed only after all Shuttle\n         // worker threads join in `model_storages::free_storages_for_model`).\n         (unsafe { &*raw }, 1, 1)\n     }\n \n     fn release(slot: &'static PipeSlot, next_group_epoch: u64, next_loan_epoch: u64) {\n-        let tier = slot_tier(slot.loan_completed.len() * MAX_SLOT_PIECES);\n+        let tier = slot_tier(slot.loan_completed.len() + /* ~ changed by cargo-mutants ~ */ MAX_SLOT_PIECES);\n         FREE_PIPE_SLOTS.lock().unwrap()[tier].push(FreeSlot { slot, next_group_epoch, next_loan_epoch });\n     }\n }\n \n /// Per-`Pipeline` heap-allocated backing storage (`Rooms`, short-message\n /// groups, piece nodes, per-slot buffers, and completion flags), freed cleanly\n /// when its `Pipeline` and any surviving [`Room`]s drop (#465).\n pub(crate) struct PipeStorage {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeSlot::release",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 538
+        },
+        "start": {
+          "column": 5,
+          "line": 535
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:536:56: replace * with + in PipeSlot::release",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 57,
+        "line": 536
+      },
+      "start": {
+        "column": 56,
+        "line": 536
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace Pipeline<T, B, P>::create -> Self with Default::default()\n@@ -1612,97 +1612,17 @@\n     #[inline(always)]\n     fn storage(&self) -> &PipeStorage {\n         // Sound: this `Pipeline` holds a `PipeStorage::holders` reference\n         // keeping `*self.storage` live until `Pipeline::drop`.\n         unsafe { &*self.storage }\n     }\n \n     fn create(mode: Mode, limits: Limits) -> Self {\n-        crate::lanes::require();\n-        prepare_thread();\n-        let (p_cap, g_cap, actions_cap) = pipeline_capacities(limits);\n-        let tree = TreeHasher::new(mode);\n-        let m = limits.messages;\n-        // Reserve a non-wrapping identity before acquiring storage or a source\n-        // slot, and keep exhaustion sticky at u64::MAX so a later caller cannot\n-        // wrap back to previously issued IDs.\n-        let id = loop {\n-            let cur = NEXT_PIPELINE_ID.load(Ordering::Relaxed);\n-            assert!(cur < u64::MAX, \"Pipeline ID counter exhausted\");\n-            if NEXT_PIPELINE_ID.compare_exchange(cur, cur + 1, Ordering::Relaxed, Ordering::Relaxed).is_ok() {\n-                break cur;\n-            }\n-        };\n-\n-        // Build all fallible caller-side arrays (including generic T/B/P slots)\n-        // BEFORE taking a PipeSlot lease, allocating PipeStorage, registering\n-        // the source, or bumping `sources::opened()`, so a layout panic in\n-        // caller-side construction cannot leak process resources.\n-        let (local_free_rooms, free_slots, free_pieces, end_queue) = init_pipeline_rings(m, limits.rooms, p_cap);\n-        let slots: Box<[SlotMeta<T>]> = (0..m).map(|_| SlotMeta { tag: None, kind: SlotKind::Free, mode: SlotMode::Default }).collect();\n-        let room_streams = vec![RoomStream::EMPTY; m].into_boxed_slice();\n-        let owners = RawSlots::new(m);\n-        let batches = RawSlots::new(m);\n-        let batch_plans = vec![None; m].into_boxed_slice();\n-        let events = EventRing::new(m);\n-        let piece_slots = Vec::with_capacity(if limits.rooms == 0 { 0 } else { m });\n-        let assigned_group_epoch = vec![0u64; g_cap].into_boxed_slice();\n-        let seen_group_epoch = vec![0u64; g_cap].into_boxed_slice();\n-        let bufs = Box::new(PipelineBufs {\n-            local_members: [Member { input: core::ptr::null(), len: 0, out: core::ptr::null_mut() }; MEMBERS],\n-            local_rooms: [NONE; MEMBERS],\n-            action_buf: [0; MAX_SLOT_PIECES],\n-            batch_plans,\n-        });\n-\n-        let (pipe_slot, next_group_epoch, next_loan_epoch) = PipeSlot::acquire(actions_cap, m);\n-        let storage = PipeStorage::alloc(pipe_slot, tree, m, limits.rooms, p_cap, g_cap);\n-        // A pool of one thread has no worker to take a published action,\n-        // and only this crate's block_on would run it: an outside executor\n-        // waited for ever. Unregistered, every action runs where it is\n-        // dispatched, as when no slot is free.\n-        let source_slot = if crate::lanes::pool_has_workers() { pipe_slot.source.register() } else { None };\n-        if source_slot.is_some() {\n-            crate::lanes::sources::opened();\n-        }\n-\n-        Pipeline {\n-            id,\n-            limits,\n-            group_count: g_cap,\n-            source_slot,\n-            pipe_slot,\n-            storage,\n-            slots,\n-            room_streams,\n-            owners,\n-            batches,\n-            free_slots,\n-            open_messages: 0,\n-            end_queue,\n-            events,\n-            local_free_rooms,\n-            room_cursor: 0,\n-            free_pieces,\n-            piece_slots,\n-            group_cursor: 0,\n-            open_group: None,\n-            local_count: 0,\n-            local_bytes: 0,\n-            local_batch: None,\n-            local_group_mode: SlotMode::Default,\n-            local_custom_slot: NONE,\n-            batches_in_flight: 0,\n-            next_loan_epoch,\n-            next_group_epoch,\n-            assigned_group_epoch,\n-            seen_group_epoch,\n-            bufs,\n-        }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// Wait for a free message slot and open a [`Message`] in this pipeline's\n     /// default [`Mode`].\n     ///\n     /// `length_hint` is currently ignored (`None` suffices); actual message\n     /// lengths are determined by the bytes submitted via `commit` + `end`,\n     /// `lent`, `owned`, or `batch`.\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "Pipeline<T, B, P>::create",
+      "return_type": "-> Self",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1701
+        },
+        "start": {
+          "column": 5,
+          "line": 1619
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1620:9: replace Pipeline<T, B, P>::create -> Self with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 1700
+      },
+      "start": {
+        "column": 9,
+        "line": 1620
+      }
+    }
+  }
+]

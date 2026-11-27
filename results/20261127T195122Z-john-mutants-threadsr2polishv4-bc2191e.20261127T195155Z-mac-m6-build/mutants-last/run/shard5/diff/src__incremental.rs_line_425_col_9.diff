@@ -1,0 +1,22 @@
+--- src/incremental.rs
++++ replace Hasher::gather -> &mut Self with Box::leak(Box::new(Default::default()))
+@@ -417,18 +417,17 @@
+ 
+     /// `update`'s gathering: an update of STAGE_LEN or more from a 16 KiB
+     /// boundary of the message (or an empty stage) goes to the core whole;
+     /// shorter ones gather in the stage until it reaches the next boundary,
+     /// and the stage goes to the core as one update, its chunks side by
+     /// side in the lanes. A message of under 16 KiB is therefore whole in
+     /// the stage, where `finalize` hashes it as the one-shot call would.
+     fn gather(&mut self, input: &[u8], pooled: Option<&Pool<'_>>) -> &mut Self {
+-        self.gather_part(input, pooled, false);
+-        self
++        Box::leak(Box::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// [`gather`](Hasher::gather), but with `hold`, a stage that fills a
+     /// whole group is kept for the caller to hash with others' (`held_group`),
+     /// and the rest of `input` returned; else nothing is left.
+     pub(crate) fn gather_part<'a>(&mut self, mut input: &'a [u8], pooled: Option<&Pool<'_>>, hold: bool) -> &'a [u8] {
+         check_input_room(self.count(), input.len());
+         while !input.is_empty() {

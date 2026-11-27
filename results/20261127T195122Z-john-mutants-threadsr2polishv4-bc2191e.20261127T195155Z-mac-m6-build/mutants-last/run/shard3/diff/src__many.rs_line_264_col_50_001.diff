@@ -1,0 +1,21 @@
+--- src/many.rs
++++ replace * with / in hash_two_chunks
+@@ -256,17 +256,17 @@
+ fn hash_two_chunks(input: &[u8], len: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]]) {
+     use crate::PARENT;
+     let slot = slot_len(len);
+     let second = len - CHUNK_LEN;
+     let second_blocks = second.div_ceil(BLOCK_LEN);
+     let last_len = second - (second_blocks - 1) * BLOCK_LEN;
+     // Sixteen at a time, as the plans take them: small arrays to zero.
+     const GROUP: usize = 16;
+-    for (messages, digests) in input.chunks(slot * GROUP).zip(outputs.chunks_mut(GROUP)) {
++    for (messages, digests) in input.chunks(slot / /* ~ changed by cargo-mutants ~ */ GROUP).zip(outputs.chunks_mut(GROUP)) {
+         let count = digests.len();
+         let mut firsts = crate::stack_vec::StackVec::<&[u8; CHUNK_LEN], GROUP>::new();
+         let mut seconds = crate::stack_vec::StackVec::<*const u8, GROUP>::new();
+         firsts.extend(messages.chunks_exact(slot).map(|m| m[..CHUNK_LEN].try_into().expect("a whole first chunk")));
+         seconds.extend(messages.chunks_exact(slot).map(|m| m[CHUNK_LEN..].as_ptr()));
+         assert_eq!(firsts.len(), count, "one two-chunk slot per output");
+         assert_eq!(seconds.len(), count, "one second chunk per output");
+         let mut cvs = [[0u8; OUT_LEN]; 2 * GROUP];

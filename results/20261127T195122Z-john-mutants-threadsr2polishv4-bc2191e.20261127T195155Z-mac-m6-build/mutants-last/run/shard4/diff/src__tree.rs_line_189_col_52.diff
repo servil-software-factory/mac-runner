@@ -1,0 +1,21 @@
+--- src/tree.rs
++++ replace && with || in <impl Kernels for PlatformKernels<'_>>::children
+@@ -181,17 +181,17 @@
+     }
+ 
+     #[inline(always)]
+     #[allow(unused_variables)]
+     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> Option<[Cv; 2]> {
+         // Whole subtrees of 32 KiB to 1 MiB on SME2: the flat walk down to
+         // the two children, SME2 alone (see sme2::compress_subtree_flat_to_parent).
+         #[cfg(target_arch = "aarch64")]
+-        if matches!(self.platform, Platform::SME2) && crate::sme2::flat_takes(input.len()) {
++        if matches!(self.platform, Platform::SME2) || /* ~ changed by cargo-mutants ~ */ crate::sme2::flat_takes(input.len()) {
+             // Sound: startup verified FEAT_SME2; SME2 assembly checks the calling thread's SVL at entry and falls back to NEON if != 512 bits.
+             let block = unsafe { crate::sme2::compress_subtree_flat_to_parent(input, ahead, self.key, counter, self.flags) };
+             return Some([block[..OUT_LEN].try_into().unwrap(), block[OUT_LEN..].try_into().unwrap()]);
+         }
+         None
+     }
+ 
+     #[inline(always)]

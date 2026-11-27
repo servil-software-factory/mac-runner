@@ -1,0 +1,36 @@
+--- src/platform.rs
++++ replace read_cpu_words -> CpuWords with Default::default()
+@@ -638,32 +638,17 @@
+ #[cfg(target_arch = "x86_64")]
+ pub(crate) const fn cpuid_has_leaf(max_leaf: u32, leaf: u32) -> bool {
+     max_leaf >= leaf
+ }
+ 
+ #[cfg(target_arch = "x86_64")]
+ #[cold]
+ fn read_cpu_words() -> CpuWords {
+-    use core::arch::x86_64 as arch;
+-    let leaf0 = arch::__cpuid(0);
+-    if !cpuid_has_leaf(leaf0.eax, 1) {
+-        return CpuWords::default();
+-    }
+-    let leaf1 = arch::__cpuid(1);
+-    let mut words = CpuWords { leaf1_eax: leaf1.eax, leaf1_ecx: leaf1.ecx, ..CpuWords::default() };
+-    if os_saves_avx(leaf1.ecx) {
+-        // Sound: OSXSAVE (bit 27) says the OS enabled XGETBV.
+-        words.xcr0 = u32::from_le_bytes(unsafe { arch::_xgetbv(0) }.to_le_bytes()[..4].try_into().unwrap());
+-        words.amd = (leaf0.ebx, leaf0.edx, leaf0.ecx) == (0x6874_7541, 0x6974_6e65, 0x444d_4163); // "AuthenticAMD"
+-        if cpuid_has_leaf(leaf0.eax, 7) {
+-            words.leaf7_ebx = arch::__cpuid_count(7, 0).ebx;
+-        }
+-    }
+-    words
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// [`x86_features`] of a CPU, from its words: SSSE3 + SSE4.1 by leaf 1;
+ /// AVX2 (requiring SSSE3 + SSE4.1) and AVX-512 F+VL (requiring AVX2) by
+ /// leaf 7 where the CPU has AVX and the OS saves the registers each needs
+ /// (XSAVE, OSXSAVE, AVX, then XCR0's YMM bits, and for AVX-512 its opmask
+ /// and ZMM bits too); the wide kernels' bit with AVX-512 on the CPUs
+ /// [`wide_cpu`] names. No reading, no state: its test runs it on every

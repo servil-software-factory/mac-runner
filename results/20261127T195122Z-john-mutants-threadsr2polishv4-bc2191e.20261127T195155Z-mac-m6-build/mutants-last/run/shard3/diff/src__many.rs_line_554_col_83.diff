@@ -1,0 +1,21 @@
+--- src/many.rs
++++ replace | with & in hash_run
+@@ -546,17 +546,17 @@
+     }
+     #[cfg(target_arch = "aarch64")]
+     if platform_is_sme2(platform) {
+         // The messages are one block each and lie one after another: a run of
+         // blocks. SME2's parent kernel reads a group of sixteen through one
+         // pointer, so they go to it as that run, not as a table of sixteen borrows.
+         let run = messages.as_chunks::<BLOCK_LEN>().0[..outputs.len()].as_flattened();
+         // Sound: the caller found SME2 (platform_is_sme2).
+-        return unsafe { crate::sme2::hash_block_run(run, key, flags | CHUNK_START | CHUNK_END | ROOT, outputs.as_flattened_mut()) };
++        return unsafe { crate::sme2::hash_block_run(run, key, flags | CHUNK_START & /* ~ changed by cargo-mutants ~ */ CHUNK_END | ROOT, outputs.as_flattened_mut()) };
+     }
+     let mut table = crate::stack_vec::StackVec::<&[u8; BLOCK_LEN], TABLE>::new();
+     table.extend(messages.chunks_exact(BLOCK_LEN).map(|message| message.try_into().expect("one-block messages")));
+     assert_eq!(table.len(), outputs.len(), "one message per output");
+     whole_messages(&table, key, flags, outputs, platform);
+ }
+ 
+ /// The kernel call for one message of whole blocks in each lane. Both a
