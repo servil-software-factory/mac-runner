@@ -1,0 +1,32 @@
+--- src/many.rs
++++ replace fill_ptrs -> &'s[*const u8] with Vec::leak(Vec::new())
+@@ -693,28 +693,17 @@
+ 
+ /// Fill `slots` with pointers to the first `count` slots of `stride` bytes in
+ /// `messages`, then pad spare lanes repeating the last up to `lanes`; return
+ /// the filled slice. Statically enforces `TABLE % 16 == 0` so rounding any
+ /// `<= TABLE` tile up to 16 fits inside `TABLE`.
+ #[cfg(target_arch = "aarch64")]
+ #[inline(always)]
+ fn fill_ptrs<'s>(slots: &'s mut crate::stack_vec::StackVec<*const u8, TABLE>, messages: &[u8], stride: usize, count: usize, lanes: usize) -> &'s [*const u8] {
+-    const { assert!(TABLE % 16 == 0, "TABLE must be a multiple of the 16-lane SME2 group width") };
+-    assert!(
+-        slots.is_empty() && stride > 0 && 0 < count && count <= lanes && lanes <= TABLE && count <= messages.chunks_exact(stride).len(),
+-        "an empty table of 1 to TABLE lanes over the messages"
+-    );
+-    let mut last = messages.as_ptr();
+-    for message in messages.chunks_exact(stride).take(count) {
+-        last = message.as_ptr();
+-        slots.push(last);
+-    }
+-    slots.extend(core::iter::repeat_n(last, lanes - count));
+-    slots.as_slice()
++    Vec::leak(Vec::new()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// [`hash_run`] for messages of 2 to 16 whole blocks (`blocks`), the last block
+ /// `last_len` bytes, on one of three plans:
+ ///
+ /// - SME2, SME2_TAIL_MIN or more messages in all (below sixteen) or
+ ///   SME2_TAIL_MIN_AFTER_GROUPS or more past the groups of sixteen: whole
+ ///   groups, the last one padded, its spare lanes pointing at the last

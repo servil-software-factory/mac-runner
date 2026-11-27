@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 0, 0)\n@@ -499,42 +499,17 @@\n /// were freed and frees the run's `PipeSlot`s at its end.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n #[path = \"../tests/model/storages.rs\"]\n pub(crate) mod model_storages;\n \n impl PipeSlot {\n     fn acquire(actions: usize, messages: usize) -> (&'static PipeSlot, u64, u64) {\n-        let has_workers = crate::lanes::pool_has_workers();\n-        let need = if has_workers { actions } else { messages * MAX_SLOT_PIECES };\n-        let cap = need.max(1024).checked_next_power_of_two().expect(\"admitted action capacity fits power of two\");\n-        let tier = slot_tier(cap);\n-        if let Some(FreeSlot { slot, next_group_epoch, next_loan_epoch }) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {\n-            return (slot, next_group_epoch, next_loan_epoch);\n-        }\n-        let max_slots = cap / MAX_SLOT_PIECES;\n-        let max_groups = max_slots.clamp(4, 256);\n-        #[cfg(any(test, shuttle))]\n-        PIPE_SLOTS_MADE.fetch_add(1, Ordering::Relaxed);\n-        // A one-thread pool never registers a `Source` or dispatches tickets to\n-        // workers, so keep its ticket ring empty while retaining stable waker\n-        // and group/loan completion lines for synchronous execution.\n-        let source = if has_workers { Source::with_actions(cap, PipeStorage::run_action) } else { Source::new() };\n-        let raw = Box::into_raw(Box::new(PipeSlot {\n-            source,\n-            waker: WakerSlot::new(),\n-            group_completed: (0..max_groups).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            loan_completed: (0..max_slots).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-        }));\n-        #[cfg(shuttle)]\n-        MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));\n-        // Sound: `raw` stays live for the process (freed only after all Shuttle\n-        // worker threads join in `model_storages::free_storages_for_model`).\n-        (unsafe { &*raw }, 1, 1)\n+        (Box::leak(Box::new(Default::default())), 0, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn release(slot: &'static PipeSlot, next_group_epoch: u64, next_loan_epoch: u64) {\n         let tier = slot_tier(slot.loan_completed.len() * MAX_SLOT_PIECES);\n         FREE_PIPE_SLOTS.lock().unwrap()[tier].push(FreeSlot { slot, next_group_epoch, next_loan_epoch });\n     }\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeSlot::acquire",
+      "return_type": "-> (&'static PipeSlot, u64, u64)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 533
+        },
+        "start": {
+          "column": 5,
+          "line": 506
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:507:9: replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 0, 0)",
+    "package": "blake3-servil",
+    "replacement": "(Box::leak(Box::new(Default::default())), 0, 0)",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 532
+      },
+      "start": {
+        "column": 9,
+        "line": 507
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 0, 1)\n@@ -499,42 +499,17 @@\n /// were freed and frees the run's `PipeSlot`s at its end.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n #[path = \"../tests/model/storages.rs\"]\n pub(crate) mod model_storages;\n \n impl PipeSlot {\n     fn acquire(actions: usize, messages: usize) -> (&'static PipeSlot, u64, u64) {\n-        let has_workers = crate::lanes::pool_has_workers();\n-        let need = if has_workers { actions } else { messages * MAX_SLOT_PIECES };\n-        let cap = need.max(1024).checked_next_power_of_two().expect(\"admitted action capacity fits power of two\");\n-        let tier = slot_tier(cap);\n-        if let Some(FreeSlot { slot, next_group_epoch, next_loan_epoch }) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {\n-            return (slot, next_group_epoch, next_loan_epoch);\n-        }\n-        let max_slots = cap / MAX_SLOT_PIECES;\n-        let max_groups = max_slots.clamp(4, 256);\n-        #[cfg(any(test, shuttle))]\n-        PIPE_SLOTS_MADE.fetch_add(1, Ordering::Relaxed);\n-        // A one-thread pool never registers a `Source` or dispatches tickets to\n-        // workers, so keep its ticket ring empty while retaining stable waker\n-        // and group/loan completion lines for synchronous execution.\n-        let source = if has_workers { Source::with_actions(cap, PipeStorage::run_action) } else { Source::new() };\n-        let raw = Box::into_raw(Box::new(PipeSlot {\n-            source,\n-            waker: WakerSlot::new(),\n-            group_completed: (0..max_groups).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            loan_completed: (0..max_slots).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-        }));\n-        #[cfg(shuttle)]\n-        MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));\n-        // Sound: `raw` stays live for the process (freed only after all Shuttle\n-        // worker threads join in `model_storages::free_storages_for_model`).\n-        (unsafe { &*raw }, 1, 1)\n+        (Box::leak(Box::new(Default::default())), 0, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn release(slot: &'static PipeSlot, next_group_epoch: u64, next_loan_epoch: u64) {\n         let tier = slot_tier(slot.loan_completed.len() * MAX_SLOT_PIECES);\n         FREE_PIPE_SLOTS.lock().unwrap()[tier].push(FreeSlot { slot, next_group_epoch, next_loan_epoch });\n     }\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeSlot::acquire",
+      "return_type": "-> (&'static PipeSlot, u64, u64)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 533
+        },
+        "start": {
+          "column": 5,
+          "line": 506
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:507:9: replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 0, 1)",
+    "package": "blake3-servil",
+    "replacement": "(Box::leak(Box::new(Default::default())), 0, 1)",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 532
+      },
+      "start": {
+        "column": 9,
+        "line": 507
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 1, 0)\n@@ -499,42 +499,17 @@\n /// were freed and frees the run's `PipeSlot`s at its end.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n #[path = \"../tests/model/storages.rs\"]\n pub(crate) mod model_storages;\n \n impl PipeSlot {\n     fn acquire(actions: usize, messages: usize) -> (&'static PipeSlot, u64, u64) {\n-        let has_workers = crate::lanes::pool_has_workers();\n-        let need = if has_workers { actions } else { messages * MAX_SLOT_PIECES };\n-        let cap = need.max(1024).checked_next_power_of_two().expect(\"admitted action capacity fits power of two\");\n-        let tier = slot_tier(cap);\n-        if let Some(FreeSlot { slot, next_group_epoch, next_loan_epoch }) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {\n-            return (slot, next_group_epoch, next_loan_epoch);\n-        }\n-        let max_slots = cap / MAX_SLOT_PIECES;\n-        let max_groups = max_slots.clamp(4, 256);\n-        #[cfg(any(test, shuttle))]\n-        PIPE_SLOTS_MADE.fetch_add(1, Ordering::Relaxed);\n-        // A one-thread pool never registers a `Source` or dispatches tickets to\n-        // workers, so keep its ticket ring empty while retaining stable waker\n-        // and group/loan completion lines for synchronous execution.\n-        let source = if has_workers { Source::with_actions(cap, PipeStorage::run_action) } else { Source::new() };\n-        let raw = Box::into_raw(Box::new(PipeSlot {\n-            source,\n-            waker: WakerSlot::new(),\n-            group_completed: (0..max_groups).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            loan_completed: (0..max_slots).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-        }));\n-        #[cfg(shuttle)]\n-        MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));\n-        // Sound: `raw` stays live for the process (freed only after all Shuttle\n-        // worker threads join in `model_storages::free_storages_for_model`).\n-        (unsafe { &*raw }, 1, 1)\n+        (Box::leak(Box::new(Default::default())), 1, 0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn release(slot: &'static PipeSlot, next_group_epoch: u64, next_loan_epoch: u64) {\n         let tier = slot_tier(slot.loan_completed.len() * MAX_SLOT_PIECES);\n         FREE_PIPE_SLOTS.lock().unwrap()[tier].push(FreeSlot { slot, next_group_epoch, next_loan_epoch });\n     }\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeSlot::acquire",
+      "return_type": "-> (&'static PipeSlot, u64, u64)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 533
+        },
+        "start": {
+          "column": 5,
+          "line": 506
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:507:9: replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 1, 0)",
+    "package": "blake3-servil",
+    "replacement": "(Box::leak(Box::new(Default::default())), 1, 0)",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 532
+      },
+      "start": {
+        "column": 9,
+        "line": 507
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 1, 1)\n@@ -499,42 +499,17 @@\n /// were freed and frees the run's `PipeSlot`s at its end.\n #[cfg(shuttle)]\n #[allow(dead_code)]\n #[path = \"../tests/model/storages.rs\"]\n pub(crate) mod model_storages;\n \n impl PipeSlot {\n     fn acquire(actions: usize, messages: usize) -> (&'static PipeSlot, u64, u64) {\n-        let has_workers = crate::lanes::pool_has_workers();\n-        let need = if has_workers { actions } else { messages * MAX_SLOT_PIECES };\n-        let cap = need.max(1024).checked_next_power_of_two().expect(\"admitted action capacity fits power of two\");\n-        let tier = slot_tier(cap);\n-        if let Some(FreeSlot { slot, next_group_epoch, next_loan_epoch }) = FREE_PIPE_SLOTS.lock().unwrap()[tier..].iter_mut().find_map(Vec::pop) {\n-            return (slot, next_group_epoch, next_loan_epoch);\n-        }\n-        let max_slots = cap / MAX_SLOT_PIECES;\n-        let max_groups = max_slots.clamp(4, 256);\n-        #[cfg(any(test, shuttle))]\n-        PIPE_SLOTS_MADE.fetch_add(1, Ordering::Relaxed);\n-        // A one-thread pool never registers a `Source` or dispatches tickets to\n-        // workers, so keep its ticket ring empty while retaining stable waker\n-        // and group/loan completion lines for synchronous execution.\n-        let source = if has_workers { Source::with_actions(cap, PipeStorage::run_action) } else { Source::new() };\n-        let raw = Box::into_raw(Box::new(PipeSlot {\n-            source,\n-            waker: WakerSlot::new(),\n-            group_completed: (0..max_groups).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-            loan_completed: (0..max_slots).map(|_| OwnLine(AtomicU64::new(0))).collect(),\n-        }));\n-        #[cfg(shuttle)]\n-        MODEL_OWNED_PIPE_SLOTS.lock().unwrap().push(OwnedPipeSlotPtr(raw));\n-        // Sound: `raw` stays live for the process (freed only after all Shuttle\n-        // worker threads join in `model_storages::free_storages_for_model`).\n-        (unsafe { &*raw }, 1, 1)\n+        (Box::leak(Box::new(Default::default())), 1, 1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     fn release(slot: &'static PipeSlot, next_group_epoch: u64, next_loan_epoch: u64) {\n         let tier = slot_tier(slot.loan_completed.len() * MAX_SLOT_PIECES);\n         FREE_PIPE_SLOTS.lock().unwrap()[tier].push(FreeSlot { slot, next_group_epoch, next_loan_epoch });\n     }\n }\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeSlot::acquire",
+      "return_type": "-> (&'static PipeSlot, u64, u64)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 533
+        },
+        "start": {
+          "column": 5,
+          "line": 506
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:507:9: replace PipeSlot::acquire -> (&'static PipeSlot, u64, u64) with (Box::leak(Box::new(Default::default())), 1, 1)",
+    "package": "blake3-servil",
+    "replacement": "(Box::leak(Box::new(Default::default())), 1, 1)",
+    "span": {
+      "end": {
+        "column": 33,
+        "line": 532
+      },
+      "start": {
+        "column": 9,
+        "line": 507
+      }
+    }
+  }
+]

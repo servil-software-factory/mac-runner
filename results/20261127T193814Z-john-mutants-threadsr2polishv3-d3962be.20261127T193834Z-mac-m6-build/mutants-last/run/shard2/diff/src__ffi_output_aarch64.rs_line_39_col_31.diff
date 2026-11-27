@@ -1,0 +1,21 @@
+--- src/ffi_output_aarch64.rs
++++ replace / with % in hash_groups_arm
+@@ -31,17 +31,17 @@
+ /// Hash all full 8-lane NEON groups of independent counter-zero compressions
+ /// on AArch64, returning the number of digests written to `out`.
+ ///
+ /// On Apple M6, NEON `output8` runs at ~27 ns/compression with zero SME
+ /// transition overhead, beating a 16-lane SME2 single-block kernel even at
+ /// 128 lanes (~38 ns/compression) while leaving the shared SME unit free.
+ pub(crate) fn hash_groups_arm(inputs: &[Input<'_>], out: &mut [[u8; OUT_LEN]]) -> usize {
+     assert_eq!(inputs.len(), out.len(), "one output per descriptor");
+-    let groups = inputs.len() / 8;
++    let groups = inputs.len() % /* ~ changed by cargo-mutants ~ */ 8;
+     if groups > 0 {
+         crate::ran_kernel(blake3_servil_neon_output8 as *const ());
+         // Sound: `target_arch = "aarch64"` guarantees AArch64 NEON; `inputs` holds
+         // `8 * groups` valid descriptors and `out` has exact room.
+         unsafe { blake3_servil_neon_output8(inputs.as_ptr(), out.as_mut_ptr().cast(), groups as u64) };
+     }
+     groups * 8
+ }
