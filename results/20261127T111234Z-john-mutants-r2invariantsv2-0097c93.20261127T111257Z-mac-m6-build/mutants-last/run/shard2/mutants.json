@@ -1,0 +1,258 @@
+[
+  {
+    "diff": "--- src/ffi_neon_hybrid.rs\n+++ replace apple_cores -> bool with false\n@@ -601,28 +601,17 @@\n /// NEON at a gain. macOS runs on no other; Linux says by the implementer\n /// byte of MIDR_EL1 (0x61), which a program may read where the kernel\n /// reports HWCAP_CPUID (it emulates the read; Linux 4.11). Without\n /// that, not Apple's.\n #[inline]\n pub fn apple_cores() -> bool {\n     // macOS runs on no other, and its code asks nothing: what Apple's\n     // cores run stays what was measured on them.\n-    #[cfg(target_vendor = \"apple\")]\n-    {\n-        true\n-    }\n-    #[cfg(not(target_vendor = \"apple\"))]\n-    {\n-        let detected = crate::platform::high_bits();\n-        if detected & CORES_ASKED == 0 {\n-            return ask_cores();\n-        }\n-        detected & APPLE_CORES != 0\n-    }\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n /// High-byte cache bits stored in `platform::DETECTED` via `platform::{high_bits, set_high_bits}`.\n #[cfg(not(target_vendor = \"apple\"))]\n const APPLE_CORES: u16 = 1 << 8;\n #[cfg(not(target_vendor = \"apple\"))]\n const CORES_ASKED: u16 = 1 << 9;\n \n",
+    "file": "src/ffi_neon_hybrid.rs",
+    "function": {
+      "function_name": "apple_cores",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 621
+        },
+        "start": {
+          "column": 1,
+          "line": 599
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_neon_hybrid.rs:609:5: replace apple_cores -> bool with false",
+    "package": "blake3-servil-core",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 620
+      },
+      "start": {
+        "column": 5,
+        "line": 609
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_run_padded with ()\n@@ -598,20 +598,17 @@\n     }\n }\n \n /// One-block messages on SME2, every group on the message kernel, the\n /// last one padded, their last block `last_len` bytes.\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn hash_run_padded(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], last_len: usize) {\n-    let mut slots = crate::stack_vec::StackVec::<*const u8, TABLE>::new();\n-    let lanes = fill_ptrs(&mut slots, messages, BLOCK_LEN, outputs.len(), outputs.len().next_multiple_of(16));\n-    // Sound: the caller found SME2 (platform_is_sme2); `fill_ptrs` verified `messages` holds `outputs.len()` blocks.\n-    unsafe { crate::sme2::hash_messages_raw(lanes, 1, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, outputs.as_flattened_mut()) };\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// [`hash_run`] for messages of 1 to 63 bytes (one short block): on SME2\n /// the message kernel from ONE_BLOCK_PAD_MIN messages (the parent kernel\n /// records 64 for every block), else the NEON plans, or one call each\n /// without them.\n #[inline(never)]\n fn hash_run_short(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_run_padded",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 610
+        },
+        "start": {
+          "column": 1,
+          "line": 601
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:606:5: replace hash_run_padded with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 138,
+        "line": 609
+      },
+      "start": {
+        "column": 5,
+        "line": 606
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_run_short with ()\n@@ -614,38 +614,17 @@\n /// records 64 for every block), else the NEON plans, or one call each\n /// without them.\n #[inline(never)]\n fn hash_run_short(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n     // One-block messages on x86-64 with the independent-compression kernels\n     // (AVX2's eight lanes, AVX-512's sixteen): whole groups and padded tails\n     // (4..=7 on output8, 9..=15 on output16), a batch's and a `Packed`'s alike;\n     // trailing 1..=3 messages, and every other platform, run as before.\n-    #[cfg(target_arch = \"x86_64\")]\n-    let done = crate::ffi_output::one_block_groups(messages, outputs, last_len, key, flags, platform);\n-    #[cfg(not(target_arch = \"x86_64\"))]\n-    let done = 0;\n-    let (messages, outputs) = (&messages[done * BLOCK_LEN..], &mut outputs[done..]);\n-    #[cfg(target_arch = \"aarch64\")]\n-    if platform_is_sme2(platform) && outputs.len() >= ONE_BLOCK_PAD_MIN {\n-        return hash_run_padded(messages, key, flags, outputs, last_len);\n-    }\n-    #[cfg(target_arch = \"aarch64\")]\n-    {\n-        let mut slots = crate::stack_vec::StackVec::<*const u8, TABLE>::new();\n-        let lanes = fill_ptrs(&mut slots, messages, BLOCK_LEN, outputs.len(), outputs.len());\n-        // Sound: all supported AArch64 targets assume NEON; `fill_ptrs` verified `messages` holds `outputs.len()` blocks.\n-        unsafe { crate::neon_hybrid::hash_many_one_block_raw(lanes, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, outputs.as_flattened_mut()) };\n-    }\n-    #[cfg(not(target_arch = \"aarch64\"))]\n-    {\n-        for (output, message) in outputs.iter_mut().zip(messages.chunks_exact(BLOCK_LEN)) {\n-            *output = *crate::hash_serial_on(&message[..last_len], key, flags, platform).as_bytes();\n-        }\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n /// Fewest one-block messages that SME2 hashes as whole groups on the\n /// message kernel, the last one padded: 11 in a batch of fewer than\n /// sixteen (fewer run on the NEON parent plans), 5 left over past whole\n /// groups (fewer left over run on the NEON plans). VM, ns per message,\n /// before / padded: 10 18.3 / 20.9, 11 19.1 / 15.0, 15 18.2 / 10.8.\n /// Past whole groups the padded group replaces the plans and the overlap\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_run_short",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 644
+        },
+        "start": {
+          "column": 1,
+          "line": 612
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:622:5: replace hash_run_short with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 643
+      },
+      "start": {
+        "column": 5,
+        "line": 622
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace fill_ptrs -> &'s[*const u8] with Vec::leak(Vec::new())\n@@ -670,30 +670,17 @@\n \n /// Fill `slots` with pointers to the first `count` slots of `stride` bytes in\n /// `messages`, then pad spare lanes repeating the last up to `lanes`; return\n /// the filled slice. Statically enforces `TABLE % 16 == 0` so rounding any\n /// `<= TABLE` tile up to 16 fits inside `TABLE`.\n #[cfg(target_arch = \"aarch64\")]\n #[inline(always)]\n fn fill_ptrs<'s>(slots: &'s mut crate::stack_vec::StackVec<*const u8, TABLE>, messages: &[u8], stride: usize, count: usize, lanes: usize) -> &'s [*const u8] {\n-    const { assert!(TABLE % 16 == 0, \"TABLE must be a multiple of the 16-lane SME2 group width\") };\n-    assert!(\n-        stride > 0 && 0 < count && count <= lanes && lanes <= TABLE && count <= messages.chunks_exact(stride).len(),\n-        \"a table of 1 to TABLE lanes over the messages\"\n-    );\n-    let mut last = messages.as_ptr();\n-    for message in messages.chunks_exact(stride).take(count) {\n-        last = message.as_ptr();\n-        slots.push(last);\n-    }\n-    for _ in count..lanes {\n-        slots.push(last);\n-    }\n-    slots.as_slice()\n+    Vec::leak(Vec::new()) /* ~ changed by cargo-mutants ~ */\n }\n \n /// [`hash_run`] for messages of 2 to 16 whole blocks (`blocks`), the last block\n /// `last_len` bytes, on one of three plans:\n ///\n /// - SME2, SME2_TAIL_MIN or more messages in all (below sixteen) or\n ///   SME2_TAIL_MIN_AFTER_GROUPS or more past the groups of sixteen: whole\n ///   groups, the last one padded, its spare lanes pointing at the last\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "fill_ptrs",
+      "return_type": "-> &'s[*const u8]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 692
+        },
+        "start": {
+          "column": 1,
+          "line": 671
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:678:5: replace fill_ptrs -> &'s[*const u8] with Vec::leak(Vec::new())",
+    "package": "blake3-servil-core",
+    "replacement": "Vec::leak(Vec::new())",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 691
+      },
+      "start": {
+        "column": 5,
+        "line": 678
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace fill_ptrs -> &'s[*const u8] with Vec::leak(vec![Default::default()])\n@@ -670,30 +670,17 @@\n \n /// Fill `slots` with pointers to the first `count` slots of `stride` bytes in\n /// `messages`, then pad spare lanes repeating the last up to `lanes`; return\n /// the filled slice. Statically enforces `TABLE % 16 == 0` so rounding any\n /// `<= TABLE` tile up to 16 fits inside `TABLE`.\n #[cfg(target_arch = \"aarch64\")]\n #[inline(always)]\n fn fill_ptrs<'s>(slots: &'s mut crate::stack_vec::StackVec<*const u8, TABLE>, messages: &[u8], stride: usize, count: usize, lanes: usize) -> &'s [*const u8] {\n-    const { assert!(TABLE % 16 == 0, \"TABLE must be a multiple of the 16-lane SME2 group width\") };\n-    assert!(\n-        stride > 0 && 0 < count && count <= lanes && lanes <= TABLE && count <= messages.chunks_exact(stride).len(),\n-        \"a table of 1 to TABLE lanes over the messages\"\n-    );\n-    let mut last = messages.as_ptr();\n-    for message in messages.chunks_exact(stride).take(count) {\n-        last = message.as_ptr();\n-        slots.push(last);\n-    }\n-    for _ in count..lanes {\n-        slots.push(last);\n-    }\n-    slots.as_slice()\n+    Vec::leak(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */\n }\n \n /// [`hash_run`] for messages of 2 to 16 whole blocks (`blocks`), the last block\n /// `last_len` bytes, on one of three plans:\n ///\n /// - SME2, SME2_TAIL_MIN or more messages in all (below sixteen) or\n ///   SME2_TAIL_MIN_AFTER_GROUPS or more past the groups of sixteen: whole\n ///   groups, the last one padded, its spare lanes pointing at the last\n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "fill_ptrs",
+      "return_type": "-> &'s[*const u8]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 692
+        },
+        "start": {
+          "column": 1,
+          "line": 671
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:678:5: replace fill_ptrs -> &'s[*const u8] with Vec::leak(vec![Default::default()])",
+    "package": "blake3-servil-core",
+    "replacement": "Vec::leak(vec![Default::default()])",
+    "span": {
+      "end": {
+        "column": 21,
+        "line": 691
+      },
+      "start": {
+        "column": 5,
+        "line": 678
+      }
+    }
+  },
+  {
+    "diff": "--- src/many.rs\n+++ replace hash_blocks with ()\n@@ -702,48 +702,17 @@\n /// - SME2 with fewer left over past the groups: those on the integer +\n ///   NEON plans first, then the groups (NEON work right after the SME2\n ///   kernels runs in the SME unit's slow state on the VM: 17 x 256 B, 68\n ///   ns per message after, 44 before).\n /// - The integer + NEON plans (no SME2, or fewer messages): all at once.\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn hash_blocks(messages: &[u8], blocks: usize, key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], platform: Platform, last_len: usize) {\n-    const GROUP: usize = 16;\n-    assert!((2..=16).contains(&blocks), \"2 to 16 whole blocks\");\n-    let count = outputs.len();\n-    if count == 0 {\n-        return;\n-    }\n-    let sme2 = platform_is_sme2(platform);\n-    let left = count % GROUP;\n-    let padded = sme2 && left >= if count > GROUP { SME2_TAIL_MIN_AFTER_GROUPS } else { SME2_TAIL_MIN };\n-    // Messages hashed on SME2 (the first `on_sme2`), and the table's lanes.\n-    let on_sme2 = if padded {\n-        count\n-    } else if sme2 {\n-        count - left\n-    } else {\n-        0\n-    };\n-    let lanes = if padded { count.next_multiple_of(GROUP) } else { count };\n-    let mut slots = crate::stack_vec::StackVec::<*const u8, TABLE>::new();\n-    let table = fill_ptrs(&mut slots, messages, blocks * BLOCK_LEN, count, lanes);\n-    let (groups, rest) = outputs.split_at_mut(on_sme2);\n-    if !rest.is_empty() {\n-        let rest_lanes = &table[on_sme2..count];\n-        // Sound: all supported AArch64 targets assume NEON; `fill_ptrs` verified `messages` holds `count` slots of `blocks * BLOCK_LEN` bytes.\n-        unsafe { crate::neon_hybrid::hash_many_raw(rest_lanes, blocks, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, rest.as_flattened_mut()) };\n-    }\n-    if on_sme2 > 0 {\n-        // Sound: platform_is_sme2 means detect() found SME2 with 512-bit\n-        // streaming vectors; `fill_ptrs` verified every pointer reaches `blocks * BLOCK_LEN` bytes.\n-        let sme2_lanes = &table[..if padded { lanes } else { on_sme2 }];\n-        unsafe { crate::sme2::hash_messages_raw(sme2_lanes, blocks, key, flags, CHUNK_START, CHUNK_END | ROOT, last_len, groups.as_flattened_mut()) };\n-    }\n+    () /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(target_arch = \"aarch64\")]\n #[inline(always)]\n fn platform_is_sme2(platform: Platform) -> bool {\n     matches!(platform, Platform::SME2)\n }\n \n",
+    "file": "src/many.rs",
+    "function": {
+      "function_name": "hash_blocks",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 742
+        },
+        "start": {
+          "column": 1,
+          "line": 694
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/many.rs:710:5: replace hash_blocks with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 741
+      },
+      "start": {
+        "column": 5,
+        "line": 710
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace <impl Kernels for PlatformKernels<'_>>::chunk_root -> Cv with Default::default()\n@@ -190,22 +190,17 @@\n             return Some([block[..OUT_LEN].try_into().unwrap(), block[OUT_LEN..].try_into().unwrap()]);\n         }\n         None\n     }\n \n     #[inline(always)]\n     fn chunk_root(&self, input: &[u8]) -> Cv {\n         // The scalar kernel, on every AArch64 core (crate::hash_one_chunk_root).\n-        #[cfg(target_arch = \"aarch64\")]\n-        return crate::hash_one_chunk_root(input, self.key, self.flags).0;\n-        // One kernel call that keeps off the stack (src/ffi_chunk_root.rs):\n-        // a caller's just-written message has none of our loads to hold back.\n-        #[cfg(target_arch = \"x86_64\")]\n-        crate::chunk_root::chunk_root(self.platform, input, self.key, self.flags)\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn parent_root(&self, children: &[Cv; 2]) -> Cv {\n         crate::hasher::parent_output(&children[0], &children[1], self.key, self.flags, self.platform).root_bytes()\n     }\n }\n \n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "<impl Kernels for PlatformKernels<'_>>::chunk_root",
+      "return_type": "-> Cv",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 204
+        },
+        "start": {
+          "column": 5,
+          "line": 195
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/tree.rs:198:9: replace <impl Kernels for PlatformKernels<'_>>::chunk_root -> Cv with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 82,
+        "line": 203
+      },
+      "start": {
+        "column": 9,
+        "line": 198
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace <impl Clone for CvStack>::clone_from with ()\n@@ -65,22 +65,17 @@\n     /// where it goes.)\n     fn clone(&self) -> CvStack {\n         CvStack { cvs: self.cvs, len: self.len, wide: self.wide, widths: self.widths, ready: self.ready, rows: self.rows }\n     }\n \n     /// In place, only what the source holds: its entries' values, and the\n     /// rows among them (not the 8 KiB of the rows' storage).\n     fn clone_from(&mut self, source: &CvStack) {\n-        self.cvs[..source.len].copy_from_slice(&source.cvs[..source.len]);\n-        self.len = source.len;\n-        self.wide = 0;\n-        for i in (0..source.len).filter(|&i| source.is_row(i)) {\n-            self.set_row(i, source.row(i));\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n impl CvStack {\n     #[inline(always)]\n     pub fn new() -> CvStack {\n         CvStack {\n             cvs: [core::mem::MaybeUninit::uninit(); DEPTH],\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "<impl Clone for CvStack>::clone_from",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 79
+        },
+        "start": {
+          "column": 5,
+          "line": 70
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:73:9: replace <impl Clone for CvStack>::clone_from with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 78
+      },
+      "start": {
+        "column": 9,
+        "line": 73
+      }
+    }
+  }
+]
