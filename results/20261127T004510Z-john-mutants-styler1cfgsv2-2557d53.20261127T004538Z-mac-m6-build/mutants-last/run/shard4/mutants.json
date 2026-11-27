@@ -1,0 +1,450 @@
+[
+  {
+    "diff": "--- src/pair.rs\n+++ replace takes_platform -> bool with true\n@@ -24,23 +24,17 @@\n }\n \n /// Whether the paired-chunk optimization (`parent` and wide `hash_many`\n /// prefix batching) runs on `platform`: AVX2 or AVX-512, whose assembly is in\n /// this build. (`hash_many_blocks` itself also dispatches `Platform::SSE41`\n /// assembly directly on x86-64.)\n #[inline]\n pub(crate) fn takes_platform(platform: Platform) -> bool {\n-    match platform {\n-        #[cfg(target_arch = \"x86_64\")]\n-        Platform::AVX2 => true,\n-        #[cfg(target_arch = \"x86_64\")]\n-        Platform::AVX512 => true,\n-        _ => false,\n-    }\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n /// The chaining values of `input`'s two chunks, at `chunk_counter` and the\n /// one after, as `compress_chunks_parallel` returns them. `takes(platform, input.len())` must hold.\n pub(crate) fn parent(input: &[u8], key: &CVWords, chunk_counter: u64, flags: u8, platform: Platform) -> [u8; BLOCK_LEN] {\n     assert!(takes(platform, input.len()), \"a whole chunk and a partial one of two blocks or more, on AVX2 or AVX-512\");\n     let (whole, partial) = input.split_at(CHUNK_LEN);\n     let paired = partial.len().div_ceil(BLOCK_LEN) - 1;\n",
+    "file": "src/pair.rs",
+    "function": {
+      "function_name": "takes_platform",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 39
+        },
+        "start": {
+          "column": 1,
+          "line": 26
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pair.rs:32:5: replace takes_platform -> bool with true",
+    "package": "blake3-servil-core",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 38
+      },
+      "start": {
+        "column": 5,
+        "line": 32
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace chain -> [u8; 32] with [0; 32]\n@@ -208,40 +208,17 @@\n /// the key a keyed case takes; so every output depends on every earlier\n /// one. `outputs` hashes one case into its buffer and returns how many\n /// bytes it wrote; `check` sees each case's fold as it comes. Returns the\n /// final chaining seed for the platform-specific checks that follow.\n // Kept out of line so its `INPUT_LEN` buffer (32 KiB on AArch64) is popped off\n // the stack before `run` invokes the platform-specific self-tests (#509).\n #[inline(never)]\n pub(crate) fn chain(mut outputs: impl FnMut(Case, &[u8], &[u8; 32], &mut [u8]) -> usize, mut check: impl FnMut(usize, u64)) -> [u8; 32] {\n-    let mut input = [0u8; INPUT_LEN];\n-    fill(&mut input);\n-    let mut out = [0u8; OUTPUT_LEN];\n-    let mut previous = [0u8; 32];\n-    for (index, &(case, _)) in CASES.iter().enumerate() {\n-        let (start, len, count) = match case {\n-            Hash { offset, len } => (offset, len, 1),\n-            Many { len, count, .. } => (0, len, count),\n-            #[cfg(target_arch = \"aarch64\")]\n-            ChunkValues { chunks } => (0, chunks * crate::CHUNK_LEN, 1),\n-            #[cfg(target_arch = \"aarch64\")]\n-            Incremental { len, .. } => (0, len, 1),\n-            Keyed { len } | Derive { len } | Xof { len, .. } => (0, len, 1),\n-        };\n-        let n = len.min(32);\n-        for message in 0..count {\n-            input[start + message * len..][..n].copy_from_slice(&previous[..n]);\n-        }\n-        let written = outputs(case, &input, &previous, &mut out);\n-        let output = &out[..written];\n-        check(index, fold(output));\n-        previous.copy_from_slice(&output[..32]);\n-    }\n-    previous\n+    [0; 32] /* ~ changed by cargo-mutants ~ */\n }\n \n /// Each case's fold, from official BLAKE3 1.8.7 (the unit test\n /// `self_test_matches_official_blake3` checks them, and prints this table\n /// when it differs).\n #[cfg(target_arch = \"aarch64\")]\n const EXPECTED: [u64; 44] = [\n     0x90e4e563714f7c48,\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "chain",
+      "return_type": "-> [u8; 32]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 240
+        },
+        "start": {
+          "column": 1,
+          "line": 205
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:216:5: replace chain -> [u8; 32] with [0; 32]",
+    "package": "blake3-servil-core",
+    "replacement": "[0; 32]",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 239
+      },
+      "start": {
+        "column": 5,
+        "line": 216
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace chain -> [u8; 32] with [1; 32]\n@@ -208,40 +208,17 @@\n /// the key a keyed case takes; so every output depends on every earlier\n /// one. `outputs` hashes one case into its buffer and returns how many\n /// bytes it wrote; `check` sees each case's fold as it comes. Returns the\n /// final chaining seed for the platform-specific checks that follow.\n // Kept out of line so its `INPUT_LEN` buffer (32 KiB on AArch64) is popped off\n // the stack before `run` invokes the platform-specific self-tests (#509).\n #[inline(never)]\n pub(crate) fn chain(mut outputs: impl FnMut(Case, &[u8], &[u8; 32], &mut [u8]) -> usize, mut check: impl FnMut(usize, u64)) -> [u8; 32] {\n-    let mut input = [0u8; INPUT_LEN];\n-    fill(&mut input);\n-    let mut out = [0u8; OUTPUT_LEN];\n-    let mut previous = [0u8; 32];\n-    for (index, &(case, _)) in CASES.iter().enumerate() {\n-        let (start, len, count) = match case {\n-            Hash { offset, len } => (offset, len, 1),\n-            Many { len, count, .. } => (0, len, count),\n-            #[cfg(target_arch = \"aarch64\")]\n-            ChunkValues { chunks } => (0, chunks * crate::CHUNK_LEN, 1),\n-            #[cfg(target_arch = \"aarch64\")]\n-            Incremental { len, .. } => (0, len, 1),\n-            Keyed { len } | Derive { len } | Xof { len, .. } => (0, len, 1),\n-        };\n-        let n = len.min(32);\n-        for message in 0..count {\n-            input[start + message * len..][..n].copy_from_slice(&previous[..n]);\n-        }\n-        let written = outputs(case, &input, &previous, &mut out);\n-        let output = &out[..written];\n-        check(index, fold(output));\n-        previous.copy_from_slice(&output[..32]);\n-    }\n-    previous\n+    [1; 32] /* ~ changed by cargo-mutants ~ */\n }\n \n /// Each case's fold, from official BLAKE3 1.8.7 (the unit test\n /// `self_test_matches_official_blake3` checks them, and prints this table\n /// when it differs).\n #[cfg(target_arch = \"aarch64\")]\n const EXPECTED: [u64; 44] = [\n     0x90e4e563714f7c48,\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "chain",
+      "return_type": "-> [u8; 32]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 240
+        },
+        "start": {
+          "column": 1,
+          "line": 205
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:216:5: replace chain -> [u8; 32] with [1; 32]",
+    "package": "blake3-servil-core",
+    "replacement": "[1; 32]",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 239
+      },
+      "start": {
+        "column": 5,
+        "line": 216
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace outputs -> usize with 0\n@@ -300,35 +300,17 @@\n     0x9e68560dd612af97,\n     0xe1a4c5967b2225ff,\n     0xdb630ec123f1460e,\n ];\n \n /// A case's outputs from this build, into `out`, through the entry points'\n /// bodies from `platform`; returns their length.\n pub(crate) fn outputs(platform: Platform, case: Case, input: &[u8], previous: &[u8; 32], out: &mut [u8]) -> usize {\n-    let words = |key: &[u8; 32]| crate::platform::words_from_le_bytes_32(key);\n-    let mut digest = |hash: crate::Hash| {\n-        out[..32].copy_from_slice(hash.as_bytes());\n-        32\n-    };\n-    match case {\n-        Hash { offset, len } => digest(crate::hash_serial_from(platform, &input[offset..][..len], crate::IV, 0, false)),\n-        Many { offset, len, count } => many(platform, &input[..len * count], offset, len, &mut out[..count * crate::OUT_LEN]),\n-        #[cfg(target_arch = \"aarch64\")]\n-        ChunkValues { chunks } => chunk_values(platform, &input[..chunks * crate::CHUNK_LEN], previous, out),\n-        Keyed { len } => digest(crate::hash_serial_from(platform, &input[..len], &words(previous), crate::KEYED_HASH, false)),\n-        Derive { len } => {\n-            let context = crate::hash_serial_from(platform, CONTEXT.as_bytes(), crate::IV, crate::DERIVE_KEY_CONTEXT, false);\n-            digest(crate::hash_serial_from(platform, &input[..len], &words(context.as_bytes()), crate::DERIVE_KEY_MATERIAL, false))\n-        }\n-        #[cfg(target_arch = \"aarch64\")]\n-        Incremental { len, piece } => digest(incremental(platform, &input[..len], piece)),\n-        Xof { len, skip, out: n } => xof(platform, &input[..len], skip, &mut out[..n]),\n-    }\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// A Hasher on `platform` fed `input` in pieces of `piece` bytes (out of\n /// line, as `xof` and `many`: their buffers take the stack only in turn).\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn incremental(platform: Platform, input: &[u8], piece: usize) -> crate::Hash {\n     let mut hasher = crate::Hasher::from_core(crate::HasherCore::new_from(crate::Domain::plain(), platform));\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "outputs",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 327
+        },
+        "start": {
+          "column": 1,
+          "line": 305
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:308:5: replace outputs -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 326
+      },
+      "start": {
+        "column": 5,
+        "line": 308
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace outputs -> usize with 1\n@@ -300,35 +300,17 @@\n     0x9e68560dd612af97,\n     0xe1a4c5967b2225ff,\n     0xdb630ec123f1460e,\n ];\n \n /// A case's outputs from this build, into `out`, through the entry points'\n /// bodies from `platform`; returns their length.\n pub(crate) fn outputs(platform: Platform, case: Case, input: &[u8], previous: &[u8; 32], out: &mut [u8]) -> usize {\n-    let words = |key: &[u8; 32]| crate::platform::words_from_le_bytes_32(key);\n-    let mut digest = |hash: crate::Hash| {\n-        out[..32].copy_from_slice(hash.as_bytes());\n-        32\n-    };\n-    match case {\n-        Hash { offset, len } => digest(crate::hash_serial_from(platform, &input[offset..][..len], crate::IV, 0, false)),\n-        Many { offset, len, count } => many(platform, &input[..len * count], offset, len, &mut out[..count * crate::OUT_LEN]),\n-        #[cfg(target_arch = \"aarch64\")]\n-        ChunkValues { chunks } => chunk_values(platform, &input[..chunks * crate::CHUNK_LEN], previous, out),\n-        Keyed { len } => digest(crate::hash_serial_from(platform, &input[..len], &words(previous), crate::KEYED_HASH, false)),\n-        Derive { len } => {\n-            let context = crate::hash_serial_from(platform, CONTEXT.as_bytes(), crate::IV, crate::DERIVE_KEY_CONTEXT, false);\n-            digest(crate::hash_serial_from(platform, &input[..len], &words(context.as_bytes()), crate::DERIVE_KEY_MATERIAL, false))\n-        }\n-        #[cfg(target_arch = \"aarch64\")]\n-        Incremental { len, piece } => digest(incremental(platform, &input[..len], piece)),\n-        Xof { len, skip, out: n } => xof(platform, &input[..len], skip, &mut out[..n]),\n-    }\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// A Hasher on `platform` fed `input` in pieces of `piece` bytes (out of\n /// line, as `xof` and `many`: their buffers take the stack only in turn).\n #[cfg(target_arch = \"aarch64\")]\n #[inline(never)]\n fn incremental(platform: Platform, input: &[u8], piece: usize) -> crate::Hash {\n     let mut hasher = crate::Hasher::from_core(crate::HasherCore::new_from(crate::Domain::plain(), platform));\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "outputs",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 327
+        },
+        "start": {
+          "column": 1,
+          "line": 305
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:308:5: replace outputs -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 326
+      },
+      "start": {
+        "column": 5,
+        "line": 308
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace chunk_values -> usize with 0\n@@ -367,54 +367,17 @@\n     }\n     out.len()\n }\n \n /// The chaining values of the whole chunks in `input`, at counter 1 on,\n /// keyed by `key` (see Case::ChunkValues), into `out`.\n #[cfg(target_arch = \"aarch64\")]\n fn chunk_values(platform: Platform, input: &[u8], key: &[u8; 32], out: &mut [u8]) -> usize {\n-    let key = crate::platform::words_from_le_bytes_32(key);\n-    let mut chunks = crate::stack_vec::StackVec::<&[u8; crate::CHUNK_LEN], 18>::new();\n-    chunks.extend(input.chunks_exact(crate::CHUNK_LEN).map(|c| c.try_into().expect(\"whole chunks\")));\n-    let out = &mut out[..chunks.len() * crate::OUT_LEN];\n-    #[cfg(target_arch = \"aarch64\")]\n-    if chunks.len() % crate::sme2::HYBRID_GROUP == 0 {\n-        let turn = crate::platform::Sme2Turn::take(platform, true);\n-        if matches!(turn.platform(), Platform::SME2) {\n-            let flags = crate::KEYED_HASH as u32 | (crate::CHUNK_START as u32) << 8 | (crate::CHUNK_END as u32) << 16;\n-            crate::ran_kernel(crate::sme2::ffi::blake3_servil_sme2x2_hash_chunks_512 as *const ());\n-            // Sound: SME2 was detected, and the table holds 18 chunk pointers per group.\n-            let lanes = unsafe {\n-                crate::sme2::ffi::blake3_servil_sme2x2_hash_chunks_512(\n-                    chunks.as_ptr() as *const *const u8,\n-                    key.as_ptr(),\n-                    1,\n-                    flags,\n-                    out.as_mut_ptr(),\n-                    (chunks.len() / crate::sme2::HYBRID_GROUP) as u64,\n-                )\n-            };\n-            assert_eq!(lanes, 16, \"SME2 streaming vector length changed under us\");\n-            return out.len();\n-        }\n-    }\n-    // A group of sixteen: on SME2 the kernel with a counter per group (as\n-    // Hasher::update_each hashes held groups).\n-    #[cfg(target_arch = \"aarch64\")]\n-    if chunks.len() == crate::sme2::GROUP {\n-        let turn = crate::platform::Sme2Turn::take(platform, true);\n-        if matches!(turn.platform(), Platform::SME2) {\n-            // Sound: SME2 was detected.\n-            unsafe { crate::sme2::hash_groups_at(&chunks, &[1], &key, crate::KEYED_HASH, crate::CHUNK_START, crate::CHUNK_END, out) };\n-            return out.len();\n-        }\n-    }\n-    platform.hash_many(&chunks, &key, 1, crate::IncrementCounter::Yes, crate::KEYED_HASH, crate::CHUNK_START, crate::CHUNK_END, out);\n-    out.len()\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Run every case and stop on the first that differs from the reference;\n /// records the tested platform once on first initialization and returns how\n /// many cases ran (CASES and the selected platform's extra entries).\n fn run() -> usize {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "chunk_values",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 413
+        },
+        "start": {
+          "column": 1,
+          "line": 371
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:375:5: replace chunk_values -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 412
+      },
+      "start": {
+        "column": 5,
+        "line": 375
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace chunk_values -> usize with 1\n@@ -367,54 +367,17 @@\n     }\n     out.len()\n }\n \n /// The chaining values of the whole chunks in `input`, at counter 1 on,\n /// keyed by `key` (see Case::ChunkValues), into `out`.\n #[cfg(target_arch = \"aarch64\")]\n fn chunk_values(platform: Platform, input: &[u8], key: &[u8; 32], out: &mut [u8]) -> usize {\n-    let key = crate::platform::words_from_le_bytes_32(key);\n-    let mut chunks = crate::stack_vec::StackVec::<&[u8; crate::CHUNK_LEN], 18>::new();\n-    chunks.extend(input.chunks_exact(crate::CHUNK_LEN).map(|c| c.try_into().expect(\"whole chunks\")));\n-    let out = &mut out[..chunks.len() * crate::OUT_LEN];\n-    #[cfg(target_arch = \"aarch64\")]\n-    if chunks.len() % crate::sme2::HYBRID_GROUP == 0 {\n-        let turn = crate::platform::Sme2Turn::take(platform, true);\n-        if matches!(turn.platform(), Platform::SME2) {\n-            let flags = crate::KEYED_HASH as u32 | (crate::CHUNK_START as u32) << 8 | (crate::CHUNK_END as u32) << 16;\n-            crate::ran_kernel(crate::sme2::ffi::blake3_servil_sme2x2_hash_chunks_512 as *const ());\n-            // Sound: SME2 was detected, and the table holds 18 chunk pointers per group.\n-            let lanes = unsafe {\n-                crate::sme2::ffi::blake3_servil_sme2x2_hash_chunks_512(\n-                    chunks.as_ptr() as *const *const u8,\n-                    key.as_ptr(),\n-                    1,\n-                    flags,\n-                    out.as_mut_ptr(),\n-                    (chunks.len() / crate::sme2::HYBRID_GROUP) as u64,\n-                )\n-            };\n-            assert_eq!(lanes, 16, \"SME2 streaming vector length changed under us\");\n-            return out.len();\n-        }\n-    }\n-    // A group of sixteen: on SME2 the kernel with a counter per group (as\n-    // Hasher::update_each hashes held groups).\n-    #[cfg(target_arch = \"aarch64\")]\n-    if chunks.len() == crate::sme2::GROUP {\n-        let turn = crate::platform::Sme2Turn::take(platform, true);\n-        if matches!(turn.platform(), Platform::SME2) {\n-            // Sound: SME2 was detected.\n-            unsafe { crate::sme2::hash_groups_at(&chunks, &[1], &key, crate::KEYED_HASH, crate::CHUNK_START, crate::CHUNK_END, out) };\n-            return out.len();\n-        }\n-    }\n-    platform.hash_many(&chunks, &key, 1, crate::IncrementCounter::Yes, crate::KEYED_HASH, crate::CHUNK_START, crate::CHUNK_END, out);\n-    out.len()\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Run every case and stop on the first that differs from the reference;\n /// records the tested platform once on first initialization and returns how\n /// many cases ran (CASES and the selected platform's extra entries).\n fn run() -> usize {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "chunk_values",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 413
+        },
+        "start": {
+          "column": 1,
+          "line": 371
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:375:5: replace chunk_values -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 412
+      },
+      "start": {
+        "column": 5,
+        "line": 375
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace * with + in chunk_values\n@@ -370,17 +370,17 @@\n \n /// The chaining values of the whole chunks in `input`, at counter 1 on,\n /// keyed by `key` (see Case::ChunkValues), into `out`.\n #[cfg(target_arch = \"aarch64\")]\n fn chunk_values(platform: Platform, input: &[u8], key: &[u8; 32], out: &mut [u8]) -> usize {\n     let key = crate::platform::words_from_le_bytes_32(key);\n     let mut chunks = crate::stack_vec::StackVec::<&[u8; crate::CHUNK_LEN], 18>::new();\n     chunks.extend(input.chunks_exact(crate::CHUNK_LEN).map(|c| c.try_into().expect(\"whole chunks\")));\n-    let out = &mut out[..chunks.len() * crate::OUT_LEN];\n+    let out = &mut out[..chunks.len() + /* ~ changed by cargo-mutants ~ */ crate::OUT_LEN];\n     #[cfg(target_arch = \"aarch64\")]\n     if chunks.len() % crate::sme2::HYBRID_GROUP == 0 {\n         let turn = crate::platform::Sme2Turn::take(platform, true);\n         if matches!(turn.platform(), Platform::SME2) {\n             let flags = crate::KEYED_HASH as u32 | (crate::CHUNK_START as u32) << 8 | (crate::CHUNK_END as u32) << 16;\n             crate::ran_kernel(crate::sme2::ffi::blake3_servil_sme2x2_hash_chunks_512 as *const ());\n             // Sound: SME2 was detected, and the table holds 18 chunk pointers per group.\n             let lanes = unsafe {\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "chunk_values",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 413
+        },
+        "start": {
+          "column": 1,
+          "line": 371
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/self_test.rs:378:39: replace * with + in chunk_values",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 40,
+        "line": 378
+      },
+      "start": {
+        "column": 39,
+        "line": 378
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace run -> usize with 0\n@@ -413,77 +413,17 @@\n }\n \n /// Run every case and stop on the first that differs from the reference;\n /// records the tested platform once on first initialization and returns how\n /// many cases ran (CASES and the selected platform's extra entries).\n fn run() -> usize {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n-    #[cfg(test)]\n-    if PLANTED_FAILURE.load(core::sync::atomic::Ordering::Relaxed) {\n-        panic!(\"a kernel's panic, planted by a test\");\n-    }\n-    #[cfg(test)]\n-    if HOLD_RUN.load(core::sync::atomic::Ordering::Relaxed) {\n-        IN_RUN.store(true, core::sync::atomic::Ordering::Release);\n-        while HOLD_RUN.load(core::sync::atomic::Ordering::Acquire) {\n-            std::thread::yield_now();\n-        }\n-    }\n-    compiled_features_present();\n-    let platform = Platform::detect_unchecked();\n-    let mut checked = 0;\n-    #[cfg(test)]\n-    let mut index = 0;\n-    let previous = chain(\n-        |case, input, previous, out| {\n-            let written = outputs(platform, case, input, previous, out);\n-            // A wrong digest a test plants in one case, as a CPU or build\n-            // that computes one would give.\n-            #[cfg(test)]\n-            {\n-                if index == PLANTED_WRONG_CASE.load(core::sync::atomic::Ordering::Relaxed) {\n-                    out[written - 1] ^= 1;\n-                }\n-                index += 1;\n-            }\n-            written\n-        },\n-        |index, folded| {\n-            checked += 1;\n-            if folded != EXPECTED[index] {\n-                stop(format_args!(\n-                    \"blake3-servil startup self-test failed: case {index}, {} (platform {}): this build or this CPU \\\n-                     computes wrong BLAKE3 digests on that path\",\n-                    CASES[index].1,\n-                    platform.name(),\n-                ));\n-            }\n-        },\n-    );\n-    #[cfg(target_arch = \"x86_64\")]\n-    if crate::platform::wide_avx512() {\n-        // Sound: the detected platform has the wide kernels' ISA, and\n-        // hash_many dispatches to them (only then does startup check them). Their\n-        // wrapper checks its bounds, and builds all arguments on the stack.\n-        checked += unsafe { crate::avx512_32::self_test(&previous) };\n-    }\n-    {\n-        checked += crate::ffi_output::self_test(platform);\n-    }\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        checked += crate::ffi_partial::self_test(platform);\n-    }\n-    checked += crate::ffi_packed::self_test(platform);\n-    checked += crate::ffi_counter::self_test(platform);\n-    let _ = previous;\n-    platform.record();\n-    checked\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Stop when this binary was compiled to assume an instruction that this\n /// CPU runs as another one instead of trapping: x86's LZCNT and TZCNT\n /// (BMI1) run as BSR and BSF on CPUs without them (Intel before Haswell),\n /// silently giving other values (QEMU's Ivy Bridge: leading_zeros(1 << 20)\n /// is 20, not 43). Every other instruction the compiler could assume traps\n /// on a CPU without it (SIGILL), which already stops the program. The\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "run",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 482
+        },
+        "start": {
+          "column": 1,
+          "line": 415
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:421:5: replace run -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 481
+      },
+      "start": {
+        "column": 5,
+        "line": 421
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace run -> usize with 1\n@@ -413,77 +413,17 @@\n }\n \n /// Run every case and stop on the first that differs from the reference;\n /// records the tested platform once on first initialization and returns how\n /// many cases ran (CASES and the selected platform's extra entries).\n fn run() -> usize {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n-    #[cfg(test)]\n-    if PLANTED_FAILURE.load(core::sync::atomic::Ordering::Relaxed) {\n-        panic!(\"a kernel's panic, planted by a test\");\n-    }\n-    #[cfg(test)]\n-    if HOLD_RUN.load(core::sync::atomic::Ordering::Relaxed) {\n-        IN_RUN.store(true, core::sync::atomic::Ordering::Release);\n-        while HOLD_RUN.load(core::sync::atomic::Ordering::Acquire) {\n-            std::thread::yield_now();\n-        }\n-    }\n-    compiled_features_present();\n-    let platform = Platform::detect_unchecked();\n-    let mut checked = 0;\n-    #[cfg(test)]\n-    let mut index = 0;\n-    let previous = chain(\n-        |case, input, previous, out| {\n-            let written = outputs(platform, case, input, previous, out);\n-            // A wrong digest a test plants in one case, as a CPU or build\n-            // that computes one would give.\n-            #[cfg(test)]\n-            {\n-                if index == PLANTED_WRONG_CASE.load(core::sync::atomic::Ordering::Relaxed) {\n-                    out[written - 1] ^= 1;\n-                }\n-                index += 1;\n-            }\n-            written\n-        },\n-        |index, folded| {\n-            checked += 1;\n-            if folded != EXPECTED[index] {\n-                stop(format_args!(\n-                    \"blake3-servil startup self-test failed: case {index}, {} (platform {}): this build or this CPU \\\n-                     computes wrong BLAKE3 digests on that path\",\n-                    CASES[index].1,\n-                    platform.name(),\n-                ));\n-            }\n-        },\n-    );\n-    #[cfg(target_arch = \"x86_64\")]\n-    if crate::platform::wide_avx512() {\n-        // Sound: the detected platform has the wide kernels' ISA, and\n-        // hash_many dispatches to them (only then does startup check them). Their\n-        // wrapper checks its bounds, and builds all arguments on the stack.\n-        checked += unsafe { crate::avx512_32::self_test(&previous) };\n-    }\n-    {\n-        checked += crate::ffi_output::self_test(platform);\n-    }\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        checked += crate::ffi_partial::self_test(platform);\n-    }\n-    checked += crate::ffi_packed::self_test(platform);\n-    checked += crate::ffi_counter::self_test(platform);\n-    let _ = previous;\n-    platform.record();\n-    checked\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Stop when this binary was compiled to assume an instruction that this\n /// CPU runs as another one instead of trapping: x86's LZCNT and TZCNT\n /// (BMI1) run as BSR and BSF on CPUs without them (Intel before Haswell),\n /// silently giving other values (QEMU's Ivy Bridge: leading_zeros(1 << 20)\n /// is 20, not 43). Every other instruction the compiler could assume traps\n /// on a CPU without it (SIGILL), which already stops the program. The\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "run",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 482
+        },
+        "start": {
+          "column": 1,
+          "line": 415
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:421:5: replace run -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 12,
+        "line": 481
+      },
+      "start": {
+        "column": 5,
+        "line": 421
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace <impl Kernels for PlatformKernels<'_>>::subtree -> Option<usize> with Some(0)\n@@ -158,23 +158,17 @@\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn subtree(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [Cv]) -> Option<usize> {\n         // Whole subtrees of 256 KiB to 1 MiB (> DEGREE chunks) on SME2:\n         // the flat walk keeps DEGREE chaining values (see\n         // sme2::compress_subtree_flat).\n-        #[cfg(target_arch = \"aarch64\")]\n-        if matches!(self.platform, Platform::SME2) && crate::sme2::flat_subtree_takes(input.len()) {\n-            // Sound: startup verified FEAT_SME2 (assembly checks SVL at entry and falls back to NEON if != 512 bits),\n-            // and `out` holds `simd_degree()` values (`sme2::DEGREE`).\n-            return Some(unsafe { crate::sme2::compress_subtree_flat(input, ahead, self.key, counter, self.flags, out.as_flattened_mut()) });\n-        }\n-        None\n+        Some(0) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> Option<[Cv; 2]> {\n         // Whole subtrees of 32 KiB to 1 MiB on SME2: the flat walk down to\n         // the two children, SME2 alone (see sme2::compress_subtree_flat_to_parent).\n         #[cfg(target_arch = \"aarch64\")]\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "<impl Kernels for PlatformKernels<'_>>::subtree",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 173
+        },
+        "start": {
+          "column": 5,
+          "line": 160
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/tree.rs:166:9: replace <impl Kernels for PlatformKernels<'_>>::subtree -> Option<usize> with Some(0)",
+    "package": "blake3-servil-core",
+    "replacement": "Some(0)",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 172
+      },
+      "start": {
+        "column": 9,
+        "line": 166
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace <impl Kernels for PlatformKernels<'_>>::subtree -> Option<usize> with Some(1)\n@@ -158,23 +158,17 @@\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn subtree(&self, input: &[u8], ahead: usize, counter: u64, out: &mut [Cv]) -> Option<usize> {\n         // Whole subtrees of 256 KiB to 1 MiB (> DEGREE chunks) on SME2:\n         // the flat walk keeps DEGREE chaining values (see\n         // sme2::compress_subtree_flat).\n-        #[cfg(target_arch = \"aarch64\")]\n-        if matches!(self.platform, Platform::SME2) && crate::sme2::flat_subtree_takes(input.len()) {\n-            // Sound: startup verified FEAT_SME2 (assembly checks SVL at entry and falls back to NEON if != 512 bits),\n-            // and `out` holds `simd_degree()` values (`sme2::DEGREE`).\n-            return Some(unsafe { crate::sme2::compress_subtree_flat(input, ahead, self.key, counter, self.flags, out.as_flattened_mut()) });\n-        }\n-        None\n+        Some(1) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> Option<[Cv; 2]> {\n         // Whole subtrees of 32 KiB to 1 MiB on SME2: the flat walk down to\n         // the two children, SME2 alone (see sme2::compress_subtree_flat_to_parent).\n         #[cfg(target_arch = \"aarch64\")]\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "<impl Kernels for PlatformKernels<'_>>::subtree",
+      "return_type": "-> Option<usize>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 173
+        },
+        "start": {
+          "column": 5,
+          "line": 160
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/tree.rs:166:9: replace <impl Kernels for PlatformKernels<'_>>::subtree -> Option<usize> with Some(1)",
+    "package": "blake3-servil-core",
+    "replacement": "Some(1)",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 172
+      },
+      "start": {
+        "column": 9,
+        "line": 166
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace <impl Kernels for PlatformKernels<'_>>::children -> Option<[Cv; 2]> with None\n@@ -172,23 +172,17 @@\n         None\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> Option<[Cv; 2]> {\n         // Whole subtrees of 32 KiB to 1 MiB on SME2: the flat walk down to\n         // the two children, SME2 alone (see sme2::compress_subtree_flat_to_parent).\n-        #[cfg(target_arch = \"aarch64\")]\n-        if matches!(self.platform, Platform::SME2) && crate::sme2::flat_takes(input.len()) {\n-            // Sound: startup verified FEAT_SME2; SME2 assembly checks the calling thread's SVL at entry and falls back to NEON if != 512 bits.\n-            let block = unsafe { crate::sme2::compress_subtree_flat_to_parent(input, ahead, self.key, counter, self.flags) };\n-            return Some([block[..OUT_LEN].try_into().unwrap(), block[OUT_LEN..].try_into().unwrap()]);\n-        }\n-        None\n+        None /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn chunk_root(&self, input: &[u8]) -> Cv {\n         // The scalar kernel, on every AArch64 core (crate::hash_one_chunk_root).\n         #[cfg(target_arch = \"aarch64\")]\n         return crate::hash_one_chunk_root(input, self.key, self.flags).0;\n         // One kernel call that keeps off the stack (src/ffi_chunk_root.rs):\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "<impl Kernels for PlatformKernels<'_>>::children",
+      "return_type": "-> Option<[Cv; 2]>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 187
+        },
+        "start": {
+          "column": 5,
+          "line": 175
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/tree.rs:180:9: replace <impl Kernels for PlatformKernels<'_>>::children -> Option<[Cv; 2]> with None",
+    "package": "blake3-servil-core",
+    "replacement": "None",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 186
+      },
+      "start": {
+        "column": 9,
+        "line": 180
+      }
+    }
+  },
+  {
+    "diff": "--- src/tree.rs\n+++ replace <impl Kernels for PlatformKernels<'_>>::children -> Option<[Cv; 2]> with Some([Default::default(); 2])\n@@ -172,23 +172,17 @@\n         None\n     }\n \n     #[inline(always)]\n     #[allow(unused_variables)]\n     fn children(&self, input: &[u8], ahead: usize, counter: u64) -> Option<[Cv; 2]> {\n         // Whole subtrees of 32 KiB to 1 MiB on SME2: the flat walk down to\n         // the two children, SME2 alone (see sme2::compress_subtree_flat_to_parent).\n-        #[cfg(target_arch = \"aarch64\")]\n-        if matches!(self.platform, Platform::SME2) && crate::sme2::flat_takes(input.len()) {\n-            // Sound: startup verified FEAT_SME2; SME2 assembly checks the calling thread's SVL at entry and falls back to NEON if != 512 bits.\n-            let block = unsafe { crate::sme2::compress_subtree_flat_to_parent(input, ahead, self.key, counter, self.flags) };\n-            return Some([block[..OUT_LEN].try_into().unwrap(), block[OUT_LEN..].try_into().unwrap()]);\n-        }\n-        None\n+        Some([Default::default(); 2]) /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[inline(always)]\n     fn chunk_root(&self, input: &[u8]) -> Cv {\n         // The scalar kernel, on every AArch64 core (crate::hash_one_chunk_root).\n         #[cfg(target_arch = \"aarch64\")]\n         return crate::hash_one_chunk_root(input, self.key, self.flags).0;\n         // One kernel call that keeps off the stack (src/ffi_chunk_root.rs):\n",
+    "file": "src/tree.rs",
+    "function": {
+      "function_name": "<impl Kernels for PlatformKernels<'_>>::children",
+      "return_type": "-> Option<[Cv; 2]>",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 187
+        },
+        "start": {
+          "column": 5,
+          "line": 175
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/tree.rs:180:9: replace <impl Kernels for PlatformKernels<'_>>::children -> Option<[Cv; 2]> with Some([Default::default(); 2])",
+    "package": "blake3-servil-core",
+    "replacement": "Some([Default::default(); 2])",
+    "span": {
+      "end": {
+        "column": 13,
+        "line": 186
+      },
+      "start": {
+        "column": 9,
+        "line": 180
+      }
+    }
+  }
+]
