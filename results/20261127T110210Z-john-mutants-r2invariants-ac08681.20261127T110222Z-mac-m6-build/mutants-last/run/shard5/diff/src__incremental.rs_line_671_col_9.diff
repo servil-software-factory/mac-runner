@@ -1,0 +1,38 @@
+--- src/incremental.rs
++++ replace Hasher::finalize -> Hash with Default::default()
+@@ -663,34 +663,17 @@
+     /// staged tail after an aligned empty chunk hashes the tail apart without
+     /// copying the core, and a fallback (such as staged bytes behind a partial
+     /// chunk left in the core by `update_each` on x86-64) copies the core
+     /// (~10 KiB).
+     #[inline]
+     pub fn finalize(&self) -> Hash {
+         // A message whole in the stage, the empty one too: the core holds
+         // none of it.
+-        if self.core.count() == 0 {
+-            // A block or less: one kernel call on the stage's first block.
+-            // Read the mode byte from `chunk_state` (same 64-byte-aligned
+-            // cache line as `fresh_key`, initialized from `domain`).
+-            #[cfg(target_arch = "x86_64")]
+-            if self.stage.len() <= BLOCK_LEN {
+-                let n = u8::try_from(self.stage.len()).expect("stage length <= BLOCK_LEN");
+-                return Hash(crate::chunk_root::block_root(
+-                    self.core.chunk_state.platform(),
+-                    self.stage.first_block(),
+-                    n,
+-                    self.fresh_key(),
+-                    self.core.chunk_state.flags(),
+-                ));
+-            }
+-            return crate::hash_serial_from(self.core.chunk_state.platform(), self.stage.as_bytes(), self.fresh_key(), self.core.domain.flags(), false);
+-        }
+-        self.root_output().root_hash()
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// An [`OutputReader`] over everything updated so far, which supplies
+     /// any number of output bytes; the Hasher is left as it was, as with
+     /// [`finalize`](Hasher::finalize).
+     pub fn finalize_xof(&self) -> OutputReader {
+         OutputReader::new(self.root_output())
+     }

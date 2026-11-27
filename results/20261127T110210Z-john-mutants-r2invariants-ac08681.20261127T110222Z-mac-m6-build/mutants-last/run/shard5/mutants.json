@@ -1,0 +1,226 @@
+[
+  {
+    "diff": "--- src/hasher.rs\n+++ replace >> with << in CvStack::push_row_with\n@@ -297,17 +297,17 @@\n     pub fn push_row_with<H: Hooks>(&mut self, k: &Kernels<'_, H>, fill: impl FnOnce(&mut [Cv; ROW]) -> usize) {\n         assert!(self.len < DEPTH, \"the stack holds DEPTH entries\");\n         for below in (self.len % ROWS..self.len).step_by(ROWS) {\n             if self.is_row(below) {\n                 self.narrow(k, below);\n             }\n         }\n         let slot = self.len % ROWS;\n-        if self.ready >> slot & 1 == 0 {\n+        if self.ready << /* ~ changed by cargo-mutants ~ */ slot & 1 == 0 {\n             self.rows[slot].fill(core::mem::MaybeUninit::new([0u8; 32]));\n             self.ready |= 1 << slot;\n         }\n         // Sound: `self.rows[slot]` was fully initialized either just above or on its first use (`ready` bit set).\n         let width = fill(unsafe { &mut *self.rows[slot].as_mut_ptr().cast::<[Cv; ROW]>() });\n         assert!((4..=ROW).contains(&width) && width.is_power_of_two(), \"a row of 4 to ROW values, a power of two\");\n         self.widths[slot] = u8::try_from(width).expect(\"row width <= TILE\");\n         self.wide |= 1 << self.len;\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::push_row_with",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 315
+        },
+        "start": {
+          "column": 5,
+          "line": 288
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:305:23: replace >> with << in CvStack::push_row_with",
+    "package": "blake3-servil-core",
+    "replacement": "<<",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 305
+      },
+      "start": {
+        "column": 23,
+        "line": 305
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace CvStack::merge with ()\n@@ -343,56 +343,17 @@\n     /// While the stack holds more than `target` entries, its top two become\n     /// their parent (merge_cv_stack): two rows of one width, the row of\n     /// their parents; any other two, the parent of their values. Two are\n     /// there to merge whenever `target` is at least 1, as the Hasher's are.\n     /// A loop of a count fixed at its start (no condition a change could\n     /// keep true forever: a mutation test's endless loop, which only a clock\n     /// stops, becomes a wrong value a test catches).\n     pub fn merge<H: Hooks>(&mut self, k: &Kernels<'_, H>, target: usize) {\n-        for _ in target..self.len {\n-            assert!(self.len >= 2, \"two values to merge\");\n-            let (a, b) = (self.len - 2, self.len - 1);\n-            if self.is_row(a) && self.is_row(b) {\n-                // Two rows of different widths (one subtree cut by wider\n-                // kernels than its sibling was, or cut whole where the\n-                // sibling grew from narrower rows): the wider is halved\n-                // to the other's width first.\n-                // (Widths are powers of two: the wider is the other's\n-                // width times two to the count of halvings.)\n-                for (wide, narrow) in [(a, b), (b, a)] {\n-                    // (The narrower over the wider is 0: no halving.)\n-                    let times = self.row(wide).len() / self.row(narrow).len();\n-                    for _ in 0..times.max(1).trailing_zeros() {\n-                        self.halve(k, wide);\n-                    }\n-                }\n-                // The two rows' values in one place, then their parents\n-                // into the lower row's place. The place for the children\n-                // is written before it is read, and never zeroed first:\n-                // zeroing 2 KiB a merge cost more than the merge saved.\n-                let (left, right) = (self.row(a), self.row(b));\n-                let n = left.len();\n-                assert_eq!(n, right.len(), \"two rows merge at one width\");\n-                let mut children = [core::mem::MaybeUninit::<Cv>::uninit(); 2 * ROW];\n-                children[..n].write_copy_of_slice(left);\n-                children[n..2 * n].write_copy_of_slice(right);\n-                // Sound: `children[..2 * n]` were initialized just above.\n-                let children = unsafe { core::slice::from_raw_parts(children.as_ptr().cast::<Cv>(), 2 * n) };\n-                // Sound: row `a`'s first `n` values were initialized as row `a` and are overwritten in place.\n-                let place = unsafe { core::slice::from_raw_parts_mut(self.rows[a % ROWS].as_mut_ptr().cast::<Cv>(), n) };\n-                let made = k.parents(children, place);\n-                assert_eq!(made, n, \"a parent for every two children\");\n-            } else {\n-                let parent = k.parent(&self.get(k, a), &self.get(k, b));\n-                self.set(a, parent);\n-                self.wide &= !(1 << a);\n-            }\n-            self.len -= 1;\n-        }\n+        () /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// The number of 1-bits of `x` (its popcount, which the loop this replaced\n /// compiled to anyway; with no loop, no change to it can run forever).\n pub fn ones(x: u64) -> usize {\n     x.count_ones() as usize\n }\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::merge",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 391
+        },
+        "start": {
+          "column": 5,
+          "line": 343
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/hasher.rs:351:9: replace CvStack::merge with ()",
+    "package": "blake3-servil-core",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 390
+      },
+      "start": {
+        "column": 9,
+        "line": 351
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace * with + in CvStack::merge\n@@ -367,17 +367,17 @@\n                 }\n                 // The two rows' values in one place, then their parents\n                 // into the lower row's place. The place for the children\n                 // is written before it is read, and never zeroed first:\n                 // zeroing 2 KiB a merge cost more than the merge saved.\n                 let (left, right) = (self.row(a), self.row(b));\n                 let n = left.len();\n                 assert_eq!(n, right.len(), \"two rows merge at one width\");\n-                let mut children = [core::mem::MaybeUninit::<Cv>::uninit(); 2 * ROW];\n+                let mut children = [core::mem::MaybeUninit::<Cv>::uninit(); 2 + /* ~ changed by cargo-mutants ~ */ ROW];\n                 children[..n].write_copy_of_slice(left);\n                 children[n..2 * n].write_copy_of_slice(right);\n                 // Sound: `children[..2 * n]` were initialized just above.\n                 let children = unsafe { core::slice::from_raw_parts(children.as_ptr().cast::<Cv>(), 2 * n) };\n                 // Sound: row `a`'s first `n` values were initialized as row `a` and are overwritten in place.\n                 let place = unsafe { core::slice::from_raw_parts_mut(self.rows[a % ROWS].as_mut_ptr().cast::<Cv>(), n) };\n                 let made = k.parents(children, place);\n                 assert_eq!(made, n, \"a parent for every two children\");\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::merge",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 391
+        },
+        "start": {
+          "column": 5,
+          "line": 343
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:375:79: replace * with + in CvStack::merge",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 80,
+        "line": 375
+      },
+      "start": {
+        "column": 79,
+        "line": 375
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace * with + in CvStack::merge\n@@ -369,17 +369,17 @@\n                 // into the lower row's place. The place for the children\n                 // is written before it is read, and never zeroed first:\n                 // zeroing 2 KiB a merge cost more than the merge saved.\n                 let (left, right) = (self.row(a), self.row(b));\n                 let n = left.len();\n                 assert_eq!(n, right.len(), \"two rows merge at one width\");\n                 let mut children = [core::mem::MaybeUninit::<Cv>::uninit(); 2 * ROW];\n                 children[..n].write_copy_of_slice(left);\n-                children[n..2 * n].write_copy_of_slice(right);\n+                children[n..2 + /* ~ changed by cargo-mutants ~ */ n].write_copy_of_slice(right);\n                 // Sound: `children[..2 * n]` were initialized just above.\n                 let children = unsafe { core::slice::from_raw_parts(children.as_ptr().cast::<Cv>(), 2 * n) };\n                 // Sound: row `a`'s first `n` values were initialized as row `a` and are overwritten in place.\n                 let place = unsafe { core::slice::from_raw_parts_mut(self.rows[a % ROWS].as_mut_ptr().cast::<Cv>(), n) };\n                 let made = k.parents(children, place);\n                 assert_eq!(made, n, \"a parent for every two children\");\n             } else {\n                 let parent = k.parent(&self.get(k, a), &self.get(k, b));\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::merge",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 391
+        },
+        "start": {
+          "column": 5,
+          "line": 343
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:377:31: replace * with + in CvStack::merge",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 32,
+        "line": 377
+      },
+      "start": {
+        "column": 31,
+        "line": 377
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace * with + in CvStack::merge\n@@ -371,17 +371,17 @@\n                 // zeroing 2 KiB a merge cost more than the merge saved.\n                 let (left, right) = (self.row(a), self.row(b));\n                 let n = left.len();\n                 assert_eq!(n, right.len(), \"two rows merge at one width\");\n                 let mut children = [core::mem::MaybeUninit::<Cv>::uninit(); 2 * ROW];\n                 children[..n].write_copy_of_slice(left);\n                 children[n..2 * n].write_copy_of_slice(right);\n                 // Sound: `children[..2 * n]` were initialized just above.\n-                let children = unsafe { core::slice::from_raw_parts(children.as_ptr().cast::<Cv>(), 2 * n) };\n+                let children = unsafe { core::slice::from_raw_parts(children.as_ptr().cast::<Cv>(), 2 + /* ~ changed by cargo-mutants ~ */ n) };\n                 // Sound: row `a`'s first `n` values were initialized as row `a` and are overwritten in place.\n                 let place = unsafe { core::slice::from_raw_parts_mut(self.rows[a % ROWS].as_mut_ptr().cast::<Cv>(), n) };\n                 let made = k.parents(children, place);\n                 assert_eq!(made, n, \"a parent for every two children\");\n             } else {\n                 let parent = k.parent(&self.get(k, a), &self.get(k, b));\n                 self.set(a, parent);\n                 self.wide &= !(1 << a);\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::merge",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 391
+        },
+        "start": {
+          "column": 5,
+          "line": 343
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:379:103: replace * with + in CvStack::merge",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 104,
+        "line": 379
+      },
+      "start": {
+        "column": 103,
+        "line": 379
+      }
+    }
+  },
+  {
+    "diff": "--- src/hasher.rs\n+++ replace % with + in CvStack::merge\n@@ -373,17 +373,17 @@\n                 let n = left.len();\n                 assert_eq!(n, right.len(), \"two rows merge at one width\");\n                 let mut children = [core::mem::MaybeUninit::<Cv>::uninit(); 2 * ROW];\n                 children[..n].write_copy_of_slice(left);\n                 children[n..2 * n].write_copy_of_slice(right);\n                 // Sound: `children[..2 * n]` were initialized just above.\n                 let children = unsafe { core::slice::from_raw_parts(children.as_ptr().cast::<Cv>(), 2 * n) };\n                 // Sound: row `a`'s first `n` values were initialized as row `a` and are overwritten in place.\n-                let place = unsafe { core::slice::from_raw_parts_mut(self.rows[a % ROWS].as_mut_ptr().cast::<Cv>(), n) };\n+                let place = unsafe { core::slice::from_raw_parts_mut(self.rows[a + /* ~ changed by cargo-mutants ~ */ ROWS].as_mut_ptr().cast::<Cv>(), n) };\n                 let made = k.parents(children, place);\n                 assert_eq!(made, n, \"a parent for every two children\");\n             } else {\n                 let parent = k.parent(&self.get(k, a), &self.get(k, b));\n                 self.set(a, parent);\n                 self.wide &= !(1 << a);\n             }\n             self.len -= 1;\n",
+    "file": "src/hasher.rs",
+    "function": {
+      "function_name": "CvStack::merge",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 391
+        },
+        "start": {
+          "column": 5,
+          "line": 343
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/hasher.rs:381:82: replace % with + in CvStack::merge",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 83,
+        "line": 381
+      },
+      "start": {
+        "column": 82,
+        "line": 381
+      }
+    }
+  },
+  {
+    "diff": "--- src/incremental.rs\n+++ replace Hasher::finalize -> Hash with Default::default()\n@@ -663,34 +663,17 @@\n     /// staged tail after an aligned empty chunk hashes the tail apart without\n     /// copying the core, and a fallback (such as staged bytes behind a partial\n     /// chunk left in the core by `update_each` on x86-64) copies the core\n     /// (~10 KiB).\n     #[inline]\n     pub fn finalize(&self) -> Hash {\n         // A message whole in the stage, the empty one too: the core holds\n         // none of it.\n-        if self.core.count() == 0 {\n-            // A block or less: one kernel call on the stage's first block.\n-            // Read the mode byte from `chunk_state` (same 64-byte-aligned\n-            // cache line as `fresh_key`, initialized from `domain`).\n-            #[cfg(target_arch = \"x86_64\")]\n-            if self.stage.len() <= BLOCK_LEN {\n-                let n = u8::try_from(self.stage.len()).expect(\"stage length <= BLOCK_LEN\");\n-                return Hash(crate::chunk_root::block_root(\n-                    self.core.chunk_state.platform(),\n-                    self.stage.first_block(),\n-                    n,\n-                    self.fresh_key(),\n-                    self.core.chunk_state.flags(),\n-                ));\n-            }\n-            return crate::hash_serial_from(self.core.chunk_state.platform(), self.stage.as_bytes(), self.fresh_key(), self.core.domain.flags(), false);\n-        }\n-        self.root_output().root_hash()\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// An [`OutputReader`] over everything updated so far, which supplies\n     /// any number of output bytes; the Hasher is left as it was, as with\n     /// [`finalize`](Hasher::finalize).\n     pub fn finalize_xof(&self) -> OutputReader {\n         OutputReader::new(self.root_output())\n     }\n",
+    "file": "src/incremental.rs",
+    "function": {
+      "function_name": "Hasher::finalize",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 689
+        },
+        "start": {
+          "column": 5,
+          "line": 656
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/incremental.rs:671:9: replace Hasher::finalize -> Hash with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 39,
+        "line": 688
+      },
+      "start": {
+        "column": 9,
+        "line": 671
+      }
+    }
+  }
+]
