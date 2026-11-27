@@ -1,0 +1,21 @@
+--- src/lib.rs
++++ replace | with ^ in compress_parents_parallel
+@@ -957,17 +957,17 @@
+ #[doc(hidden)]
+ pub(crate) fn compress_parents_parallel(child_chaining_values: &[u8], key: &CVWords, flags: u8, platform: Platform, out: &mut [u8]) -> usize {
+     assert_eq!(child_chaining_values.len() % OUT_LEN, 0, "chaining values are 32 bytes each");
+     let num_children = child_chaining_values.len() / OUT_LEN;
+     assert!((2..=2 * MAX_SIMD_DEGREE).contains(&num_children), "compress_parents_parallel expects 2..=2*MAX_SIMD_DEGREE children");
+ 
+     let (parent_blocks, remainder) = child_chaining_values.as_chunks::<BLOCK_LEN>();
+     let parents_so_far = parent_blocks.len();
+-    let flags = flags | PARENT;
++    let flags = flags ^ /* ~ changed by cargo-mutants ~ */ PARENT;
+     #[cfg(target_arch = "aarch64")]
+     let on_sme2 = matches!(platform, Platform::SME2);
+     #[cfg(not(target_arch = "aarch64"))]
+     let on_sme2 = false;
+     if on_sme2 {
+         // SME2's parent kernel reads a contiguous run of 64-byte parent blocks
+         // directly, without constructing a pointer table.
+         #[cfg(target_arch = "aarch64")]

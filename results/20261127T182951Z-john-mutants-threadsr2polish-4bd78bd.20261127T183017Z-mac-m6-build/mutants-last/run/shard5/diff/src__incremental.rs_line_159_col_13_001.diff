@@ -1,0 +1,21 @@
+--- src/incremental.rs
++++ replace stage::Stage::as_bytes -> &[u8] with Vec::leak(vec![0])
+@@ -151,17 +151,17 @@
+             // `clone_from` initialize `buf[..BLOCK_LEN]` with zeros past `len`.
+             unsafe { &*(self.buf.as_ptr() as *const [u8; BLOCK_LEN]) }
+         }
+ 
+         /// The bytes gathered in the stage.
+         #[inline(always)]
+         pub(crate) fn as_bytes(&self) -> &[u8] {
+             // Sound: `self.len <= STAGE_LEN` and `buf[..self.len]` were written.
+-            unsafe { core::slice::from_raw_parts(self.buf.as_ptr() as *const u8, self.len) }
++            Vec::leak(vec![0]) /* ~ changed by cargo-mutants ~ */
+         }
+ 
+         /// Copy `bytes` into the stage after what it holds. Under a block
+         /// into an empty stage, the rest of the first block is zeroed.
+         pub(crate) fn append(&mut self, bytes: &[u8]) {
+             assert!(bytes.len() <= STAGE_LEN - self.len, "staged bytes exceed STAGE_LEN");
+             crate::counted(crate::Counted::Staged);
+             if self.len == 0 {
