@@ -1,0 +1,58 @@
+--- src/many.rs
++++ replace try_whole_group -> bool with false
+@@ -576,54 +576,17 @@
+ pub(crate) fn try_whole_group<'a>(
+     count: usize,
+     input: impl Fn(usize) -> &'a [u8],
+     key: &CVWords,
+     flags: u8,
+     platform: Platform,
+     output: impl FnMut(usize, [u8; OUT_LEN]),
+ ) -> bool {
+-    fn run<'a, const N: usize>(
+-        count: usize,
+-        input: impl Fn(usize) -> &'a [u8],
+-        key: &CVWords,
+-        flags: u8,
+-        platform: Platform,
+-        mut output: impl FnMut(usize, [u8; OUT_LEN]),
+-    ) -> bool {
+-        // The messages up to the first that is not N bytes: all of them, or
+-        // this group goes the one-message way. The table is filled where it
+-        // stands. Collected, it was copied whole to its place, a kibibyte
+-        // whatever the group's size, and a group of two 64-byte messages
+-        // took half as long again (BLAKE3 PR #484).
+-        let mut table = crate::stack_vec::StackVec::<&[u8; N], TABLE>::new();
+-        table.extend((0..count).map_while(|i| input(i).try_into().ok()));
+-        if table.len() != count {
+-            return false;
+-        }
+-        // Only a group that takes the lanes needs temporary outputs.
+-        let mut digests = crate::stack_vec::StackVec::<[u8; OUT_LEN], TABLE>::new();
+-        digests.extend(core::iter::repeat_n([0; OUT_LEN], count));
+-        whole_messages(&table, key, flags, &mut digests, platform);
+-        for (i, &digest) in digests.iter().enumerate() {
+-            output(i, digest);
+-        }
+-        true
+-    }
+-    if !(2..=TABLE).contains(&count) {
+-        return false;
+-    }
+-    match input(0).len() {
+-        BLOCK_LEN => run::<BLOCK_LEN>(count, input, key, flags, platform, output),
+-        128 => run::<128>(count, input, key, flags, platform, output),
+-        256 => run::<256>(count, input, key, flags, platform, output),
+-        512 => run::<512>(count, input, key, flags, platform, output),
+-        CHUNK_LEN => run::<CHUNK_LEN>(count, input, key, flags, platform, output),
+-        _ => false,
+-    }
++    false /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// One-block messages on SME2, every group on the message kernel, the
+ /// last one padded, their last block `last_len` bytes.
+ #[cfg(target_arch = "aarch64")]
+ #[inline(never)]
+ fn hash_run_padded(messages: &[u8], key: &CVWords, flags: u8, outputs: &mut [[u8; OUT_LEN]], last_len: usize) {
+     let mut slots = crate::stack_vec::StackVec::<*const u8, TABLE>::new();

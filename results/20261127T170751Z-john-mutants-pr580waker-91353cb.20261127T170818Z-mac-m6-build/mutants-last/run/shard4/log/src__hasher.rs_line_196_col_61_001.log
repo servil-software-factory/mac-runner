@@ -1,0 +1,88 @@
+
+*** src/hasher.rs:196:61: replace * with / in CvStack::condense
+
+*** mutation diff:
+--- src/hasher.rs
++++ replace * with / in CvStack::condense
+@@ -188,17 +188,17 @@
+     /// popping rows that reach one value from the narrowest end. Total
+     /// scratch: 6 KiB (down from 16 KiB).
+     #[inline(never)]
+     fn condense<H: Hooks>(&self, k: &Kernels<'_, H>, live: u64, values: &mut [Cv; ROWS]) {
+         let mut a = [const { core::mem::MaybeUninit::<Cv>::uninit() }; HALF_RUN];
+         let mut b = [const { core::mem::MaybeUninit::<Cv>::uninit() }; 2 * ROW];
+         let mut order = [0usize; ROWS];
+         let (mut rows, mut fill, mut len) = (0, 0, 0);
+-        let mut flush = |b: &[core::mem::MaybeUninit<Cv>; 2 * ROW], fill: usize| {
++        let mut flush = |b: &[core::mem::MaybeUninit<Cv>; 2 / /* ~ changed by cargo-mutants ~ */ ROW], fill: usize| {
+             // Sound: `b[..fill]` holds `fill` written values from whole rows.
+             let children = unsafe { core::slice::from_raw_parts(b.as_ptr() as *const Cv, fill) };
+             let out = a[len..len + fill / 2].write_copy_of_slice(&children[..fill / 2]);
+             let places = out.len();
+             let made = k.parents(children, out);
+             assert_eq!((2 * made, places), (fill, made), "a parent for every two children, each in its place");
+             len += made;
+         };
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[82634]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[96384]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4/version)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-4)
+error[E0308]: mismatched types
+   --> src/hasher.rs:217:31
+    |
+217 |                         flush(&b, fill);
+    |                         ----- ^^ expected an array with a size of 0, found one with a size of 64
+    |                         |
+    |                         arguments to this function are incorrect
+    |
+    = note: expected reference `&[MaybeUninit<[u8; 32]>; 0]`
+               found reference `&[MaybeUninit<[u8; 32]>; 64]`
+note: closure parameter defined here
+   --> src/hasher.rs:196:26
+    |
+196 |         let mut flush = |b: &[core::mem::MaybeUninit<Cv>; 2 / /* ~ changed by cargo-mutants ~ */ ROW], fill: usize| {
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> src/hasher.rs:226:19
+    |
+226 |             flush(&b, fill);
+    |             ----- ^^ expected an array with a size of 0, found one with a size of 64
+    |             |
+    |             arguments to this function are incorrect
+    |
+    = note: expected reference `&[MaybeUninit<[u8; 32]>; 0]`
+               found reference `&[MaybeUninit<[u8; 32]>; 64]`
+note: closure parameter defined here
+   --> src/hasher.rs:196:26
+    |
+196 |         let mut flush = |b: &[core::mem::MaybeUninit<Cv>; 2 / /* ~ changed by cargo-mutants ~ */ ROW], fill: usize| {
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `blake3-servil-core` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil-core` (lib test) due to 2 previous errors
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

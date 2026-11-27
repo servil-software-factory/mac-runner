@@ -1,0 +1,32 @@
+--- src/action_ring.rs
++++ replace publish_slice with ()
+@@ -20,28 +20,17 @@
+         Self { context: AtomicPtr::new(core::ptr::null_mut()), arg: AtomicU64::new(0), near: AtomicBool::new(false) }
+     }
+ }
+ 
+ /// Publish `args` in order into `actions` with a single `Release` store on
+ /// `published`. Panics if `args` would overwrite any ticket not yet claimed.
+ pub(crate) fn publish_slice(actions: &[Action], published: &AtomicUsize, claimed: &AtomicUsize, context: *const (), args: &[u64], near: bool) {
+     // Debug-only: internal pool entry; callers only publish non-empty job slices.
+-    debug_assert!(!args.is_empty());
+-    let p = published.load(Ordering::Relaxed);
+-    let next = p.checked_add(args.len()).expect("Source action ticket counter exhausted");
+-    let cap = actions.len();
+-    assert!(p - claimed.load(Ordering::Acquire) + args.len() <= cap, "a source's actions hold every item not yet taken");
+-    for (k, &arg) in args.iter().enumerate() {
+-        let slot = &actions[(p + k) % cap];
+-        slot.context.store(context as *mut (), Ordering::Relaxed);
+-        slot.arg.store(arg, Ordering::Relaxed);
+-        slot.near.store(near, Ordering::Relaxed);
+-    }
+-    published.store(next, Ordering::Release);
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Claim the next published action ticket, returning `(ticket_seq, context, arg)`.
+ /// Reads the slot speculatively before winning `claimed` with `AcqRel` CAS;
+ /// a slot cannot be overwritten until its ticket is claimed and the publisher
+ /// wraps `actions.len()` tickets later, so any winning CAS guarantees the
+ /// pre-read `(context, arg)` belonged to `ticket_seq`.
+ pub(crate) fn take_one(actions: &[Action], published: &AtomicUsize, claimed: &AtomicUsize) -> Option<(usize, *const (), u64)> {

@@ -1,0 +1,81 @@
+
+*** src/block.rs:496:9: replace Batch<'_>::blocks_mut -> &mut[Block] with Vec::leak(vec![Default::default()])
+
+*** mutation diff:
+--- src/block.rs
++++ replace Batch<'_>::blocks_mut -> &mut[Block] with Vec::leak(vec![Default::default()])
+@@ -488,18 +488,17 @@
+         let len = self.message_len;
+         let slot = blocks_per(len) * BLOCK_LEN;
+         Block::bytes_mut(self.blocks.to_mut()).chunks_exact_mut(slot).map(move |s| &mut s[..len])
+     }
+ 
+     /// Every byte for writing, where no message has bytes past its end to
+     /// keep zero: `message_len` a multiple of 64 and not 0.
+     pub fn blocks_mut(&mut self) -> &mut [Block] {
+-        assert!(self.message_len % BLOCK_LEN == 0 && self.message_len > 0, "a batch whose messages leave no bytes past their ends ({} B)", self.message_len);
+-        self.blocks.to_mut()
++        Vec::leak(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Its 64-byte messages as 32-byte digests, two a message: a Merkle
+     /// layer's digests written straight into the next layer, whose
+     /// messages are pairs of children. A layer of an odd count leaves a
+     /// digest to spare: slice it, `&mut batch.digests_mut()[..count]`.
+     pub fn digests_mut(&mut self) -> &mut [[u8; 32]] {
+         assert!(self.message_len == 2 * 32, "digests_mut takes a batch of 64-byte messages, two digests each, not {} B", self.message_len);
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[82643]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[96382]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-0)
+error[E0277]: the trait bound `Block: Default` is not satisfied
+   --> src/block.rs:496:24
+    |
+496 |         Vec::leak(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */
+    |                        ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `Block`
+   --> src/block.rs:26:1
+    |
+ 26 | pub struct Block(pub [u8; BLOCK_LEN]);
+    | ^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0277]: the trait bound `block::Block: Default` is not satisfied
+   --> src/block.rs:496:24
+    |
+496 |         Vec::leak(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */
+    |                        ^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+    |
+help: the trait `Default` is not implemented for `block::Block`
+   --> src/block.rs:26:1
+    |
+ 26 | pub struct Block(pub [u8; BLOCK_LEN]);
+    | ^^^^^^^^^^^^^^^^
+
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

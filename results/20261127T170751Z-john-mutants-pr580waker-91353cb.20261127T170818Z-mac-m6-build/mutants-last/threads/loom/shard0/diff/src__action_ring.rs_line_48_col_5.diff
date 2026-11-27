@@ -1,0 +1,28 @@
+--- src/action_ring.rs
++++ replace take_one -> Option<(usize, *const(), u64)> with None
+@@ -40,24 +40,10 @@
+ }
+ 
+ /// Claim the next published action ticket, returning `(ticket_seq, context, arg)`.
+ /// Reads the slot speculatively before winning `claimed` with `AcqRel` CAS;
+ /// a slot cannot be overwritten until its ticket is claimed and the publisher
+ /// wraps `actions.len()` tickets later, so any winning CAS guarantees the
+ /// pre-read `(context, arg)` belonged to `ticket_seq`.
+ pub(crate) fn take_one(actions: &[Action], published: &AtomicUsize, claimed: &AtomicUsize) -> Option<(usize, *const (), u64)> {
+-    let mut c = claimed.load(Ordering::Acquire);
+-    let cap = actions.len();
+-    loop {
+-        let p = published.load(Ordering::Acquire);
+-        if c >= p {
+-            return None;
+-        }
+-        let slot = &actions[c % cap];
+-        let context = slot.context.load(Ordering::Relaxed) as *const ();
+-        let arg = slot.arg.load(Ordering::Relaxed);
+-        match claimed.compare_exchange_weak(c, c + 1, Ordering::AcqRel, Ordering::Acquire) {
+-            Ok(_) => return Some((c, context, arg)),
+-            Err(now) => c = now,
+-        }
+-    }
++    None /* ~ changed by cargo-mutants ~ */
+ }

@@ -1,0 +1,21 @@
+--- src/action_ring.rs
++++ replace % with + in publish_slice
+@@ -26,17 +26,17 @@
+ pub(crate) fn publish_slice(actions: &[Action], published: &AtomicUsize, claimed: &AtomicUsize, context: *const (), args: &[u64], near: bool) {
+     // Debug-only: internal pool entry; callers only publish non-empty job slices.
+     debug_assert!(!args.is_empty());
+     let p = published.load(Ordering::Relaxed);
+     let next = p.checked_add(args.len()).expect("Source action ticket counter exhausted");
+     let cap = actions.len();
+     assert!(p - claimed.load(Ordering::Acquire) + args.len() <= cap, "a source's actions hold every item not yet taken");
+     for (k, &arg) in args.iter().enumerate() {
+-        let slot = &actions[(p + k) % cap];
++        let slot = &actions[(p + k) + /* ~ changed by cargo-mutants ~ */ cap];
+         slot.context.store(context as *mut (), Ordering::Relaxed);
+         slot.arg.store(arg, Ordering::Relaxed);
+         slot.near.store(near, Ordering::Relaxed);
+     }
+     published.store(next, Ordering::Release);
+ }
+ 
+ /// Claim the next published action ticket, returning `(ticket_seq, context, arg)`.

@@ -1,0 +1,48 @@
+--- src/lib.rs
++++ replace Hash::from_hex -> Result<Self, HexError> with Ok(Default::default())
+@@ -668,44 +668,17 @@
+     /// For 64 hexadecimal characters, the call's time and memory accesses
+     /// are the same whatever they are: each is decoded by arithmetic, all
+     /// 64 always. An input that is refused is then searched for the
+     /// character the error names.
+     ///
+     /// Note that `Hash` also implements `FromStr`, so `Hash::from_hex("...")`
+     /// is equivalent to `"...".parse()`.
+     pub fn from_hex(hex: impl AsRef<[u8]>) -> Result<Self, HexError> {
+-        /// (the character's value, 0xff where it is a hex character and 0
+-        /// where not), with no branch: a difference below its range's size
+-        /// leaves the subtraction negative, whose sign fills the mask.
+-        fn hex_val(byte: u8) -> (u8, u8) {
+-            let digit = byte.wrapping_sub(b'0');
+-            let letter = (byte | 0x20).wrapping_sub(b'a');
+-            let is_digit = ((digit as i16 - 10) >> 8) as u8;
+-            let is_letter = ((letter as i16 - 6) >> 8) as u8;
+-            ((digit & is_digit) | (letter.wrapping_add(10) & is_letter), is_digit | is_letter)
+-        }
+-        let hex_bytes: &[u8] = hex.as_ref();
+-        if hex_bytes.len() != OUT_LEN * 2 {
+-            return Err(HexError(HexErrorInner::InvalidLen(hex_bytes.len())));
+-        }
+-        let mut hash_bytes: [u8; OUT_LEN] = [0; OUT_LEN];
+-        let mut all = 0xff;
+-        for i in 0..OUT_LEN {
+-            let (high, high_is) = hex_val(hex_bytes[2 * i]);
+-            let (low, low_is) = hex_val(hex_bytes[2 * i + 1]);
+-            hash_bytes[i] = high << 4 | low;
+-            all &= high_is & low_is;
+-        }
+-        if all != 0xff {
+-            // Refused: the first character that is none, for the error.
+-            let byte = *hex_bytes.iter().find(|&&b| hex_val(b).1 == 0).expect("a refused input holds a character that is no hex character");
+-            return Err(HexError(HexErrorInner::InvalidByte(byte)));
+-        }
+-        Ok(Hash::from(hash_bytes))
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ impl From<[u8; OUT_LEN]> for Hash {
+     #[inline]
+     fn from(bytes: [u8; OUT_LEN]) -> Self {
+         Self::from_bytes(bytes)
+     }

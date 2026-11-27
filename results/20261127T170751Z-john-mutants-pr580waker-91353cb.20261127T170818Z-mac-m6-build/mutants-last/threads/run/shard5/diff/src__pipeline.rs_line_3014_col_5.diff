@@ -1,0 +1,64 @@
+--- src/pipeline.rs
++++ replace block_on -> F::Output with Default::default()
+@@ -3006,60 +3006,17 @@
+ /// use blake3_servil::throughput::Pipeline;
+ /// async fn bad(pipeline: &mut Pipeline<u64>) {
+ ///     let slot = pipeline.message(1, None);
+ ///     let ev = pipeline.ready();
+ ///     let _ = (slot.await, ev.await);
+ /// }
+ /// ```
+ pub fn block_on<F: Future>(future: F) -> F::Output {
+-    /// Whether this `block_on` runs inside another, and whether it took a wake.
+-    struct Guard(bool, bool);
+-    impl Drop for Guard {
+-        fn drop(&mut self) {
+-            IN_BLOCK_ON.with(|f| f.set(self.0));
+-            if self.0 && self.1 {
+-                // This `block_on` ran inside a poll of another, on the one
+-                // waker the two share: a wake it took may have been the
+-                // other's, which polls once more before it sleeps. Only
+-                // where it took one: an outer future that runs a
+-                // `block_on` in each poll would otherwise never sleep.
+-                BLOCK_ON_PARK.with(|park| park.woken.store(true, Ordering::Release));
+-            }
+-        }
+-    }
+-    let prev = IN_BLOCK_ON.with(|f| f.replace(true));
+-    let mut guard = Guard(prev, false);
+-    let mut future = core::pin::pin!(future);
+-    BLOCK_ON_PARK.with(|park| {
+-        BLOCK_ON_WAKER.with(|waker| {
+-            let mut cx = Context::from_waker(waker);
+-            if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {
+-                return output;
+-            }
+-            let started = crate::lanes::now();
+-            let mut yielded = started;
+-            loop {
+-                crate::lanes::poll_pause(&mut yielded);
+-                if crate::lanes::now() - started >= crate::lanes::SPIN_BEFORE_SLEEP {
+-                    if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {
+-                        return output;
+-                    }
+-                    // Asleep until a wake, one that came during the poll
+-                    // included, whoever took the thread's park token since.
+-                    while !park.woken.swap(false, Ordering::Acquire) {
+-                        thread::park();
+-                    }
+-                    guard.1 = true;
+-                } else if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {
+-                    return output;
+-                }
+-            }
+-        })
+-    })
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ // The standard library's tests alone: under Shuttle
+ // (tests/shuttle_pipeline.rs) this file is compiled without them.
+ #[cfg(all(test, not(shuttle)))]
+ mod test {
+     use super::*;
+ 
