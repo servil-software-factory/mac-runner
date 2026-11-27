@@ -1,0 +1,194 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace in_block_on -> bool with true\n@@ -2832,17 +2832,17 @@\n crate::pipeline_sync::thread_local! {\n     static BLOCK_ON_PARK: Arc<ThreadPark> = Arc::new(ThreadPark { thread: thread::current(), woken: AtomicBool::new(false) });\n     static BLOCK_ON_WAKER: Waker = BLOCK_ON_PARK.with(|park| Waker::from(Arc::clone(park)));\n     static IN_BLOCK_ON: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };\n }\n \n #[inline(always)]\n fn in_block_on() -> bool {\n-    IN_BLOCK_ON.try_with(core::cell::Cell::get).unwrap_or(false)\n+    true /* ~ changed by cargo-mutants ~ */\n }\n \n fn prepare_thread() {\n     let _ = BLOCK_ON_WAKER.try_with(|_| {});\n }\n \n /// Drive `future` to completion on the current thread, parking between polls.\n ///\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "in_block_on",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2841
+        },
+        "start": {
+          "column": 1,
+          "line": 2838
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2840:5: replace in_block_on -> bool with true",
+    "package": "blake3-servil",
+    "replacement": "true",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2840
+      },
+      "start": {
+        "column": 5,
+        "line": 2840
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace in_block_on -> bool with false\n@@ -2832,17 +2832,17 @@\n crate::pipeline_sync::thread_local! {\n     static BLOCK_ON_PARK: Arc<ThreadPark> = Arc::new(ThreadPark { thread: thread::current(), woken: AtomicBool::new(false) });\n     static BLOCK_ON_WAKER: Waker = BLOCK_ON_PARK.with(|park| Waker::from(Arc::clone(park)));\n     static IN_BLOCK_ON: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };\n }\n \n #[inline(always)]\n fn in_block_on() -> bool {\n-    IN_BLOCK_ON.try_with(core::cell::Cell::get).unwrap_or(false)\n+    false /* ~ changed by cargo-mutants ~ */\n }\n \n fn prepare_thread() {\n     let _ = BLOCK_ON_WAKER.try_with(|_| {});\n }\n \n /// Drive `future` to completion on the current thread, parking between polls.\n ///\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "in_block_on",
+      "return_type": "-> bool",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 2841
+        },
+        "start": {
+          "column": 1,
+          "line": 2838
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:2840:5: replace in_block_on -> bool with false",
+    "package": "blake3-servil",
+    "replacement": "false",
+    "span": {
+      "end": {
+        "column": 65,
+        "line": 2840
+      },
+      "start": {
+        "column": 5,
+        "line": 2840
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace block_on -> F::Output with Default::default()\n@@ -3006,60 +3006,17 @@\n /// use blake3_servil::throughput::Pipeline;\n /// async fn bad(pipeline: &mut Pipeline<u64>) {\n ///     let slot = pipeline.message(1, None);\n ///     let ev = pipeline.ready();\n ///     let _ = (slot.await, ev.await);\n /// }\n /// ```\n pub fn block_on<F: Future>(future: F) -> F::Output {\n-    /// Whether this `block_on` runs inside another, and whether it took a wake.\n-    struct Guard(bool, bool);\n-    impl Drop for Guard {\n-        fn drop(&mut self) {\n-            IN_BLOCK_ON.with(|f| f.set(self.0));\n-            if self.0 && self.1 {\n-                // This `block_on` ran inside a poll of another, on the one\n-                // waker the two share: a wake it took may have been the\n-                // other's, which polls once more before it sleeps. Only\n-                // where it took one: an outer future that runs a\n-                // `block_on` in each poll would otherwise never sleep.\n-                BLOCK_ON_PARK.with(|park| park.woken.store(true, Ordering::Release));\n-            }\n-        }\n-    }\n-    let prev = IN_BLOCK_ON.with(|f| f.replace(true));\n-    let mut guard = Guard(prev, false);\n-    let mut future = core::pin::pin!(future);\n-    BLOCK_ON_PARK.with(|park| {\n-        BLOCK_ON_WAKER.with(|waker| {\n-            let mut cx = Context::from_waker(waker);\n-            if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n-                return output;\n-            }\n-            let started = crate::lanes::now();\n-            let mut yielded = started;\n-            loop {\n-                crate::lanes::poll_pause(&mut yielded);\n-                if crate::lanes::now() - started >= crate::lanes::SPIN_BEFORE_SLEEP {\n-                    if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n-                        return output;\n-                    }\n-                    // Asleep until a wake, one that came during the poll\n-                    // included, whoever took the thread's park token since.\n-                    while !park.woken.swap(false, Ordering::Acquire) {\n-                        thread::park();\n-                    }\n-                    guard.1 = true;\n-                } else if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n-                    return output;\n-                }\n-            }\n-        })\n-    })\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n // The standard library's tests alone: under Shuttle\n // (tests/shuttle_pipeline.rs) this file is compiled without them.\n #[cfg(all(test, not(shuttle)))]\n mod test {\n     use super::*;\n \n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "block_on",
+      "return_type": "-> F::Output",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3058
+        },
+        "start": {
+          "column": 1,
+          "line": 2847
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:3014:5: replace block_on -> F::Output with Default::default()",
+    "package": "blake3-servil",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 7,
+        "line": 3057
+      },
+      "start": {
+        "column": 5,
+        "line": 3014
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace block_on::<impl Drop for Guard>::drop with ()\n@@ -3010,25 +3010,17 @@\n ///     let _ = (slot.await, ev.await);\n /// }\n /// ```\n pub fn block_on<F: Future>(future: F) -> F::Output {\n     /// Whether this `block_on` runs inside another, and whether it took a wake.\n     struct Guard(bool, bool);\n     impl Drop for Guard {\n         fn drop(&mut self) {\n-            IN_BLOCK_ON.with(|f| f.set(self.0));\n-            if self.0 && self.1 {\n-                // This `block_on` ran inside a poll of another, on the one\n-                // waker the two share: a wake it took may have been the\n-                // other's, which polls once more before it sleeps. Only\n-                // where it took one: an outer future that runs a\n-                // `block_on` in each poll would otherwise never sleep.\n-                BLOCK_ON_PARK.with(|park| park.woken.store(true, Ordering::Release));\n-            }\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n     }\n     let prev = IN_BLOCK_ON.with(|f| f.replace(true));\n     let mut guard = Guard(prev, false);\n     let mut future = core::pin::pin!(future);\n     BLOCK_ON_PARK.with(|park| {\n         BLOCK_ON_WAKER.with(|waker| {\n             let mut cx = Context::from_waker(waker);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "block_on::<impl Drop for Guard>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3027
+        },
+        "start": {
+          "column": 9,
+          "line": 3017
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:3018:13: replace block_on::<impl Drop for Guard>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 3026
+      },
+      "start": {
+        "column": 13,
+        "line": 3018
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace && with || in block_on::<impl Drop for Guard>::drop\n@@ -3011,17 +3011,17 @@\n /// }\n /// ```\n pub fn block_on<F: Future>(future: F) -> F::Output {\n     /// Whether this `block_on` runs inside another, and whether it took a wake.\n     struct Guard(bool, bool);\n     impl Drop for Guard {\n         fn drop(&mut self) {\n             IN_BLOCK_ON.with(|f| f.set(self.0));\n-            if self.0 && self.1 {\n+            if self.0 || /* ~ changed by cargo-mutants ~ */ self.1 {\n                 // This `block_on` ran inside a poll of another, on the one\n                 // waker the two share: a wake it took may have been the\n                 // other's, which polls once more before it sleeps. Only\n                 // where it took one: an outer future that runs a\n                 // `block_on` in each poll would otherwise never sleep.\n                 BLOCK_ON_PARK.with(|park| park.woken.store(true, Ordering::Release));\n             }\n         }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "block_on::<impl Drop for Guard>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 3027
+        },
+        "start": {
+          "column": 9,
+          "line": 3017
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:3019:23: replace && with || in block_on::<impl Drop for Guard>::drop",
+    "package": "blake3-servil",
+    "replacement": "||",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 3019
+      },
+      "start": {
+        "column": 23,
+        "line": 3019
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace - with + in block_on\n@@ -3034,17 +3034,17 @@\n             let mut cx = Context::from_waker(waker);\n             if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n                 return output;\n             }\n             let started = crate::lanes::now();\n             let mut yielded = started;\n             loop {\n                 crate::lanes::poll_pause(&mut yielded);\n-                if crate::lanes::now() - started >= crate::lanes::SPIN_BEFORE_SLEEP {\n+                if crate::lanes::now() + /* ~ changed by cargo-mutants ~ */ started >= crate::lanes::SPIN_BEFORE_SLEEP {\n                     if let Poll::Ready(output) = future.as_mut().poll(&mut cx) {\n                         return output;\n                     }\n                     // Asleep until a wake, one that came during the poll\n                     // included, whoever took the thread's park token since.\n                     while !park.woken.swap(false, Ordering::Acquire) {\n                         thread::park();\n                     }\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "block_on",
+      "return_type": "-> F::Output",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 3058
+        },
+        "start": {
+          "column": 1,
+          "line": 2847
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/pipeline.rs:3042:40: replace - with + in block_on",
+    "package": "blake3-servil",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 41,
+        "line": 3042
+      },
+      "start": {
+        "column": 40,
+        "line": 3042
+      }
+    }
+  }
+]

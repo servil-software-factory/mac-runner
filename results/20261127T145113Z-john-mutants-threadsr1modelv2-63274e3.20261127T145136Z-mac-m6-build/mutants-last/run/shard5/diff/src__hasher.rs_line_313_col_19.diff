@@ -1,0 +1,21 @@
+--- src/hasher.rs
++++ replace |= with &= in CvStack::push_row_with
+@@ -305,17 +305,17 @@
+         if self.ready >> slot & 1 == 0 {
+             self.rows[slot].fill(core::mem::MaybeUninit::new([0u8; 32]));
+             self.ready |= 1 << slot;
+         }
+         // Sound: `self.rows[slot]` was fully initialized either just above or on its first use (`ready` bit set).
+         let width = fill(unsafe { &mut *self.rows[slot].as_mut_ptr().cast::<[Cv; ROW]>() });
+         assert!((4..=ROW).contains(&width) && width.is_power_of_two(), "a row of 4 to ROW values, a power of two");
+         self.widths[slot] = u8::try_from(width).expect("row width <= TILE");
+-        self.wide |= 1 << self.len;
++        self.wide &= /* ~ changed by cargo-mutants ~ */ 1 << self.len;
+         self.len += 1;
+     }
+ 
+     /// Entry `i`, a row, becomes the row half as wide: its values' parents.
+     fn halve<H: Hooks>(&mut self, k: &Kernels<'_, H>, i: usize) {
+         assert!(self.row(i).len() >= 8, "a row stays 4 wide or more");
+         let mut parents = [[0u8; 32]; ROW];
+         let made = k.parents(self.row(i), &mut parents);

@@ -1,0 +1,167 @@
+
+*** src/incremental.rs:89:40: replace * with /
+
+*** mutation diff:
+--- src/incremental.rs
++++ replace * with /
+@@ -81,17 +81,17 @@
+         self.core.clone_from(&source.core);
+         self.stage.clone_from(&source.stage);
+         self.finishing = source.finishing;
+     }
+ }
+ 
+ /// The bytes a Hasher gathers before they hash side by side: 16 chunks,
+ /// the widest kernels' lanes.
+-pub(crate) const STAGE_LEN: usize = 16 * CHUNK_LEN;
++pub(crate) const STAGE_LEN: usize = 16 / /* ~ changed by cargo-mutants ~ */ CHUNK_LEN;
+ 
+ /// The stage buffer and its initialized-prefix length, kept private so
+ /// `len <= STAGE_LEN`, `buf[..len]` initialized, and (when `len > 0`)
+ /// `buf[..BLOCK_LEN]` zero-padded past `len` hold by construction.
+ mod stage {
+     use crate::{BLOCK_LEN, STAGE_LEN};
+ 
+     pub(crate) struct Stage {
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[82633]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[96380]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-5)
+error: this operation will panic at runtime
+   --> src/incremental.rs:451:22
+    |
+451 |             let at = self.count() % STAGE_LEN as u64;
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ attempt to calculate the remainder of `_` with a divisor of zero
+    |
+    = note: `#[deny(unconditional_panic)]` on by default
+
+error: this operation will panic at runtime
+   --> src/incremental.rs:459:30
+    |
+459 |                 let groups = input.len() / STAGE_LEN * STAGE_LEN;
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^ attempt to divide `_` by zero
+
+error: this operation will panic at runtime
+   --> src/incremental.rs:528:44
+    |
+528 |         if core.chunk_state.count() > 0 || counter % (STAGE_LEN / CHUNK_LEN) as u64 != 0 {
+    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ attempt to calculate the remainder of `_` with a divisor of zero
+
+error: this operation will panic at runtime
+   --> src/incremental.rs:800:50
+    |
+800 | ...   assert!(self.chunk_state.count() == 0 && counter % CHUNKS == 0, "a held group starts at a group boundary, the core's chunk em...
+    |                                                ^^^^^^^^^^^^^^^^ attempt to calculate the remainder of `_` with a divisor of zero
+
+error: could not compile `blake3-servil-core` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: this arithmetic operation will overflow
+   --> src/incremental.rs:933:57
+    |
+933 |                     hasher.update(&input[STAGE_LEN + 1..2 * STAGE_LEN - 1]);
+    |                                                         ^^^^^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+    |
+    = note: `#[deny(arithmetic_overflow)]` on by default
+
+error: this arithmetic operation will overflow
+   --> src/incremental.rs:934:47
+    |
+934 |                     hasher.update_with(&input[2 * STAGE_LEN - 1..], STAGE_LEN, &panics);
+    |                                               ^^^^^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+   --> src/incremental.rs:982:51
+    |
+982 |             for n in [STAGE_LEN, STAGE_LEN + 100, STAGE_LEN - 100, STAGE_LEN, 4 * STAGE_LEN, 2 * STAGE_LEN + 7] {
+    |                                                   ^^^^^^^^^^^^^^^ attempt to compute `0_usize - 100_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1030:32
+     |
+1030 |         hasher.update(&input[..STAGE_LEN - 1]);
+     |                                ^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1031:35
+     |
+1031 |         hasher.update_with(&input[STAGE_LEN - 1..STAGE_LEN], STAGE_LEN, &|tree, level, index, bytes| {
+     |                                   ^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1042:32
+     |
+1042 |         serial.update(&input[..2 * STAGE_LEN - 1]);
+     |                                ^^^^^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1043:32
+     |
+1043 |         pooled.update(&input[..2 * STAGE_LEN - 1]);
+     |                                ^^^^^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1044:27
+     |
+1044 |         let last = &input[2 * STAGE_LEN - 1..2 * STAGE_LEN];
+     |                           ^^^^^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1119:55
+     |
+1119 |             for len in [0usize, 64, 1024, 1025, 2048, STAGE_LEN - 1, STAGE_LEN, 2 * STAGE_LEN + 17] {
+     |                                                       ^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1184:72
+     |
+1184 | ...64, 65, 1000, 1024, 1025, STAGE_LEN - 1, STAGE_LEN, STAGE_LEN + 1, 2 * STAGE_LEN - 300] {
+     |                              ^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1184:113
+     |
+1184 | ...E_LEN, STAGE_LEN + 1, 2 * STAGE_LEN - 300] {
+     |                          ^^^^^^^^^^^^^^^^^^^ attempt to compute `0_usize - 300_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1278:68
+     |
+1278 |             for len in [0usize, 1, 64, 65, 1000, 1024, 1025, 5000, STAGE_LEN - 1] {
+     |                                                                    ^^^^^^^^^^^^^ attempt to compute `0_usize - 1_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1379:74
+     |
+1379 | ... (STAGE_LEN + 100, 1), (STAGE_LEN - 100, 1), (2 * STAGE_LEN + 7, 2), (STAGE_LEN - 7, 1)] {
+     |                            ^^^^^^^^^^^^^^^ attempt to compute `0_usize - 100_usize`, which would overflow
+
+error: this arithmetic operation will overflow
+    --> src/incremental.rs:1379:120
+     |
+1379 | ... (2 * STAGE_LEN + 7, 2), (STAGE_LEN - 7, 1)] {
+     |                              ^^^^^^^^^^^^^ attempt to compute `0_usize - 7_usize`, which would overflow
+
+error: could not compile `blake3-servil-core` (lib test) due to 18 previous errors
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)

@@ -1,0 +1,46 @@
+--- src/each.rs
++++ replace finalize_each with ()
+@@ -113,42 +113,17 @@
+ /// `hash_by_blocks` and counter-zero final blocks via NEON `output8`.
+ ///
+ /// # Key-dependent timing
+ ///
+ /// Selected hashers may use different secret keys. Key values and key equality
+ /// select neither the finalization path nor its amount of work.
+ /// See the [key-independence contract](crate#key-dependent-timing).
+ pub fn finalize_each(hashers: &mut [Hasher], which: &[usize], out: &mut [[u8; OUT_LEN]]) {
+-    assert_eq!(which.len(), out.len(), "one digest per message named");
+-    let mut marked = Marked { hashers, which, count: 0, active: true };
+-    for &i in which {
+-        assert!(i < marked.hashers.len(), "finalize_each names hasher {i} of {}", marked.hashers.len());
+-        assert!(!marked.hashers[i].mark_finishing(), "each finalized index is distinct");
+-        marked.count += 1;
+-    }
+-    let hashers = &mut *marked.hashers;
+-    if which.is_empty() {
+-        marked.active = false;
+-        return;
+-    }
+-    if which.len() == 1 {
+-        let i = which[0];
+-        out[0] = *hashers[i].take_root_hash().as_bytes();
+-        hashers[i].reset();
+-        marked.active = false;
+-        return;
+-    }
+-    // Delegate multi-hasher batching to an out-of-line architecture helper so
+-    // empty and singleton calls never reserve the 128-slot batch stack frame.
+-    #[cfg(target_arch = "x86_64")]
+-    crate::ffi_partial::finalize_each(hashers, which, out);
+-    #[cfg(target_arch = "aarch64")]
+-    crate::ffi_output::finalize_each(hashers, which, out);
+-    marked.active = false;
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[inline]
+ pub(crate) fn finalize_indices_serial(hashers: &mut [Hasher], w_chunk: &[usize], slots: &[u8], o_chunk: &mut [[u8; OUT_LEN]]) {
+     for &k in slots {
+         let k = usize::from(k);
+         o_chunk[k] = *hashers[w_chunk[k]].take_root_hash().as_bytes();
+     }

@@ -1,0 +1,21 @@
+--- src/block.rs
++++ replace * with + in Batch<'_>::messages_mut
+@@ -481,17 +481,17 @@
+     /// Every byte past `message_len` in each block remains inaccessible and
+     /// untouched (staying zero on owned batches and preserving caller bytes on
+     /// borrowed zero-length slots), so sub-block batches (such as 32-byte
+     /// messages) can be refilled in a tight loop without repeating per-element
+     /// copy-on-write checks.
+     #[inline]
+     pub fn messages_mut(&mut self) -> impl ExactSizeIterator<Item = &mut [u8]> {
+         let len = self.message_len;
+-        let slot = blocks_per(len) * BLOCK_LEN;
++        let slot = blocks_per(len) + /* ~ changed by cargo-mutants ~ */ BLOCK_LEN;
+         Block::bytes_mut(self.blocks.to_mut()).chunks_exact_mut(slot).map(move |s| &mut s[..len])
+     }
+ 
+     /// Every byte for writing, where no message has bytes past its end to
+     /// keep zero: `message_len` a multiple of 64 and not 0.
+     pub fn blocks_mut(&mut self) -> &mut [Block] {
+         assert!(self.message_len % BLOCK_LEN == 0 && self.message_len > 0, "a batch whose messages leave no bytes past their ends ({} B)", self.message_len);
+         self.blocks.to_mut()

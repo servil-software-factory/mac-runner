@@ -1,0 +1,34 @@
+--- src/pipeline.rs
++++ replace ActionArg::encode -> u64 with 1
+@@ -203,30 +203,17 @@
+     Multi { slot: u32, piece: u32, custom: bool, sme2: bool },
+ }
+ 
+ impl ActionArg {
+     const MAX_A: u32 = (1 << 29) - 1;
+ 
+     #[inline(always)]
+     fn encode(self) -> u64 {
+-        let (kind, a, b, sme2): (u64, u32, u32, bool) = match self {
+-            ActionArg::Group { group, custom_slot } => (0, group, custom_slot, false),
+-            ActionArg::RoomPiece { pnode, custom, sme2 } => (1, pnode, u32::from(custom), sme2),
+-            ActionArg::Multi { slot, piece, custom, sme2 } => {
+-                assert!(piece < MULTI_CUSTOM_BIT, "multi piece index overlaps custom flag");
+-                let custom_bit = if custom { MULTI_CUSTOM_BIT } else { 0 };
+-                (2, slot, custom_bit + piece, sme2)
+-            }
+-        };
+-        assert!(a <= Self::MAX_A, "action index exceeds 29-bit field");
+-        // Put the SME2 flag bit (bit 63) first so every `+` has a distinct
+-        // non-zero right operand (avoiding `x + (1<<63) == x - (1<<63)`).
+-        let sme2_bit = if sme2 { ACTION_SME2 } else { 0 };
+-        sme2_bit + ((kind << 61) + ((a as u64) << 32) + (b as u64))
++        1 /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn decode(arg: u64) -> Self {
+         let sme2 = (arg & ACTION_SME2) != 0;
+         let clean = arg & !ACTION_SME2;
+         let kind = clean >> 61;
+         let a = u32::try_from((clean >> 32) & u64::from(Self::MAX_A)).expect("29-bit field fits u32");
