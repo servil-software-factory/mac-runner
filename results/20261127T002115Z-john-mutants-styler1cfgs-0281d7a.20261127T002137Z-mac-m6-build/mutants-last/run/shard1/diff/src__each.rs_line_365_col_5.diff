@@ -1,0 +1,50 @@
+--- src/each.rs
++++ replace hash_held with ()
+@@ -357,46 +357,17 @@
+ }
+ 
+ /// Hash the whole groups `held` names, one in each of those hashers'
+ /// stages, and pass each group's subtree to its hasher's core. The plain
+ /// hashers' groups hash together; a keyed or key-derivation hasher's group
+ /// hashes alone, since its key is secret and must not decide the work
+ /// (BLAKE3 #312): the mode alone, public, groups them.
+ fn hash_held(hashers: &mut [Hasher], held: &[usize]) {
+-    if independent_lanes(hashers, held) {
+-        return;
+-    }
+-    // Plain's key is the IV, the same for every plain hasher. Tile larger
+-    // cohorts in 16-stage L1D-hot blocks (`HeldWorkspace<16>`, ~15 KiB stack)
+-    // under one shared `Sme2Turn` so even 17..=128 plain hashers fit inside a
+-    // 64 KiB worker stack without reserving a 116 KiB `TABLE`-sized frame.
+-    const PLAIN_TILE: usize = 16;
+-    let mut plain = crate::stack_vec::StackVec::<usize, TABLE>::new();
+-    plain.extend(held.iter().copied().filter(|&i| hashers[i].is_plain()));
+-    if !plain.is_empty() {
+-        #[cfg(test)]
+-        let _ = HELD_GROUPS.try_with(|groups| groups.borrow_mut().push(plain.as_slice().to_vec()));
+-        #[cfg(test)]
+-        crate::counted(crate::Counted::HeldPass);
+-        let turn = crate::platform::Sme2Turn::take(hashers[plain[0]].platform(), true);
+-        let platform = turn.platform();
+-        if plain.len() == 1 {
+-            hash_cohort_on::<1>(hashers, &plain, platform);
+-        } else {
+-            for tile in plain.as_slice().chunks(PLAIN_TILE) {
+-                hash_cohort_on::<PLAIN_TILE>(hashers, tile, platform);
+-            }
+-        }
+-    }
+-    for &i in held {
+-        if !hashers[i].is_plain() {
+-            hash_cohort::<1>(hashers, &[i]);
+-        }
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Parent blocks supplied by a full staged message's pairs of CVs.
+ const STAGE_PARENTS: usize = ALONE_CHUNKS / 2;
+ 
+ /// Contiguous parent inputs retain the kernels' direct path. Both CV
+ /// levels live on the stack; ping-pong leaves the final two children in
+ /// the other buffer. Block supplies the existing 64-byte alignment.

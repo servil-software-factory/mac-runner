@@ -1,0 +1,36 @@
+--- src/waker.rs
++++ replace WakerSlot::install_waker -> Option<Waker> with None
+@@ -49,32 +49,17 @@
+         // The completion re-check may load with Acquire (RCpc
+         // on Arm). It must not move before publishing the waiter.
+         fence(Ordering::SeqCst);
+         drop(old);
+     }
+ 
+     #[inline(always)]
+     fn install_waker(&self, cx: &Context<'_>) -> Option<Waker> {
+-        if self.registered.0.load(Ordering::SeqCst) {
+-            let slot = self.waker.lock().expect("WakerSlot mutex poisoned");
+-            // `Waker::will_wake` compares raw data/vtable pointers and runs no
+-            // user code while the mutex is held.
+-            if slot.as_ref().is_some_and(|w| w.will_wake(cx.waker())) {
+-                self.registered.0.store(true, Ordering::SeqCst);
+-                return None;
+-            }
+-        }
+-        // Clone outside the mutex so a panicking user `Waker::clone` cannot
+-        // poison the slot.
+-        let next = cx.waker().clone();
+-        let mut slot = self.waker.lock().expect("WakerSlot mutex poisoned");
+-        let old = slot.replace(next);
+-        self.registered.0.store(true, Ordering::SeqCst);
+-        old
++        None /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(always)]
+     fn take_registered(&self) -> Option<Waker> {
+         let mut slot = self.waker.lock().expect("WakerSlot mutex poisoned");
+         let waker = slot.take();
+         self.registered.0.store(false, Ordering::SeqCst);
+         waker
