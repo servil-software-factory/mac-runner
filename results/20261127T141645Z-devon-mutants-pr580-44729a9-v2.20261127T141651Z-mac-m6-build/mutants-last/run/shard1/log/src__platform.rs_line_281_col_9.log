@@ -1,0 +1,88 @@
+
+*** src/platform.rs:281:9: replace Platform::detect_unchecked -> Self with Default::default()
+
+*** mutation diff:
+--- src/platform.rs
++++ replace Platform::detect_unchecked -> Self with Default::default()
+@@ -273,37 +273,17 @@
+         while let Err(now) = DETECTED.compare_exchange_weak(detected, with_platform(detected, self as u8), Release, Relaxed) {
+             detected = now;
+         }
+     }
+ 
+     /// [`Platform::detect`] without the startup self-test: an assembly
+     /// platform on every supported machine, or the process stops.
+     pub(crate) fn detect_unchecked() -> Self {
+-        #[cfg(target_arch = "x86_64")]
+-        {
+-            // Every x86-64 build assembles every kernel (build.rs), so a CPU
+-            // runs the widest it has; one without SSE4.1 is not supported, and
+-            // the process stops here, in the startup self-test, as a build for
+-            // an unsupported target stops (official BLAKE3 runs there).
+-            match x86_platform(avx512_detected(), avx2_detected(), sse41_detected()) {
+-                Some(platform) => platform,
+-                None => crate::self_test::unsupported(format_args!(
+-                    "blake3-servil runs on x86-64 CPUs with SSSE3 and SSE4.1 (Intel since 2008, AMD since 2011); this CPU lacks them: use official BLAKE3 (https://github.com/BLAKE3-team/BLAKE3)"
+-                )),
+-            }
+-        }
+-        #[cfg(target_arch = "aarch64")]
+-        {
+-            // SME2 is detected at runtime; the kernels also require a 512-bit
+-            // streaming vector length, which sme2_detected() checks. Without
+-            // SME2 the NEON backend (integer + vector hybrid kernels) is the
+-            // selection (NEON is mandatory on AArch64).
+-            if sme2_detected() { Platform::SME2 } else { Platform::NEON }
+-        }
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// The selection's name, for reports.
+     pub fn name(&self) -> &'static str {
+         match self {
+             #[cfg(target_arch = "x86_64")]
+             Platform::SSE41 => "SSE4.1",
+             #[cfg(target_arch = "x86_64")]
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[82639]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1/version)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[96385]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants/run-1)
+error[E0277]: the trait bound `platform::Platform: Default` is not satisfied
+   --> src/platform.rs:281:9
+    |
+281 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `platform::Platform`
+    |
+help: consider annotating `platform::Platform` with `#[derive(Default)]`
+    |
+ 45 + #[derive(Default)]
+ 46 | pub enum Platform {
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
