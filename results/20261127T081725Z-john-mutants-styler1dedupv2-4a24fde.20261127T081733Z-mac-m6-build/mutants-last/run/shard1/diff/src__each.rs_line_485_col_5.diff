@@ -1,0 +1,100 @@
+--- src/each.rs
++++ replace hash_cohort_on with ()
+@@ -477,96 +477,17 @@
+ }
+ 
+ /// Hash one tile of 1..=N distinct held stages on `platform` (with any SME2
+ /// turn held by the caller across tiles). Keeps chunks and each parent level
+ /// in a bounded `HeldWorkspace<N>` on the stack.
+ // Keep the workspace frame out of empty turns and the other mode's caller.
+ #[inline(never)]
+ fn hash_cohort_on<const N: usize>(hashers: &mut [Hasher], alike: &[usize], platform: Platform) {
+-    use crate::{BLOCK_LEN, PARENT};
+-    let first = alike[0];
+-    #[cfg(test)]
+-    let _ = LAST_COHORT_TIER.try_with(|t| t.set(N));
+-    let domain = hashers[first].domain();
+-    let flags = domain.flags();
+-    // Plain cohorts hash under the constant IV directly (fault isolation),
+-    // while a keyed or derive-key hasher hashes alone here under its own key.
+-    let key = if domain.is_plain() { *crate::IV } else { *domain.key() };
+-    let mut work = HeldWorkspace::<N>::new();
+-    let (mut level, mut next) = work.buffers(alike.len());
+-    #[cfg(target_arch = "aarch64")]
+-    let on_sme2 = matches!(platform, Platform::SME2);
+-    #[cfg(not(target_arch = "aarch64"))]
+-    let on_sme2 = false;
+-    {
+-        let mut refs = crate::stack_vec::StackVec::<[&[u8; CHUNK_LEN]; ALONE_CHUNKS], N>::new();
+-        refs.extend(alike.iter().map(|&i| {
+-            let hasher = &hashers[i];
+-            // The shared key serves plain hashers only. Check the public
+-            // mode as we take each stage, without comparing key bytes.
+-            assert!(alike.len() == 1 || hasher.is_plain(), "only plain hashers share a cohort");
+-            let stage = hasher.held_group().expect("a held group").1;
+-            core::array::from_fn(|j| stage[j * CHUNK_LEN..(j + 1) * CHUNK_LEN].try_into().unwrap())
+-        }));
+-        let refs = refs.as_slice().as_flattened();
+-        let mut counters = crate::stack_vec::StackVec::<u64, N>::new();
+-        counters.extend(alike.iter().map(|&i| hashers[i].held_group().unwrap().0));
+-        if on_sme2 {
+-            #[cfg(target_arch = "aarch64")]
+-            // Sound: the turn detects SME2. Borrowed stages and stack output
+-            // are disjoint, with one counter per full 16-chunk stage.
+-            unsafe {
+-                crate::sme2::hash_groups_at(refs, &counters, &key, flags, CHUNK_START, CHUNK_END, level.as_flattened_mut())
+-            };
+-        } else {
+-            for (k, &counter) in counters.iter().enumerate() {
+-                platform.hash_many(
+-                    &refs[k * ALONE_CHUNKS..(k + 1) * ALONE_CHUNKS],
+-                    &key,
+-                    counter,
+-                    IncrementCounter::Yes,
+-                    flags,
+-                    CHUNK_START,
+-                    CHUNK_END,
+-                    level[k * ALONE_CHUNKS..(k + 1) * ALONE_CHUNKS].as_flattened_mut(),
+-                );
+-            }
+-        }
+-    }
+-    let parent_flags = flags | PARENT;
+-    let mut per = ALONE_CHUNKS;
+-    while per > 1 {
+-        let count = alike.len() * per / 2;
+-        let bytes = level[..2 * count].as_flattened();
+-        if on_sme2 {
+-            // SME2's parent kernel reads a group of sixteen blocks through
+-            // one pointer: the level goes to it as the run of memory it
+-            // is, not as a table of sixteen borrows.
+-            #[cfg(target_arch = "aarch64")]
+-            // Sound: the turn's platform is SME2 only where detection
+-            // found it.
+-            unsafe {
+-                crate::sme2::hash_block_run(bytes, &key, parent_flags, next[..count].as_flattened_mut())
+-            };
+-        } else {
+-            // Eight parent blocks per full stage. Derive descriptor rows
+-            // from that layout, including its readable final padding.
+-            let (full, tail) = bytes.as_chunks::<BLOCK_LEN>().0.as_chunks::<STAGE_PARENTS>();
+-            let mut rows = crate::stack_vec::StackVec::<_, N>::new();
+-            rows.extend(full.iter().map(|row| row.each_ref()));
+-            if let Some(first) = tail.first() {
+-                rows.push(core::array::from_fn(|i| tail.get(i).unwrap_or(first)));
+-            }
+-            platform.hash_many(&rows.as_slice().as_flattened()[..count], &key, 0, IncrementCounter::No, parent_flags, 0, 0, next[..count].as_flattened_mut());
+-        }
+-        core::mem::swap(&mut level, &mut next);
+-        per /= 2;
+-    }
+-    commit_held_groups(hashers, alike, level, next);
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Messages of this many chunks or more fill the lanes alone.
+ const ALONE_CHUNKS: usize = 16;
+ 
+ /// The hash of each message, of any lengths, on the calling thread:
+ /// `out[i]` is [`hash`](crate::throughput::hash)`(mode, items[i].0,
+ /// items[i].1)`, each item a message of `items[i].1` bytes starting its

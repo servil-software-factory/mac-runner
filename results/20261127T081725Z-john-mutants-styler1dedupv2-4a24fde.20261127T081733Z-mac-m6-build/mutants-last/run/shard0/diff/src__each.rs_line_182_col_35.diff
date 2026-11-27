@@ -1,0 +1,21 @@
+--- src/each.rs
++++ replace >= with < in finalize_each_aarch64
+@@ -174,17 +174,17 @@
+                 hash_by_blocks(&bytes, crate::IV, 0, &mut digests[..part.len()], platform);
+                 for (&k, digest) in part.iter().zip(&digests) {
+                     o_chunk[usize::from(k)] = *digest;
+                 }
+             }
+         } else {
+             finalize_indices_serial(hashers, w_chunk, plain.as_slice(), o_chunk);
+         }
+-        let done = if keyed.len() >= 8 {
++        let done = if keyed.len() < /* ~ changed by cargo-mutants ~ */ 8 {
+             let mut inputs = crate::stack_vec::StackVec::<crate::ffi_output::Input<'_>, FINALIZE_BATCH>::new();
+             for &k in keyed.as_slice() {
+                 inputs.push(crate::ffi_output::input(&hashers[w_chunk[usize::from(k)]]).unwrap());
+             }
+             let mut digests = [[0u8; OUT_LEN]; FINALIZE_BATCH];
+             let done = crate::ffi_output::hash_groups_arm(inputs.as_slice(), &mut digests[..keyed.len()]);
+             for (&k, digest) in keyed.as_slice()[..done].iter().zip(&digests[..done]) {
+                 o_chunk[usize::from(k)] = *digest;
