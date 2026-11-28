@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/lib.rs\n+++ replace hash_one_block_root -> Hash with Default::default()\n@@ -1018,42 +1018,17 @@\n     tree::root_children(&kernels, input, ahead, chunk_counter)\n }\n \n // The root hash of a single-block input (`<= 64` bytes), in one kernel call\n // without multi-block length arithmetic or 64-byte stack realignment (#586).\n #[cfg(target_arch = \"aarch64\")]\n #[inline]\n pub(crate) fn hash_one_block_root(input: &[u8], key: &CVWords, flags: u8) -> Hash {\n-    assert!(input.len() <= BLOCK_LEN, \"one block or less\");\n-    let mut padded = [0u8; BLOCK_LEN];\n-    let last: &[u8; BLOCK_LEN] = match input.try_into() {\n-        Ok(full) => full,\n-        Err(_) => {\n-            padded[..input.len()].copy_from_slice(input);\n-            &padded\n-        }\n-    };\n-    let mut out = [0u8; OUT_LEN];\n-    // Sound: `blocks == 1`, so `hash_chunk` reads only the 64-byte `last` block, `key`, and writes 32 bytes to `out`.\n-    unsafe {\n-        neon_hybrid::hash_chunk(\n-            last.as_ptr(),\n-            1,\n-            last,\n-            u8::try_from(input.len()).expect(\"block <= 64\"),\n-            key,\n-            0,\n-            flags,\n-            CHUNK_START,\n-            CHUNK_END | ROOT,\n-            &mut out,\n-        );\n-    }\n-    Hash(out)\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n // The root hash of an input of one chunk or less, in one kernel call. The\n // whole blocks are read in place, the final one too when it is full; a\n // short final block (and the empty block for the empty input) is copied\n // into a zero-padded buffer, which is the copy ChunkState::update() makes\n // too. The scalar kernel runs on every AArch64 core, so this path needs no\n // platform check.\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "hash_one_block_root",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1052
+        },
+        "start": {
+          "column": 1,
+          "line": 1023
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:1026:5: replace hash_one_block_root -> Hash with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1051
+      },
+      "start": {
+        "column": 5,
+        "line": 1026
+      }
+    }
+  },
+  {
+    "diff": "--- src/lib.rs\n+++ replace | with & in hash_one_block_root\n@@ -1039,17 +1039,17 @@\n             last.as_ptr(),\n             1,\n             last,\n             u8::try_from(input.len()).expect(\"block <= 64\"),\n             key,\n             0,\n             flags,\n             CHUNK_START,\n-            CHUNK_END | ROOT,\n+            CHUNK_END & /* ~ changed by cargo-mutants ~ */ ROOT,\n             &mut out,\n         );\n     }\n     Hash(out)\n }\n \n // The root hash of an input of one chunk or less, in one kernel call. The\n // whole blocks are read in place, the final one too when it is full; a\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "hash_one_block_root",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1052
+        },
+        "start": {
+          "column": 1,
+          "line": 1023
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lib.rs:1047:23: replace | with & in hash_one_block_root",
+    "package": "blake3-servil-core",
+    "replacement": "&",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 1047
+      },
+      "start": {
+        "column": 23,
+        "line": 1047
+      }
+    }
+  },
+  {
+    "diff": "--- src/lib.rs\n+++ replace hash_one_chunk_root -> Hash with Default::default()\n@@ -1055,54 +1055,17 @@\n // whole blocks are read in place, the final one too when it is full; a\n // short final block (and the empty block for the empty input) is copied\n // into a zero-padded buffer, which is the copy ChunkState::update() makes\n // too. The scalar kernel runs on every AArch64 core, so this path needs no\n // platform check.\n #[cfg(target_arch = \"aarch64\")]\n #[inline]\n fn hash_one_chunk_root(input: &[u8], key: &CVWords, flags: u8) -> Hash {\n-    assert!(input.len() <= CHUNK_LEN, \"one chunk or less\");\n-    if input.len() <= BLOCK_LEN {\n-        return hash_one_block_root(input, key, flags);\n-    }\n-    let blocks = cmp::max(1, input.len().div_ceil(BLOCK_LEN));\n-    let whole = (blocks - 1) * BLOCK_LEN;\n-    let tail = &input[whole..];\n-    /// The padded last block, 64-byte aligned as hasher::Output's is\n-    /// (src/hasher.rs explains).\n-    #[repr(align(64))]\n-    struct Aligned64([u8; BLOCK_LEN]);\n-    let padded;\n-    let last: &[u8; BLOCK_LEN] = match tail.try_into() {\n-        Ok(full) => full,\n-        Err(_) => {\n-            let mut block = Aligned64([0; BLOCK_LEN]);\n-            block.0[..tail.len()].copy_from_slice(tail);\n-            padded = block;\n-            &padded.0\n-        }\n-    };\n-    let mut out = [0u8; OUT_LEN];\n-    // Sound: `input` holds `(blocks - 1) * BLOCK_LEN` readable bytes before `tail`, `blocks` is in 1..=16, and `last` is 64 readable bytes.\n-    unsafe {\n-        neon_hybrid::hash_chunk(\n-            input.as_ptr(),\n-            blocks,\n-            last,\n-            u8::try_from(tail.len()).expect(\"tail block <= 64\"),\n-            key,\n-            0,\n-            flags,\n-            CHUNK_START,\n-            CHUNK_END | ROOT,\n-            &mut out,\n-        );\n-    }\n-    Hash(out)\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// Run the startup self-test and detect the CPU: every program calls this\n /// once before hashing (any call that loads the detected platform before\n /// `initialize` completes panics). Under 0.2 ms, once per process\n /// (see the crate's documentation); later calls return at once.\n ///\n /// ```\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "hash_one_chunk_root",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1101
+        },
+        "start": {
+          "column": 1,
+          "line": 1060
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:1063:5: replace hash_one_chunk_root -> Hash with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1100
+      },
+      "start": {
+        "column": 5,
+        "line": 1063
+      }
+    }
+  },
+  {
+    "diff": "--- src/lib.rs\n+++ replace <= with > in hash_one_chunk_root\n@@ -1056,17 +1056,17 @@\n // short final block (and the empty block for the empty input) is copied\n // into a zero-padded buffer, which is the copy ChunkState::update() makes\n // too. The scalar kernel runs on every AArch64 core, so this path needs no\n // platform check.\n #[cfg(target_arch = \"aarch64\")]\n #[inline]\n fn hash_one_chunk_root(input: &[u8], key: &CVWords, flags: u8) -> Hash {\n     assert!(input.len() <= CHUNK_LEN, \"one chunk or less\");\n-    if input.len() <= BLOCK_LEN {\n+    if input.len() > /* ~ changed by cargo-mutants ~ */ BLOCK_LEN {\n         return hash_one_block_root(input, key, flags);\n     }\n     let blocks = cmp::max(1, input.len().div_ceil(BLOCK_LEN));\n     let whole = (blocks - 1) * BLOCK_LEN;\n     let tail = &input[whole..];\n     /// The padded last block, 64-byte aligned as hasher::Output's is\n     /// (src/hasher.rs explains).\n     #[repr(align(64))]\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "hash_one_chunk_root",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1101
+        },
+        "start": {
+          "column": 1,
+          "line": 1060
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lib.rs:1064:20: replace <= with > in hash_one_chunk_root",
+    "package": "blake3-servil-core",
+    "replacement": ">",
+    "span": {
+      "end": {
+        "column": 22,
+        "line": 1064
+      },
+      "start": {
+        "column": 20,
+        "line": 1064
+      }
+    }
+  }
+]

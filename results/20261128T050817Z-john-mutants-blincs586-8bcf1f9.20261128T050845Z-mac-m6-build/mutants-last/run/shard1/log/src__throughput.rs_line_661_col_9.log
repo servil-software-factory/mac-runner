@@ -1,0 +1,78 @@
+
+*** src/throughput.rs:661:9: replace TreeHasher::hash -> Hash with Default::default()
+
+*** mutation diff:
+--- src/throughput.rs
++++ replace TreeHasher::hash -> Hash with Default::default()
+@@ -653,26 +653,17 @@
+     /// ```
+     /// # blake3_servil_core::initialize();
+     /// use blake3_servil_core::{Mode, convenience, throughput::TreeHasher};
+     /// let tree = TreeHasher::new(Mode::DeriveKey("example.com 2026-11-16 session keys"));
+     /// assert_eq!(tree.hash(b"material"), convenience::hash_with(Mode::DeriveKey("example.com 2026-11-16 session keys"), b"material"));
+     /// ```
+     #[inline]
+     pub fn hash(&self, input: &[u8]) -> Hash {
+-        if input.len() <= crate::BLOCK_LEN {
+-            #[cfg(target_arch = "aarch64")]
+-            {
+-                crate::platform::Platform::require_initialized();
+-                return crate::hash_one_block_root(input, self.domain.key(), self.domain.flags());
+-            }
+-            #[cfg(target_arch = "x86_64")]
+-            return Hash(crate::chunk_root::chunk_root(crate::platform::Platform::detect(), input, self.domain.key(), self.domain.flags()));
+-        }
+-        self.hash_long(input)
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     #[inline(never)]
+     fn hash_long(&self, input: &[u8]) -> Hash {
+         let turn = self.turn(input.len());
+         self.hash_on(turn.platform(), input)
+     }
+ 
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[57434]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[57437]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants-502/run-1/version)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants-502/run-1)
+error[E0277]: the trait bound `Hash: Default` is not satisfied
+   --> src/throughput.rs:661:9
+    |
+661 |         Default::default() /* ~ changed by cargo-mutants ~ */
+    |         ^^^^^^^^^^^^^^^^^^ the trait `Default` is not implemented for `Hash`
+    |
+help: consider annotating `Hash` with `#[derive(Default)]`
+   --> src/lib.rs:508:1
+    |
+508 + #[derive(Default)]
+509 | pub struct Hash([u8; OUT_LEN]);
+    |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `blake3-servil-core` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `blake3-servil-core` (lib test) due to 1 previous error
+error: command `/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo '--color=auto' test --no-run '--message-format=json-render-diagnostics' '--package=blake3-servil-core@0.11.0+dev' '--profile=mutants'` exited with code 101
+
+*** result: Failure(101)
