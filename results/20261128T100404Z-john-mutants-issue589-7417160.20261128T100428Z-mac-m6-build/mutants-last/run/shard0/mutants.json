@@ -1,0 +1,130 @@
+[
+  {
+    "diff": "--- src/lib.rs\n+++ replace hash_one_chunk_root -> Hash with Default::default()\n@@ -1031,49 +1031,17 @@\n // into a zero-padded stack buffer only on the short-tail arm (so exact\n // 64/128/.../1024-byte dynamic slices avoid unnecessary zero-fill stores).\n // When inlined under `input.len() <= BLOCK_LEN` (as in `TreeHasher::hash`),\n // the single-block arithmetic folds away cleanly. The scalar kernel runs on\n // every AArch64 core, so this path needs no platform check (#586, #589).\n #[cfg(target_arch = \"aarch64\")]\n #[inline]\n pub(crate) fn hash_one_chunk_root(input: &[u8], key: &CVWords, flags: u8) -> Hash {\n-    assert!(input.len() <= CHUNK_LEN, \"one chunk or less\");\n-    let blocks = cmp::max(1, input.len().div_ceil(BLOCK_LEN));\n-    let whole = (blocks - 1) * BLOCK_LEN;\n-    let tail = &input[whole..];\n-    let mut padded;\n-    let last: &[u8; BLOCK_LEN] = match tail.try_into() {\n-        Ok(full) => full,\n-        Err(_) => {\n-            padded = [0u8; BLOCK_LEN];\n-            padded[..tail.len()].copy_from_slice(tail);\n-            &padded\n-        }\n-    };\n-    let first = if blocks == 1 { last.as_ptr() } else { input.as_ptr() };\n-    let mut out = [0u8; OUT_LEN];\n-    // Sound: when `blocks == 1`, `hash_chunk` reads only the 64-byte `last`\n-    // block; when `blocks` is in 2..=16, `input` holds `(blocks - 1) * BLOCK_LEN`\n-    // readable bytes before `tail` and `last` is 64 readable bytes.\n-    unsafe {\n-        neon_hybrid::hash_chunk(\n-            first,\n-            blocks,\n-            last,\n-            u8::try_from(tail.len()).expect(\"tail block <= 64\"),\n-            key,\n-            0,\n-            flags,\n-            CHUNK_START,\n-            CHUNK_END | ROOT,\n-            &mut out,\n-        );\n-    }\n-    Hash(out)\n+    Default::default() /* ~ changed by cargo-mutants ~ */\n }\n \n /// Run the startup self-test and detect the CPU: every program calls this\n /// once before hashing (any call that loads the detected platform before\n /// `initialize` completes panics). Under 0.2 ms, once per process\n /// (see the crate's documentation); later calls return at once.\n ///\n /// ```\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "hash_one_chunk_root",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1072
+        },
+        "start": {
+          "column": 1,
+          "line": 1036
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/lib.rs:1039:5: replace hash_one_chunk_root -> Hash with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 1071
+      },
+      "start": {
+        "column": 5,
+        "line": 1039
+      }
+    }
+  },
+  {
+    "diff": "--- src/lib.rs\n+++ replace == with != in hash_one_chunk_root\n@@ -1044,17 +1044,17 @@\n     let last: &[u8; BLOCK_LEN] = match tail.try_into() {\n         Ok(full) => full,\n         Err(_) => {\n             padded = [0u8; BLOCK_LEN];\n             padded[..tail.len()].copy_from_slice(tail);\n             &padded\n         }\n     };\n-    let first = if blocks == 1 { last.as_ptr() } else { input.as_ptr() };\n+    let first = if blocks != /* ~ changed by cargo-mutants ~ */ 1 { last.as_ptr() } else { input.as_ptr() };\n     let mut out = [0u8; OUT_LEN];\n     // Sound: when `blocks == 1`, `hash_chunk` reads only the 64-byte `last`\n     // block; when `blocks` is in 2..=16, `input` holds `(blocks - 1) * BLOCK_LEN`\n     // readable bytes before `tail` and `last` is 64 readable bytes.\n     unsafe {\n         neon_hybrid::hash_chunk(\n             first,\n             blocks,\n",
+    "file": "src/lib.rs",
+    "function": {
+      "function_name": "hash_one_chunk_root",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 1072
+        },
+        "start": {
+          "column": 1,
+          "line": 1036
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/lib.rs:1052:27: replace == with != in hash_one_chunk_root",
+    "package": "blake3-servil-core",
+    "replacement": "!=",
+    "span": {
+      "end": {
+        "column": 29,
+        "line": 1052
+      },
+      "start": {
+        "column": 27,
+        "line": 1052
+      }
+    }
+  },
+  {
+    "diff": "--- src/throughput.rs\n+++ replace TreeHasher::hash -> Hash with Default::default()\n@@ -811,29 +811,17 @@\n     /// ```\n     /// # blake3_servil_core::initialize();\n     /// use blake3_servil_core::{Mode, convenience, throughput::TreeHasher};\n     /// let tree = TreeHasher::new(Mode::DeriveKey(\"example.com 2026-11-16 session keys\"));\n     /// assert_eq!(tree.hash(b\"material\"), convenience::hash_with(Mode::DeriveKey(\"example.com 2026-11-16 session keys\"), b\"material\"));\n     /// ```\n     #[cfg_attr(target_arch = \"aarch64\", inline)]\n     pub fn hash(&self, input: &[u8]) -> Hash {\n-        #[cfg(target_arch = \"aarch64\")]\n-        {\n-            if input.len() <= crate::BLOCK_LEN {\n-                let _ = crate::platform::Platform::detect();\n-                return crate::hash_one_chunk_root(input, self.domain.key(), self.domain.flags());\n-            }\n-            self.hash_long(input)\n-        }\n-        #[cfg(not(target_arch = \"aarch64\"))]\n-        {\n-            let turn = self.turn(input.len());\n-            self.hash_on(turn.platform(), input)\n-        }\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     #[cfg(target_arch = \"aarch64\")]\n     #[inline(never)]\n     fn hash_long(&self, input: &[u8]) -> Hash {\n         #[cfg(test)]\n         TREE_HASH_LONG_CALLS.with(|c| c.set(c.get() + 1));\n         let turn = self.turn(input.len());\n",
+    "file": "src/throughput.rs",
+    "function": {
+      "function_name": "TreeHasher::hash",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 832
+        },
+        "start": {
+          "column": 5,
+          "line": 798
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/throughput.rs:819:9: replace TreeHasher::hash -> Hash with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 10,
+        "line": 831
+      },
+      "start": {
+        "column": 9,
+        "line": 819
+      }
+    }
+  },
+  {
+    "diff": "--- src/throughput.rs\n+++ replace TreeHasher::hash_long -> Hash with Default::default()\n@@ -829,20 +829,17 @@\n             let turn = self.turn(input.len());\n             self.hash_on(turn.platform(), input)\n         }\n     }\n \n     #[cfg(target_arch = \"aarch64\")]\n     #[inline(never)]\n     fn hash_long(&self, input: &[u8]) -> Hash {\n-        #[cfg(test)]\n-        TREE_HASH_LONG_CALLS.with(|c| c.set(c.get() + 1));\n-        let turn = self.turn(input.len());\n-        self.hash_on(turn.platform(), input)\n+        Default::default() /* ~ changed by cargo-mutants ~ */\n     }\n \n     /// A worker already holds the turn for these kernels.\n     #[doc(hidden)]\n     #[inline]\n     pub fn hash_on(&self, platform: crate::platform::Platform, input: &[u8]) -> Hash {\n         crate::hash_serial_on(input, self.domain.key(), self.domain.flags(), platform)\n     }\n",
+    "file": "src/throughput.rs",
+    "function": {
+      "function_name": "TreeHasher::hash_long",
+      "return_type": "-> Hash",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 841
+        },
+        "start": {
+          "column": 5,
+          "line": 834
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/throughput.rs:837:9: replace TreeHasher::hash_long -> Hash with Default::default()",
+    "package": "blake3-servil-core",
+    "replacement": "Default::default()",
+    "span": {
+      "end": {
+        "column": 45,
+        "line": 840
+      },
+      "start": {
+        "column": 9,
+        "line": 837
+      }
+    }
+  }
+]
