@@ -1,0 +1,51 @@
+--- src/ffi_counter.rs
++++ replace find_counter_range_on -> usize with 0
+@@ -204,47 +204,17 @@
+     count: u64,
+     mask: u32,
+     target: u32,
+     key: &CVWords,
+     flags: u8,
+     matches: &mut [(u32, [u8; OUT_LEN])],
+     platform: Platform,
+ ) -> usize {
+-    if find_is_noop(count, matches.len(), mask, target) {
+-        return 0;
+-    }
+-    let bytes = template.bytes();
+-    let counter_word = template.counter_word();
+-    let mut block = [0u8; BLOCK_LEN];
+-    block[..bytes.len()].copy_from_slice(bytes);
+-    let tmpl_words = words_from_block(&block);
+-
+-    const ROOT_BLOCK_FLAGS: u8 = CHUNK_START + CHUNK_END + ROOT;
+-    let ctx = FindHitCtx { counter_word, cw_off: counter_word * 4, blen_u8: template.len_u8(), key, root_flags: flags + ROOT_BLOCK_FLAGS, platform };
+-
+-    let mut found = 0usize;
+-    let off = arch::find_counter_groups(&tmpl_words, &ctx, start, count, mask, target, &mut block, matches, &mut found);
+-
+-    // Serial tail (< 18 / < 11 / < 16 / < 8, or SSE4.1).
+-    for tail_off in off..count {
+-        if found == matches.len() {
+-            break;
+-        }
+-        let ctr = wrapping_add_u64(start, tail_off);
+-        block[ctx.cw_off..ctx.cw_off + 4].copy_from_slice(&ctr.to_le_bytes());
+-        let mut cv = *key;
+-        platform.compress_in_place(&mut cv, &block, ctx.blen_u8, 0, ctx.root_flags);
+-        if (cv[0] & mask) == target {
+-            matches[found] = (ctr, crate::hasher::le_bytes(&cv));
+-            found += 1;
+-        }
+-    }
+-
+-    found
++    0 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// `47 = 2*18 + 11 = 2*16 + 8 + 7 = 4*11 + 3 = 5*8 + 7`, exercising multi-group
+ /// wrapping and primary-to-secondary SIMD fallback on every ISA in one call.
+ const SELF_TEST_COUNT: usize = 47;
+ const SELF_TEST_TIERS: [(usize, usize); 4] = [(16, 3), (36, 8), (52, 12), (64, 15)];
+ const SELF_TEST_START: u32 = u32::MAX - 5;
+ const SELF_TEST_KEY: [u8; 32] = [

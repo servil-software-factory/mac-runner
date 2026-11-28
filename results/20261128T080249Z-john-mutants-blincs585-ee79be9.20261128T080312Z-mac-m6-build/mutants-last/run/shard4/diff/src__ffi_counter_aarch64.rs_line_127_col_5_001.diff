@@ -1,0 +1,92 @@
+--- src/ffi_counter_aarch64.rs
++++ replace find_counter_groups -> u64 with 1
+@@ -119,88 +119,17 @@
+     start: u32,
+     count: u64,
+     mask: u32,
+     target: u32,
+     block: &mut [u8; BLOCK_LEN],
+     matches: &mut [(u32, [u8; OUT_LEN])],
+     found: &mut usize,
+ ) -> u64 {
+-    let flags_and_len = u64::from_le_bytes([ctx.root_flags, ctx.blen_u8, 0, 0, 0, 0, 0, 0]);
+-    let mt = mask_and_target_u64(mask, target);
+-    let mut off = 0u64;
+-
+-    if matches!(ctx.platform, Platform::SME2 { .. }) && count >= 18 && *found != matches.len() {
+-        let turn = crate::platform::Sme2Turn::take(ctx.platform, true);
+-        if matches!(turn.platform(), Platform::SME2 { .. }) {
+-            let kernel = sme2_find_kernel(ctx.blen_u8);
+-            while *found != matches.len() {
+-                let rem = count.checked_sub(off).expect("off <= count");
+-                if rem < 18 {
+-                    break;
+-                }
+-                let groups = find_chunk_groups(rem, 18);
+-                let cur = wrapping_add_u64(start, off);
+-                // Sound: `Platform::SME2` verified SME2 support; `tmpl_words` holds
+-                // 16 readable `u32` words with zero words past the tier width,
+-                // `key` holds 8 readable `u32` words, `counter_word < tier_words`,
+-                // and `groups <= MAX_FIND_GROUPS`. The kernel checks SVL == 16 and
+-                // `TPIDR2_EL0` reserved bytes and returns `u64::MAX` if declined.
+-                let res = unsafe { kernel(tmpl_words.as_ptr(), ctx.key.as_ptr(), base_and_word(cur, ctx.counter_word), flags_and_len, mt, groups) };
+-                if res == u64::MAX {
+-                    break;
+-                }
+-                crate::ran_kernel(kernel as *const ());
+-                let hit_mask = res & ((1u64 << 18) - 1);
+-                let g_idx = res >> 18;
+-                let next_off = if hit_mask != 0 {
+-                    let base_off = off + g_idx * 18;
+-                    record_find_hits(base_off, hit_mask, start, block, ctx, matches, found);
+-                    base_off + 18
+-                } else {
+-                    off + g_idx * 18
+-                };
+-                assert!(next_off > off, "SME2 find kernel failed to advance");
+-                off = next_off;
+-            }
+-        }
+-        // Drop `turn` before NEON or scalar tail runs so concurrent callers
+-        // are never blocked on SME2 while this call drains a scalar tail.
+-    }
+-
+-    if matches!(ctx.platform, Platform::NEON { .. } | Platform::SME2 { .. }) {
+-        let kernel = neon_find_kernel(ctx.blen_u8);
+-        while *found != matches.len() {
+-            let rem = count.checked_sub(off).expect("off <= count");
+-            if rem < 11 {
+-                break;
+-            }
+-            let groups = find_chunk_groups(rem, 11);
+-            let cur = wrapping_add_u64(start, off);
+-            crate::ran_kernel(kernel as *const ());
+-            // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`;
+-            // `tmpl_words` holds 16 readable `u32` words with zero words past
+-            // the tier width, `key` holds 8 readable `u32` words, and
+-            // `counter_word < tier_words`.
+-            let res = unsafe { kernel(tmpl_words.as_ptr(), ctx.key.as_ptr(), base_and_word(cur, ctx.counter_word), flags_and_len, mt, groups) };
+-            let hit_mask = res & ((1u64 << 11) - 1);
+-            let g_idx = res >> 11;
+-            let next_off = if hit_mask != 0 {
+-                let base_off = off + g_idx * 11;
+-                record_find_hits(base_off, hit_mask, start, block, ctx, matches, found);
+-                base_off + 11
+-            } else {
+-                off + g_idx * 11
+-            };
+-            assert!(next_off > off, "NEON find kernel failed to advance");
+-            off = next_off;
+-        }
+-    }
+-
+-    off
++    1 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ pub(crate) fn entries_neon() -> [(&'static str, *const ()); 6] {
+     [
+         ("neon_p11_counter_w4", ffi_neon::blake3_servil_neon_p11_counter_w4 as *const ()),
+         ("neon_p11_counter_w9", ffi_neon::blake3_servil_neon_p11_counter_w9 as *const ()),
+         ("neon_p11_counter_w16", ffi_neon::blake3_servil_neon_p11_counter_w16 as *const ()),
