@@ -1,0 +1,482 @@
+[
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace ^ with & in self_test_init\n@@ -405,17 +405,17 @@\n     0x23, 0x37, 0x4b, 0x5f, 0x73, 0x87, 0x9b, 0xaf, 0xc3, 0xd7, 0xeb, 0xff, 0x13, 0x27, 0x3b, 0x4f, 0x63, 0x77, 0x8b, 0x9f, 0xb3, 0xc7, 0xdb, 0xef, 0x05, 0x19,\n     0x2d, 0x41, 0x55, 0x69, 0x7d, 0x91,\n ];\n \n fn self_test_init() -> [[u8; CHAIN_IN_LEN]; SELF_TEST_COUNT] {\n     let mut init = [[0u8; CHAIN_IN_LEN]; SELF_TEST_COUNT];\n     for (i, slot) in init.iter_mut().enumerate() {\n         for (j, b) in slot.iter_mut().enumerate() {\n-            *b = crate::low_byte(i.wrapping_mul(29) ^ j.wrapping_mul(17) ^ 0x6b);\n+            *b = crate::low_byte(i.wrapping_mul(29) & /* ~ changed by cargo-mutants ~ */ j.wrapping_mul(17) ^ 0x6b);\n         }\n         // Start steps straddling u32::MAX to exercise wrapping u32 step overflow on every ISA.\n         let start = u32::MAX.wrapping_sub(2).wrapping_add(u32::try_from(i % 5).expect(\"i % 5 fits u32\"));\n         slot[12..16].copy_from_slice(&start.to_le_bytes());\n     }\n     init\n }\n \n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "self_test_init",
+      "return_type": "-> [[u8; CHAIN_IN_LEN]; SELF_TEST_COUNT]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 420
+        },
+        "start": {
+          "column": 1,
+          "line": 409
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_chain.rs:413:53: replace ^ with & in self_test_init",
+    "package": "blake3-servil-core",
+    "replacement": "&",
+    "span": {
+      "end": {
+        "column": 54,
+        "line": 413
+      },
+      "start": {
+        "column": 53,
+        "line": 413
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace % with + in self_test_init\n@@ -408,17 +408,17 @@\n \n fn self_test_init() -> [[u8; CHAIN_IN_LEN]; SELF_TEST_COUNT] {\n     let mut init = [[0u8; CHAIN_IN_LEN]; SELF_TEST_COUNT];\n     for (i, slot) in init.iter_mut().enumerate() {\n         for (j, b) in slot.iter_mut().enumerate() {\n             *b = crate::low_byte(i.wrapping_mul(29) ^ j.wrapping_mul(17) ^ 0x6b);\n         }\n         // Start steps straddling u32::MAX to exercise wrapping u32 step overflow on every ISA.\n-        let start = u32::MAX.wrapping_sub(2).wrapping_add(u32::try_from(i % 5).expect(\"i % 5 fits u32\"));\n+        let start = u32::MAX.wrapping_sub(2).wrapping_add(u32::try_from(i + /* ~ changed by cargo-mutants ~ */ 5).expect(\"i % 5 fits u32\"));\n         slot[12..16].copy_from_slice(&start.to_le_bytes());\n     }\n     init\n }\n \n /// Fold of `40` keyed 5-step 32-byte hash chains starting near `u32::MAX - 2`\n /// from official BLAKE3 1.8.7.\n /// `40 = 2*18 + 4` (SME2 multi-group + padded NEON), `3*11 + 7` (NEON),\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "self_test_init",
+      "return_type": "-> [[u8; CHAIN_IN_LEN]; SELF_TEST_COUNT]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 420
+        },
+        "start": {
+          "column": 1,
+          "line": 409
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_chain.rs:416:75: replace % with + in self_test_init",
+    "package": "blake3-servil-core",
+    "replacement": "+",
+    "span": {
+      "end": {
+        "column": 76,
+        "line": 416
+      },
+      "start": {
+        "column": 75,
+        "line": 416
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace self_test -> usize with 0\n@@ -423,31 +423,17 @@\n /// from official BLAKE3 1.8.7.\n /// `40 = 2*18 + 4` (SME2 multi-group + padded NEON), `3*11 + 7` (NEON),\n /// `2*16 + 8` (AVX-512 multi-group + AVX2), `5*8` (AVX2),\n /// exercising every fused chain kernel on its platform in one call.\n const SELF_TEST_EXPECTED: u64 = 0x6aba_f1ba_bf9a_20a9;\n \n #[inline(never)]\n pub(crate) fn self_test(platform: Platform) -> usize {\n-    let key = crate::platform::words_from_le_bytes_32(&SELF_TEST_KEY);\n-    let init = self_test_init();\n-    let mut out = [[0u8; CHAIN_OUT_LEN]; SELF_TEST_COUNT];\n-    hash_chains_32_trunc16_on(&init, SELF_TEST_STEPS, &key, crate::KEYED_HASH, &mut out, platform);\n-    let got = crate::self_test::fold(out.as_flattened());\n-    if got != SELF_TEST_EXPECTED {\n-        crate::self_test::fail(format_args!(\n-            \"blake3-servil startup self-test failed: hash_chains_32_trunc16 (platform {}): \\\n-             expected {:#018x}, got {:#018x}\",\n-            platform.name(),\n-            SELF_TEST_EXPECTED,\n-            got,\n-        ));\n-    }\n-    1\n+    0 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Exported entry points of the fused hash-chain kernels compiled for this\n /// target, for `self_test::test_self_test_runs_every_kernel`.\n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_neon() -> [(&'static str, *const ()); 1] {\n     [(\"neon_p11_chain32_trunc16\", ffi_neon::blake3_servil_neon_p11_chain32_trunc16 as *const ())]\n }\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "self_test",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 446
+        },
+        "start": {
+          "column": 1,
+          "line": 429
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:431:5: replace self_test -> usize with 0",
+    "package": "blake3-servil-core",
+    "replacement": "0",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 445
+      },
+      "start": {
+        "column": 5,
+        "line": 431
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace self_test -> usize with 1\n@@ -423,31 +423,17 @@\n /// from official BLAKE3 1.8.7.\n /// `40 = 2*18 + 4` (SME2 multi-group + padded NEON), `3*11 + 7` (NEON),\n /// `2*16 + 8` (AVX-512 multi-group + AVX2), `5*8` (AVX2),\n /// exercising every fused chain kernel on its platform in one call.\n const SELF_TEST_EXPECTED: u64 = 0x6aba_f1ba_bf9a_20a9;\n \n #[inline(never)]\n pub(crate) fn self_test(platform: Platform) -> usize {\n-    let key = crate::platform::words_from_le_bytes_32(&SELF_TEST_KEY);\n-    let init = self_test_init();\n-    let mut out = [[0u8; CHAIN_OUT_LEN]; SELF_TEST_COUNT];\n-    hash_chains_32_trunc16_on(&init, SELF_TEST_STEPS, &key, crate::KEYED_HASH, &mut out, platform);\n-    let got = crate::self_test::fold(out.as_flattened());\n-    if got != SELF_TEST_EXPECTED {\n-        crate::self_test::fail(format_args!(\n-            \"blake3-servil startup self-test failed: hash_chains_32_trunc16 (platform {}): \\\n-             expected {:#018x}, got {:#018x}\",\n-            platform.name(),\n-            SELF_TEST_EXPECTED,\n-            got,\n-        ));\n-    }\n-    1\n+    1 /* ~ changed by cargo-mutants ~ */\n }\n \n /// Exported entry points of the fused hash-chain kernels compiled for this\n /// target, for `self_test::test_self_test_runs_every_kernel`.\n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_neon() -> [(&'static str, *const ()); 1] {\n     [(\"neon_p11_chain32_trunc16\", ffi_neon::blake3_servil_neon_p11_chain32_trunc16 as *const ())]\n }\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "self_test",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 446
+        },
+        "start": {
+          "column": 1,
+          "line": 429
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:431:5: replace self_test -> usize with 1",
+    "package": "blake3-servil-core",
+    "replacement": "1",
+    "span": {
+      "end": {
+        "column": 6,
+        "line": 445
+      },
+      "start": {
+        "column": 5,
+        "line": 431
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace != with == in self_test\n@@ -428,17 +428,17 @@\n \n #[inline(never)]\n pub(crate) fn self_test(platform: Platform) -> usize {\n     let key = crate::platform::words_from_le_bytes_32(&SELF_TEST_KEY);\n     let init = self_test_init();\n     let mut out = [[0u8; CHAIN_OUT_LEN]; SELF_TEST_COUNT];\n     hash_chains_32_trunc16_on(&init, SELF_TEST_STEPS, &key, crate::KEYED_HASH, &mut out, platform);\n     let got = crate::self_test::fold(out.as_flattened());\n-    if got != SELF_TEST_EXPECTED {\n+    if got == /* ~ changed by cargo-mutants ~ */ SELF_TEST_EXPECTED {\n         crate::self_test::fail(format_args!(\n             \"blake3-servil startup self-test failed: hash_chains_32_trunc16 (platform {}): \\\n              expected {:#018x}, got {:#018x}\",\n             platform.name(),\n             SELF_TEST_EXPECTED,\n             got,\n         ));\n     }\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "self_test",
+      "return_type": "-> usize",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 446
+        },
+        "start": {
+          "column": 1,
+          "line": 429
+        }
+      }
+    },
+    "genre": "BinaryOperator",
+    "name": "src/ffi_chain.rs:436:12: replace != with == in self_test",
+    "package": "blake3-servil-core",
+    "replacement": "==",
+    "span": {
+      "end": {
+        "column": 14,
+        "line": 436
+      },
+      "start": {
+        "column": 12,
+        "line": 436
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace entries_neon -> [(&'static str, *const()); 1] with [(\"\", Default::default()); 1]\n@@ -444,17 +444,17 @@\n     }\n     1\n }\n \n /// Exported entry points of the fused hash-chain kernels compiled for this\n /// target, for `self_test::test_self_test_runs_every_kernel`.\n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_neon() -> [(&'static str, *const ()); 1] {\n-    [(\"neon_p11_chain32_trunc16\", ffi_neon::blake3_servil_neon_p11_chain32_trunc16 as *const ())]\n+    [(\"\", Default::default()); 1] /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_sme2() -> [(&'static str, *const ()); 1] {\n     [(\"sme2_chain32_trunc16\", ffi_sme2::blake3_servil_sme2_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "entries_neon",
+      "return_type": "-> [(&'static str, *const()); 1]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 453
+        },
+        "start": {
+          "column": 1,
+          "line": 448
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:452:5: replace entries_neon -> [(&'static str, *const()); 1] with [(\"\", Default::default()); 1]",
+    "package": "blake3-servil-core",
+    "replacement": "[(\"\", Default::default()); 1]",
+    "span": {
+      "end": {
+        "column": 98,
+        "line": 452
+      },
+      "start": {
+        "column": 5,
+        "line": 452
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace entries_neon -> [(&'static str, *const()); 1] with [(\"xyzzy\", Default::default()); 1]\n@@ -444,17 +444,17 @@\n     }\n     1\n }\n \n /// Exported entry points of the fused hash-chain kernels compiled for this\n /// target, for `self_test::test_self_test_runs_every_kernel`.\n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_neon() -> [(&'static str, *const ()); 1] {\n-    [(\"neon_p11_chain32_trunc16\", ffi_neon::blake3_servil_neon_p11_chain32_trunc16 as *const ())]\n+    [(\"xyzzy\", Default::default()); 1] /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_sme2() -> [(&'static str, *const ()); 1] {\n     [(\"sme2_chain32_trunc16\", ffi_sme2::blake3_servil_sme2_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "entries_neon",
+      "return_type": "-> [(&'static str, *const()); 1]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 453
+        },
+        "start": {
+          "column": 1,
+          "line": 448
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:452:5: replace entries_neon -> [(&'static str, *const()); 1] with [(\"xyzzy\", Default::default()); 1]",
+    "package": "blake3-servil-core",
+    "replacement": "[(\"xyzzy\", Default::default()); 1]",
+    "span": {
+      "end": {
+        "column": 98,
+        "line": 452
+      },
+      "start": {
+        "column": 5,
+        "line": 452
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace entries_sme2 -> [(&'static str, *const()); 1] with [(\"\", Default::default()); 1]\n@@ -449,17 +449,17 @@\n /// target, for `self_test::test_self_test_runs_every_kernel`.\n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_neon() -> [(&'static str, *const ()); 1] {\n     [(\"neon_p11_chain32_trunc16\", ffi_neon::blake3_servil_neon_p11_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_sme2() -> [(&'static str, *const ()); 1] {\n-    [(\"sme2_chain32_trunc16\", ffi_sme2::blake3_servil_sme2_chain32_trunc16 as *const ())]\n+    [(\"\", Default::default()); 1] /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx2() -> [(&'static str, *const ()); 1] {\n     [(\"avx2_chain32_trunc16\", ffi_x86::blake3_servil_avx2_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "entries_sme2",
+      "return_type": "-> [(&'static str, *const()); 1]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 458
+        },
+        "start": {
+          "column": 1,
+          "line": 455
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:457:5: replace entries_sme2 -> [(&'static str, *const()); 1] with [(\"\", Default::default()); 1]",
+    "package": "blake3-servil-core",
+    "replacement": "[(\"\", Default::default()); 1]",
+    "span": {
+      "end": {
+        "column": 90,
+        "line": 457
+      },
+      "start": {
+        "column": 5,
+        "line": 457
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace entries_sme2 -> [(&'static str, *const()); 1] with [(\"xyzzy\", Default::default()); 1]\n@@ -449,17 +449,17 @@\n /// target, for `self_test::test_self_test_runs_every_kernel`.\n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_neon() -> [(&'static str, *const ()); 1] {\n     [(\"neon_p11_chain32_trunc16\", ffi_neon::blake3_servil_neon_p11_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_sme2() -> [(&'static str, *const ()); 1] {\n-    [(\"sme2_chain32_trunc16\", ffi_sme2::blake3_servil_sme2_chain32_trunc16 as *const ())]\n+    [(\"xyzzy\", Default::default()); 1] /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx2() -> [(&'static str, *const ()); 1] {\n     [(\"avx2_chain32_trunc16\", ffi_x86::blake3_servil_avx2_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "entries_sme2",
+      "return_type": "-> [(&'static str, *const()); 1]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 458
+        },
+        "start": {
+          "column": 1,
+          "line": 455
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:457:5: replace entries_sme2 -> [(&'static str, *const()); 1] with [(\"xyzzy\", Default::default()); 1]",
+    "package": "blake3-servil-core",
+    "replacement": "[(\"xyzzy\", Default::default()); 1]",
+    "span": {
+      "end": {
+        "column": 90,
+        "line": 457
+      },
+      "start": {
+        "column": 5,
+        "line": 457
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace entries_avx2 -> [(&'static str, *const()); 1] with [(\"\", Default::default()); 1]\n@@ -454,17 +454,17 @@\n \n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_sme2() -> [(&'static str, *const ()); 1] {\n     [(\"sme2_chain32_trunc16\", ffi_sme2::blake3_servil_sme2_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx2() -> [(&'static str, *const ()); 1] {\n-    [(\"avx2_chain32_trunc16\", ffi_x86::blake3_servil_avx2_chain32_trunc16 as *const ())]\n+    [(\"\", Default::default()); 1] /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx512() -> [(&'static str, *const ()); 1] {\n     [(\"avx512_chain32_trunc16\", ffi_x86::blake3_servil_avx512_chain32_trunc16 as *const ())]\n }\n \n #[cfg(target_arch = \"x86_64\")]\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "entries_avx2",
+      "return_type": "-> [(&'static str, *const()); 1]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 463
+        },
+        "start": {
+          "column": 1,
+          "line": 460
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:462:5: replace entries_avx2 -> [(&'static str, *const()); 1] with [(\"\", Default::default()); 1]",
+    "package": "blake3-servil-core",
+    "replacement": "[(\"\", Default::default()); 1]",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 462
+      },
+      "start": {
+        "column": 5,
+        "line": 462
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace entries_avx2 -> [(&'static str, *const()); 1] with [(\"xyzzy\", Default::default()); 1]\n@@ -454,17 +454,17 @@\n \n #[cfg(all(test, target_arch = \"aarch64\"))]\n pub(crate) fn entries_sme2() -> [(&'static str, *const ()); 1] {\n     [(\"sme2_chain32_trunc16\", ffi_sme2::blake3_servil_sme2_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx2() -> [(&'static str, *const ()); 1] {\n-    [(\"avx2_chain32_trunc16\", ffi_x86::blake3_servil_avx2_chain32_trunc16 as *const ())]\n+    [(\"xyzzy\", Default::default()); 1] /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx512() -> [(&'static str, *const ()); 1] {\n     [(\"avx512_chain32_trunc16\", ffi_x86::blake3_servil_avx512_chain32_trunc16 as *const ())]\n }\n \n #[cfg(target_arch = \"x86_64\")]\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "entries_avx2",
+      "return_type": "-> [(&'static str, *const()); 1]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 463
+        },
+        "start": {
+          "column": 1,
+          "line": 460
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:462:5: replace entries_avx2 -> [(&'static str, *const()); 1] with [(\"xyzzy\", Default::default()); 1]",
+    "package": "blake3-servil-core",
+    "replacement": "[(\"xyzzy\", Default::default()); 1]",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 462
+      },
+      "start": {
+        "column": 5,
+        "line": 462
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace entries_avx512 -> [(&'static str, *const()); 1] with [(\"\", Default::default()); 1]\n@@ -459,17 +459,17 @@\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx2() -> [(&'static str, *const ()); 1] {\n     [(\"avx2_chain32_trunc16\", ffi_x86::blake3_servil_avx2_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx512() -> [(&'static str, *const ()); 1] {\n-    [(\"avx512_chain32_trunc16\", ffi_x86::blake3_servil_avx512_chain32_trunc16 as *const ())]\n+    [(\"\", Default::default()); 1] /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(target_arch = \"x86_64\")]\n mod ffi_x86 {\n     unsafe extern \"C\" {\n         pub fn blake3_servil_avx512_chain32_trunc16(init: *const u8, groups: u64, key: *const u32, flags: u32, out: *mut u8, steps: u32);\n         pub fn blake3_servil_avx2_chain32_trunc16(init: *const u8, groups: u64, key: *const u32, flags: u32, out: *mut u8, steps: u32);\n     }\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "entries_avx512",
+      "return_type": "-> [(&'static str, *const()); 1]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 468
+        },
+        "start": {
+          "column": 1,
+          "line": 465
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:467:5: replace entries_avx512 -> [(&'static str, *const()); 1] with [(\"\", Default::default()); 1]",
+    "package": "blake3-servil-core",
+    "replacement": "[(\"\", Default::default()); 1]",
+    "span": {
+      "end": {
+        "column": 93,
+        "line": 467
+      },
+      "start": {
+        "column": 5,
+        "line": 467
+      }
+    }
+  },
+  {
+    "diff": "--- src/ffi_chain.rs\n+++ replace entries_avx512 -> [(&'static str, *const()); 1] with [(\"xyzzy\", Default::default()); 1]\n@@ -459,17 +459,17 @@\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx2() -> [(&'static str, *const ()); 1] {\n     [(\"avx2_chain32_trunc16\", ffi_x86::blake3_servil_avx2_chain32_trunc16 as *const ())]\n }\n \n #[cfg(all(test, target_arch = \"x86_64\"))]\n pub(crate) fn entries_avx512() -> [(&'static str, *const ()); 1] {\n-    [(\"avx512_chain32_trunc16\", ffi_x86::blake3_servil_avx512_chain32_trunc16 as *const ())]\n+    [(\"xyzzy\", Default::default()); 1] /* ~ changed by cargo-mutants ~ */\n }\n \n #[cfg(target_arch = \"x86_64\")]\n mod ffi_x86 {\n     unsafe extern \"C\" {\n         pub fn blake3_servil_avx512_chain32_trunc16(init: *const u8, groups: u64, key: *const u32, flags: u32, out: *mut u8, steps: u32);\n         pub fn blake3_servil_avx2_chain32_trunc16(init: *const u8, groups: u64, key: *const u32, flags: u32, out: *mut u8, steps: u32);\n     }\n",
+    "file": "src/ffi_chain.rs",
+    "function": {
+      "function_name": "entries_avx512",
+      "return_type": "-> [(&'static str, *const()); 1]",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 468
+        },
+        "start": {
+          "column": 1,
+          "line": 465
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/ffi_chain.rs:467:5: replace entries_avx512 -> [(&'static str, *const()); 1] with [(\"xyzzy\", Default::default()); 1]",
+    "package": "blake3-servil-core",
+    "replacement": "[(\"xyzzy\", Default::default()); 1]",
+    "span": {
+      "end": {
+        "column": 93,
+        "line": 467
+      },
+      "start": {
+        "column": 5,
+        "line": 467
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace run_checks -> (Platform, usize) with (Default::default(), 0)\n@@ -413,75 +413,17 @@\n \n /// Run every case for the detected platform and stop on the first that differs\n /// from the reference, returning `(platform, checked)` without publishing.\n /// Separating verification from `platform.record()` guarantees every kernel\n /// self-test completes before publication.\n fn run_checks() -> (Platform, usize) {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n-    #[cfg(test)]\n-    if PLANTED_FAILURE.load(core::sync::atomic::Ordering::Relaxed) {\n-        panic!(\"a kernel's panic, planted by a test\");\n-    }\n-    compiled_features_present();\n-    let platform = Platform::detect_unchecked();\n-    let mut checked = 0;\n-    #[cfg(test)]\n-    let mut index = 0;\n-    let previous = chain(\n-        |case, input, previous, out| {\n-            let written = outputs(platform, case, input, previous, out);\n-            // A wrong digest a test plants in one case, as a CPU or build\n-            // that computes one would give.\n-            #[cfg(test)]\n-            {\n-                if index == PLANTED_WRONG_CASE.load(core::sync::atomic::Ordering::Relaxed) {\n-                    out[written - 1] ^= 1;\n-                }\n-                index += 1;\n-            }\n-            written\n-        },\n-        |index, folded| {\n-            checked += 1;\n-            if folded != EXPECTED[index] {\n-                stop(format_args!(\n-                    \"blake3-servil startup self-test failed: case {index}, {} (platform {}): this build or this CPU \\\n-                     computes wrong BLAKE3 digests on that path\",\n-                    CASES[index].1,\n-                    platform.name(),\n-                ));\n-            }\n-        },\n-    );\n-    #[cfg(target_arch = \"x86_64\")]\n-    if crate::platform::wide_avx512() {\n-        // Sound: `wide_avx512()` requires AVX-512, so `platform` is AVX-512\n-        // and hash_many dispatches to these kernels. Their wrapper checks\n-        // bounds on stack.\n-        checked += unsafe { crate::avx512_32::self_test(&previous) };\n-    }\n-    checked += crate::ffi_output::self_test(platform);\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        checked += crate::ffi_partial::self_test(platform);\n-    }\n-    checked += crate::ffi_packed::self_test(platform);\n-    #[cfg(test)]\n-    if HOLD_RUN.load(core::sync::atomic::Ordering::Relaxed) {\n-        IN_RUN.store(true, core::sync::atomic::Ordering::Release);\n-        while HOLD_RUN.load(core::sync::atomic::Ordering::Acquire) {\n-            std::thread::yield_now();\n-        }\n-    }\n-    checked += crate::ffi_counter::self_test(platform);\n-    checked += crate::ffi_chain::self_test(platform);\n-    let _ = previous;\n-    (platform, checked)\n+    (Default::default(), 0) /* ~ changed by cargo-mutants ~ */\n }\n \n /// Run every startup self-test case and publish the verified platform once.\n fn run() -> usize {\n     let (platform, checked) = run_checks();\n     platform.record();\n     checked\n }\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "run_checks",
+      "return_type": "-> (Platform, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 480
+        },
+        "start": {
+          "column": 1,
+          "line": 414
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:421:5: replace run_checks -> (Platform, usize) with (Default::default(), 0)",
+    "package": "blake3-servil-core",
+    "replacement": "(Default::default(), 0)",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 479
+      },
+      "start": {
+        "column": 5,
+        "line": 421
+      }
+    }
+  },
+  {
+    "diff": "--- src/self_test.rs\n+++ replace run_checks -> (Platform, usize) with (Default::default(), 1)\n@@ -413,75 +413,17 @@\n \n /// Run every case for the detected platform and stop on the first that differs\n /// from the reference, returning `(platform, checked)` without publishing.\n /// Separating verification from `platform.record()` guarantees every kernel\n /// self-test completes before publication.\n fn run_checks() -> (Platform, usize) {\n     // A kernel's panic, as a test plants it: the guard in ensure_slow\n     // stops the process for it.\n-    #[cfg(test)]\n-    if PLANTED_FAILURE.load(core::sync::atomic::Ordering::Relaxed) {\n-        panic!(\"a kernel's panic, planted by a test\");\n-    }\n-    compiled_features_present();\n-    let platform = Platform::detect_unchecked();\n-    let mut checked = 0;\n-    #[cfg(test)]\n-    let mut index = 0;\n-    let previous = chain(\n-        |case, input, previous, out| {\n-            let written = outputs(platform, case, input, previous, out);\n-            // A wrong digest a test plants in one case, as a CPU or build\n-            // that computes one would give.\n-            #[cfg(test)]\n-            {\n-                if index == PLANTED_WRONG_CASE.load(core::sync::atomic::Ordering::Relaxed) {\n-                    out[written - 1] ^= 1;\n-                }\n-                index += 1;\n-            }\n-            written\n-        },\n-        |index, folded| {\n-            checked += 1;\n-            if folded != EXPECTED[index] {\n-                stop(format_args!(\n-                    \"blake3-servil startup self-test failed: case {index}, {} (platform {}): this build or this CPU \\\n-                     computes wrong BLAKE3 digests on that path\",\n-                    CASES[index].1,\n-                    platform.name(),\n-                ));\n-            }\n-        },\n-    );\n-    #[cfg(target_arch = \"x86_64\")]\n-    if crate::platform::wide_avx512() {\n-        // Sound: `wide_avx512()` requires AVX-512, so `platform` is AVX-512\n-        // and hash_many dispatches to these kernels. Their wrapper checks\n-        // bounds on stack.\n-        checked += unsafe { crate::avx512_32::self_test(&previous) };\n-    }\n-    checked += crate::ffi_output::self_test(platform);\n-    #[cfg(target_arch = \"x86_64\")]\n-    {\n-        checked += crate::ffi_partial::self_test(platform);\n-    }\n-    checked += crate::ffi_packed::self_test(platform);\n-    #[cfg(test)]\n-    if HOLD_RUN.load(core::sync::atomic::Ordering::Relaxed) {\n-        IN_RUN.store(true, core::sync::atomic::Ordering::Release);\n-        while HOLD_RUN.load(core::sync::atomic::Ordering::Acquire) {\n-            std::thread::yield_now();\n-        }\n-    }\n-    checked += crate::ffi_counter::self_test(platform);\n-    checked += crate::ffi_chain::self_test(platform);\n-    let _ = previous;\n-    (platform, checked)\n+    (Default::default(), 1) /* ~ changed by cargo-mutants ~ */\n }\n \n /// Run every startup self-test case and publish the verified platform once.\n fn run() -> usize {\n     let (platform, checked) = run_checks();\n     platform.record();\n     checked\n }\n",
+    "file": "src/self_test.rs",
+    "function": {
+      "function_name": "run_checks",
+      "return_type": "-> (Platform, usize)",
+      "span": {
+        "end": {
+          "column": 2,
+          "line": 480
+        },
+        "start": {
+          "column": 1,
+          "line": 414
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/self_test.rs:421:5: replace run_checks -> (Platform, usize) with (Default::default(), 1)",
+    "package": "blake3-servil-core",
+    "replacement": "(Default::default(), 1)",
+    "span": {
+      "end": {
+        "column": 24,
+        "line": 479
+      },
+      "start": {
+        "column": 5,
+        "line": 421
+      }
+    }
+  }
+]

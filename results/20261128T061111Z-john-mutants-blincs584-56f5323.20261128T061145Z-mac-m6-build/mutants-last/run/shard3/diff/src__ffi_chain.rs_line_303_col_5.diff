@@ -1,0 +1,117 @@
+--- src/ffi_chain.rs
++++ replace hash_chains_varlen_32_trunc16_on with ()
+@@ -295,113 +295,17 @@
+ pub(crate) fn hash_chains_varlen_32_trunc16_on(
+     init: &[[u8; CHAIN_IN_LEN]],
+     steps: &[u32],
+     key: &CVWords,
+     flags: u8,
+     out: &mut [[u8; CHAIN_OUT_LEN]],
+     platform: Platform,
+ ) {
+-    assert_eq!(init.len(), steps.len(), "one step count per chain");
+-    assert_eq!(init.len(), out.len(), "one 16-byte output per chain");
+-    if init.is_empty() {
+-        return;
+-    }
+-
+-    const STACK_QUEUE_CAP: usize = 128;
+-    let mut stack_order = [0usize; STACK_QUEUE_CAP];
+-    let mut heap_order = std::vec::Vec::new();
+-    let mut nonzero = 0usize;
+-    let mut total_work = 0u64;
+-
+-    for (i, &st) in steps.iter().enumerate() {
+-        if st == 0 {
+-            out[i].copy_from_slice(&init[i][16..32]);
+-        } else {
+-            total_work = total_work.saturating_add(u64::from(st));
+-            if nonzero < STACK_QUEUE_CAP && heap_order.is_empty() {
+-                stack_order[nonzero] = i;
+-            } else {
+-                if heap_order.is_empty() {
+-                    heap_order.reserve(init.len());
+-                    heap_order.extend_from_slice(&stack_order[..nonzero]);
+-                }
+-                heap_order.push(i);
+-            }
+-            nonzero += 1;
+-        }
+-    }
+-    if nonzero == 0 {
+-        return;
+-    }
+-
+-    let order: &mut [usize] = if heap_order.is_empty() { &mut stack_order[..nonzero] } else { &mut heap_order[..] };
+-    // LPT schedule (longest chains first): depends solely on public `steps`,
+-    // keeping SIMD lanes balanced until the final few steps of the wave.
+-    order.sort_unstable_by(|&a, &b| steps[b].cmp(&steps[a]));
+-
+-    let width = varlen_lane_width(platform, nonzero, total_work);
+-    if width == 1 {
+-        for &idx in order.iter() {
+-            out[idx] = hash_chain_serial_one(&init[idx], steps[idx], key, flags, platform);
+-        }
+-        return;
+-    }
+-
+-    let mut active_buf = [[0u8; CHAIN_IN_LEN]; 18];
+-    let mut active_out = [[0u8; CHAIN_OUT_LEN]; 18];
+-    let mut active_rem = [0u32; 18];
+-    let mut active_idx = [0usize; 18];
+-    let mut active_len = width.min(order.len());
+-    let mut next_q = active_len;
+-
+-    for (slot, &idx) in order[..active_len].iter().enumerate() {
+-        active_buf[slot] = init[idx];
+-        active_rem[slot] = steps[idx];
+-        active_idx[slot] = idx;
+-    }
+-
+-    // Keep lanes packed into fused multi-step SIMD bursts while at least
+-    // `PAD_SIMD_MIN` chains remain active; drain any 1..PAD_SIMD_MIN tail
+-    // serially after the loop.
+-    while active_len >= PAD_SIMD_MIN {
+-        let d = active_rem[..active_len].iter().copied().min().expect("active_len >= PAD_SIMD_MIN");
+-
+-        hash_chains_32_trunc16_on(&active_buf[..active_len], d, key, flags, &mut active_out[..active_len], platform);
+-
+-        let mut j = 0usize;
+-        while j < active_len {
+-            let left = active_rem[j].checked_sub(d).expect("d is min of active_rem");
+-            if left == 0 {
+-                out[active_idx[j]] = active_out[j];
+-                if let Some(&idx) = order.get(next_q) {
+-                    active_buf[j] = init[idx];
+-                    active_rem[j] = steps[idx];
+-                    active_idx[j] = idx;
+-                    next_q += 1;
+-                    j += 1;
+-                } else {
+-                    active_len = active_len.checked_sub(1).expect("j < active_len");
+-                    active_buf[j] = active_buf[active_len];
+-                    active_out[j] = active_out[active_len];
+-                    active_rem[j] = active_rem[active_len];
+-                    active_idx[j] = active_idx[active_len];
+-                }
+-            } else {
+-                active_buf[j][16..32].copy_from_slice(&active_out[j]);
+-                advance_step_in_slot(&mut active_buf[j], d);
+-                active_rem[j] = left;
+-                j += 1;
+-            }
+-        }
+-    }
+-
+-    for j in 0..active_len {
+-        out[active_idx[j]] = hash_chain_serial_one(&active_buf[j], active_rem[j], key, flags, platform);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ const SELF_TEST_COUNT: usize = 40;
+ const SELF_TEST_STEPS: u32 = 5;
+ const SELF_TEST_KEY: [u8; 32] = [
+     0x23, 0x37, 0x4b, 0x5f, 0x73, 0x87, 0x9b, 0xaf, 0xc3, 0xd7, 0xeb, 0xff, 0x13, 0x27, 0x3b, 0x4f, 0x63, 0x77, 0x8b, 0x9f, 0xb3, 0xc7, 0xdb, 0xef, 0x05, 0x19,
+     0x2d, 0x41, 0x55, 0x69, 0x7d, 0x91,
+ ];

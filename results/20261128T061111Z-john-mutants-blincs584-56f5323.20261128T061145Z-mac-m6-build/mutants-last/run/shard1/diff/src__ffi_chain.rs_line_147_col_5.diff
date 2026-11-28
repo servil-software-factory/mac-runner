@@ -1,0 +1,124 @@
+--- src/ffi_chain.rs
++++ replace hash_chains_32_trunc16_on with ()
+@@ -139,120 +139,17 @@
+ pub(crate) fn hash_chains_32_trunc16_on(
+     init: &[[u8; CHAIN_IN_LEN]],
+     steps: u32,
+     key: &CVWords,
+     flags: u8,
+     out: &mut [[u8; CHAIN_OUT_LEN]],
+     platform: Platform,
+ ) {
+-    assert_eq!(init.len(), out.len(), "one 16-byte output per chain");
+-    if init.is_empty() {
+-        return;
+-    }
+-    if steps == 0 {
+-        for (src, dst) in init.iter().zip(out.iter_mut()) {
+-            dst.copy_from_slice(&src[16..32]);
+-        }
+-        return;
+-    }
+-
+-    let rflags = root_flags_u32(flags);
+-    let mut done = 0usize;
+-
+-    #[cfg(target_arch = "aarch64")]
+-    if matches!(platform, Platform::SME2 { .. }) {
+-        let groups = init.len() / 18;
+-        if groups > 0 {
+-            let kernel = ffi_sme2::blake3_servil_sme2_chain32_trunc16;
+-            // Sound: `Platform::SME2` verified SME2 support; `init` holds at
+-            // least `18 * groups` readable 32-byte slots, `key` holds 8 `u32`
+-            // words, and `out` holds at least `18 * groups` writable 16-byte
+-            // slots. The kernel checks SVL == 16 and `TPIDR2_EL0` reserved
+-            // bytes before touching ZA/streaming state and returns 16 only when
+-            // all `18 * groups` outputs were written.
+-            let svl = unsafe { kernel(init.as_ptr().cast(), key.as_ptr(), rflags, steps, out.as_mut_ptr().cast(), groups as u64) };
+-            if svl == 16 {
+-                crate::ran_kernel(kernel as *const ());
+-                done += groups * 18;
+-            }
+-        }
+-    }
+-
+-    #[cfg(target_arch = "aarch64")]
+-    if matches!(platform, Platform::NEON { .. } | Platform::SME2 { .. }) {
+-        let rem = init.len() - done;
+-        let groups = rem / 11;
+-        if groups > 0 {
+-            let kernel = ffi_neon::blake3_servil_neon_p11_chain32_trunc16;
+-            crate::ran_kernel(kernel as *const ());
+-            // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`;
+-            // `init[done..]` holds at least `11 * groups` readable 32-byte
+-            // slots, `key` holds 8 `u32` words, and `out[done..]` holds at
+-            // least `11 * groups` writable 16-byte slots.
+-            unsafe {
+-                kernel(init[done..].as_ptr().cast(), groups as u64, key.as_ptr(), rflags, out[done..].as_mut_ptr().cast(), steps);
+-            }
+-            done += groups * 11;
+-        }
+-        let rem = init.len() - done;
+-        if rem >= PAD_SIMD_MIN {
+-            neon_p11_chain_padded(&init[done..], steps, key, rflags, &mut out[done..]);
+-            done += rem;
+-        }
+-    }
+-
+-    #[cfg(target_arch = "x86_64")]
+-    if matches!(platform, Platform::AVX512 { .. }) {
+-        let groups = init.len() / 16;
+-        if groups > 0 {
+-            let kernel = ffi_x86::blake3_servil_avx512_chain32_trunc16;
+-            crate::ran_kernel(kernel as *const ());
+-            // Sound: `Platform::AVX512` verified AVX-512F+VL; `init` holds at
+-            // least `16 * groups` readable 32-byte slots, `key` holds 8 `u32`
+-            // words, and `out` holds at least `16 * groups` writable 16-byte
+-            // slots.
+-            unsafe {
+-                kernel(init.as_ptr().cast(), groups as u64, key.as_ptr(), rflags, out.as_mut_ptr().cast(), steps);
+-            }
+-            done += groups * 16;
+-        }
+-        let rem = init.len() - done;
+-        if rem >= 9 {
+-            avx512_chain_padded(&init[done..], steps, key, rflags, &mut out[done..]);
+-            done += rem;
+-        }
+-    }
+-
+-    #[cfg(target_arch = "x86_64")]
+-    if matches!(platform, Platform::AVX2 { .. } | Platform::AVX512 { .. }) {
+-        let rem = init.len() - done;
+-        let groups = rem / 8;
+-        if groups > 0 {
+-            let kernel = ffi_x86::blake3_servil_avx2_chain32_trunc16;
+-            crate::ran_kernel(kernel as *const ());
+-            // Sound: `Platform::AVX2`/`AVX512` guarantee AVX2; `init[done..]`
+-            // holds at least `8 * groups` readable 32-byte slots, `key` holds
+-            // 8 `u32` words, and `out[done..]` holds at least `8 * groups`
+-            // writable 16-byte slots.
+-            unsafe {
+-                kernel(init[done..].as_ptr().cast(), groups as u64, key.as_ptr(), rflags, out[done..].as_mut_ptr().cast(), steps);
+-            }
+-            done += groups * 8;
+-        }
+-        let rem = init.len() - done;
+-        if rem >= PAD_SIMD_MIN {
+-            avx2_chain_padded(&init[done..], steps, key, rflags, &mut out[done..]);
+-            done += rem;
+-        }
+-    }
+-
+-    for (src, dst) in init[done..].iter().zip(out[done..].iter_mut()) {
+-        *dst = hash_chain_serial_one(src, steps, key, flags, platform);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Whether `hash_chains_varlen_32_trunc16` has enough active chains and total
+ /// compressions to justify taking the shared SME2 turn.
+ #[inline]
+ pub(crate) fn varlen_sme2_sized(steps: &[u32]) -> bool {
+     let mut active = 0usize;
+     let mut total = 0u64;

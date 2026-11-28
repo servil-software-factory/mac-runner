@@ -1,0 +1,30 @@
+--- src/ffi_chain.rs
++++ replace self_test_init -> [[u8; CHAIN_IN_LEN]; SELF_TEST_COUNT] with [[1; CHAIN_IN_LEN]; SELF_TEST_COUNT]
+@@ -402,26 +402,17 @@
+ const SELF_TEST_COUNT: usize = 40;
+ const SELF_TEST_STEPS: u32 = 5;
+ const SELF_TEST_KEY: [u8; 32] = [
+     0x23, 0x37, 0x4b, 0x5f, 0x73, 0x87, 0x9b, 0xaf, 0xc3, 0xd7, 0xeb, 0xff, 0x13, 0x27, 0x3b, 0x4f, 0x63, 0x77, 0x8b, 0x9f, 0xb3, 0xc7, 0xdb, 0xef, 0x05, 0x19,
+     0x2d, 0x41, 0x55, 0x69, 0x7d, 0x91,
+ ];
+ 
+ fn self_test_init() -> [[u8; CHAIN_IN_LEN]; SELF_TEST_COUNT] {
+-    let mut init = [[0u8; CHAIN_IN_LEN]; SELF_TEST_COUNT];
+-    for (i, slot) in init.iter_mut().enumerate() {
+-        for (j, b) in slot.iter_mut().enumerate() {
+-            *b = crate::low_byte(i.wrapping_mul(29) ^ j.wrapping_mul(17) ^ 0x6b);
+-        }
+-        // Start steps straddling u32::MAX to exercise wrapping u32 step overflow on every ISA.
+-        let start = u32::MAX.wrapping_sub(2).wrapping_add(u32::try_from(i % 5).expect("i % 5 fits u32"));
+-        slot[12..16].copy_from_slice(&start.to_le_bytes());
+-    }
+-    init
++    [[1; CHAIN_IN_LEN]; SELF_TEST_COUNT] /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Fold of `40` keyed 5-step 32-byte hash chains starting near `u32::MAX - 2`
+ /// from official BLAKE3 1.8.7.
+ /// `40 = 2*18 + 4` (SME2 multi-group + padded NEON), `3*11 + 7` (NEON),
+ /// `2*16 + 8` (AVX-512 multi-group + AVX2), `5*8` (AVX2),
+ /// exercising every fused chain kernel on its platform in one call.
+ const SELF_TEST_EXPECTED: u64 = 0x6aba_f1ba_bf9a_20a9;
