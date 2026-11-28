@@ -1,0 +1,189 @@
+--- src/each.rs
++++ replace by_blocks_at_once with ()
+@@ -561,185 +561,17 @@
+     assert_eq!(items.len(), out.len(), "one digest per item");
+     assert!(items.iter().all(|i| i.len() <= CHUNK_LEN), "items of up to a chunk");
+     for (items, out) in items.chunks(BY_BLOCKS_AT_ONCE).zip(out.chunks_mut(BY_BLOCKS_AT_ONCE)) {
+         by_blocks_at_once(items, key, counter, flags, flags_end, out, platform);
+     }
+ }
+ 
+ fn by_blocks_at_once(items: &[&[u8]], key: &CVWords, counter: u64, flags: u8, flags_end: u8, out: &mut [[u8; OUT_LEN]], platform: Platform) {
+-    const GROUP: usize = 16;
+-    const BINS: usize = 16;
+-    const { assert!(BINS * crate::BLOCK_LEN == crate::CHUNK_LEN) };
+-    const { assert!(BY_BLOCKS_AT_ONCE <= u8::MAX as usize) };
+-    let n = items.len();
+-    if n == 0 {
+-        return;
+-    }
+-    // On SME2, a table of messages of one length, whole blocks, at counter 0,
+-    // with at least the work that pays for the SME2 turn: one call of the message
+-    // kernel for all of them (a turn's 1 KiB messages finishing together:
+-    // the NEON lanes took 30-64% longer on an Apple M4 Max, jobs 2016 and
+-    // 2019). A table of one-block messages never reaches the threshold
+-    // (BY_BLOCKS_AT_ONCE of 64 bytes is under SME2_SIZED_LEN).
+-    #[cfg(target_arch = "aarch64")]
+-    {
+-        let len = items[0].len();
+-        if counter == 0
+-            && matches!(platform, Platform::SME2)
+-            && items.len() * len >= crate::SME2_SIZED_LEN
+-            && len % crate::BLOCK_LEN == 0
+-            && items.iter().all(|item| item.len() == len)
+-        {
+-            let turn = crate::platform::Sme2Turn::take(platform, true);
+-            if matches!(turn.platform(), Platform::SME2) {
+-                let mut lanes: crate::stack_vec::StackVec<*const u8, BY_BLOCKS_AT_ONCE> = items.iter().map(|item| item.as_ptr()).collect();
+-                let last = *lanes.last().unwrap();
+-                while lanes.len() % GROUP != 0 {
+-                    lanes.push(last);
+-                }
+-                crate::counted(crate::Counted::ByBlocksCall);
+-                // Sound: detection and the turn provide SME2. Every item has
+-                // equal whole-block length `len`; spare lanes repeat a valid
+-                // input pointer and write no output.
+-                unsafe {
+-                    crate::sme2::hash_messages_raw(&lanes, len / crate::BLOCK_LEN, key, flags, CHUNK_START, flags_end, crate::BLOCK_LEN, out.as_flattened_mut())
+-                };
+-                return;
+-            }
+-        }
+-    }
+-    let whole = |item: &[u8]| item.len().saturating_sub(1) / crate::BLOCK_LEN;
+-    let mut order = [0u8; BY_BLOCKS_AT_ONCE];
+-    if items.is_sorted_by_key(|item| whole(item)) {
+-        for (slot, i) in order[..n].iter_mut().zip(0u8..) {
+-            *slot = i;
+-        }
+-    } else {
+-        let mut ends = [0u8; BINS];
+-        for item in items {
+-            ends[whole(item)] += 1;
+-        }
+-        let mut sum = 0u8;
+-        for end in &mut ends {
+-            sum += *end;
+-            *end = sum;
+-        }
+-        let n_u8 = u8::try_from(n).expect("chunk <= BY_BLOCKS_AT_ONCE");
+-        for i in (0..n_u8).rev() {
+-            let bin = whole(items[usize::from(i)]);
+-            ends[bin] -= 1;
+-            order[usize::from(ends[bin])] = i;
+-        }
+-    }
+-    let order = &order[..n];
+-    // With SHA-3 the last block stays in the lanes too; other AArch64
+-    // CPUs keep the prefix kernels followed by scalar last blocks.
+-    #[cfg(target_arch = "aarch64")]
+-    let last_lanes = crate::neon_hybrid::sha3_detected();
+-    #[cfg(not(target_arch = "aarch64"))]
+-    let last_lanes = false;
+-    let mut cvs = [*key; BY_BLOCKS_AT_ONCE];
+-    // chunk_by always advances and returns nonempty groups, even if a
+-    // changed predicate groups the wrong items; no mutable loop bound.
+-    for same_blocks in order.chunk_by(|&a, &b| whole(items[usize::from(a)]) == whole(items[usize::from(b)])) {
+-        let k = whole(items[usize::from(same_blocks[0])]);
+-        #[cfg(target_arch = "aarch64")]
+-        if last_lanes {
+-            for group in same_blocks.chunks(GROUP) {
+-                let inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[usize::from(i)].as_ptr()).collect();
+-                let mut last_blocks = [[0u8; crate::BLOCK_LEN]; GROUP];
+-                let mut lengths = [0u32; GROUP];
+-                for ((&i, block), len) in group.iter().zip(&mut last_blocks).zip(&mut lengths) {
+-                    let tail = &items[usize::from(i)][k * crate::BLOCK_LEN..];
+-                    block[..tail.len()].copy_from_slice(tail);
+-                    *len = u32::from(u8::try_from(tail.len()).expect("tail block <= 64"));
+-                }
+-                let lasts: crate::stack_vec::StackVec<*const u8, GROUP> = last_blocks[..group.len()].iter().map(|b| b.as_ptr()).collect();
+-                let mut digests = [0u8; GROUP * OUT_LEN];
+-                crate::counted(crate::Counted::ByBlocksCall);
+-                // Sound: SHA-3 is present; these items share k whole blocks
+-                // before their separately padded last block, 0 to 64 bytes.
+-                unsafe {
+-                    crate::neon_hybrid::hash_last_lanes(
+-                        &inputs,
+-                        &lasts,
+-                        &lengths[..group.len()],
+-                        k + 1,
+-                        key,
+-                        counter,
+-                        flags,
+-                        CHUNK_START,
+-                        flags_end,
+-                        &mut digests[..group.len() * OUT_LEN],
+-                    );
+-                }
+-                for (&i, digest) in group.iter().zip(digests.chunks_exact(OUT_LEN)) {
+-                    out[usize::from(i)].copy_from_slice(digest);
+-                }
+-            }
+-            continue;
+-        }
+-        if k > 0 {
+-            for group in same_blocks.chunks(GROUP) {
+-                #[cfg_attr(not(target_arch = "x86_64"), allow(unused_mut))]
+-                let mut inputs: crate::stack_vec::StackVec<*const u8, GROUP> = group.iter().map(|&i| items[usize::from(i)].as_ptr()).collect();
+-                #[cfg(target_arch = "x86_64")]
+-                let padded = crate::ffi_output::pad_by_blocks_inputs(&mut inputs, platform);
+-                let mut lanes = [0u8; GROUP * OUT_LEN];
+-                crate::counted(crate::Counted::ByBlocksCall);
+-                // Sound: each item holds more than k whole blocks; the
+-                // caller selected this platform's block-group path.
+-                #[cfg(target_arch = "x86_64")]
+-                unsafe {
+-                    crate::pair::hash_many_blocks(platform, &inputs, k, key, counter, false, flags, CHUNK_START, 0, &mut lanes[..padded * OUT_LEN])
+-                };
+-                // Sound: each item holds more than k whole blocks; `inputs`
+-                // has `group.len()` readable pointers and `lanes` holds one
+-                // 32-byte slot per lane.
+-                #[cfg(target_arch = "aarch64")]
+-                unsafe {
+-                    crate::neon_hybrid::hash_messages_raw(
+-                        inputs.as_ptr(),
+-                        group.len(),
+-                        k,
+-                        key,
+-                        counter,
+-                        flags,
+-                        CHUNK_START,
+-                        0,
+-                        crate::BLOCK_LEN,
+-                        &mut lanes[..group.len() * OUT_LEN],
+-                    )
+-                };
+-                for (n, &i) in group.iter().enumerate() {
+-                    cvs[usize::from(i)] = crate::platform::words_from_le_bytes_32(lanes[n * OUT_LEN..][..OUT_LEN].try_into().unwrap());
+-                }
+-            }
+-        }
+-    }
+-    if last_lanes {
+-        return;
+-    }
+-    #[cfg(target_arch = "x86_64")]
+-    let serial_start = crate::ffi_output::finish_last_blocks_order(&order, items, &cvs, counter, flags, flags_end, out, platform);
+-    #[cfg(not(target_arch = "x86_64"))]
+-    let serial_start = 0usize;
+-    for &i in &order[serial_start..] {
+-        let i = usize::from(i);
+-        let item = items[i];
+-        let k = whole(item);
+-        let mut cv = cvs[i];
+-        let mut block = [0u8; crate::BLOCK_LEN];
+-        let last = item.len() - k * crate::BLOCK_LEN;
+-        block[..last].copy_from_slice(&item[k * crate::BLOCK_LEN..]);
+-        let start = if k == 0 { CHUNK_START } else { 0 };
+-        platform.compress_in_place(&mut cv, &block, u8::try_from(last).expect("last block <= 64"), counter, flags | start | flags_end);
+-        out[i] = crate::hasher::le_bytes(&cv);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// An item of a collection, as hash_each_on reads it: its bytes. The
+ /// public calls' items are messages in blocks; the pool's ranges, bytes.
+ pub(crate) trait Item {
+     fn bytes(&self) -> &[u8];
+ }
+ 
