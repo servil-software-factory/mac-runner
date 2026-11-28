@@ -1,0 +1,116 @@
+--- src/ffi_chain.rs
++++ replace hash_chains_varlen_32_trunc16_on with ()
+@@ -122,112 +122,17 @@
+ pub(crate) fn hash_chains_varlen_32_trunc16_on(
+     init: &[[u8; CHAIN_IN_LEN]],
+     steps: &[u32],
+     key: &CVWords,
+     flags: u8,
+     out: &mut [[u8; CHAIN_OUT_LEN]],
+     platform: Platform,
+ ) {
+-    assert_eq!(init.len(), steps.len(), "one step count per chain");
+-    assert_eq!(init.len(), out.len(), "one 16-byte output per chain");
+-    if init.is_empty() {
+-        return;
+-    }
+-
+-    // Serial-only platforms (SSE4.1) need neither queuing nor LPT sorting.
+-    #[cfg(target_arch = "x86_64")]
+-    if matches!(platform, Platform::SSE41 { .. }) {
+-        for ((src, &st), dst) in init.iter().zip(steps.iter()).zip(out.iter_mut()) {
+-            *dst = hash_chain_serial_one(src, st, key, flags, platform);
+-        }
+-        return;
+-    }
+-
+-    const STACK_QUEUE_CAP: usize = 128;
+-    let mut stack_order = [0usize; STACK_QUEUE_CAP];
+-    let mut heap_order = std::vec::Vec::new();
+-    let mut nonzero = 0usize;
+-    let mut total_work = 0u64;
+-
+-    for (i, &st) in steps.iter().enumerate() {
+-        if st == 0 {
+-            out[i].copy_from_slice(&init[i][16..32]);
+-        } else {
+-            total_work = total_work.saturating_add(u64::from(st));
+-            if let Some(slot) = stack_order.get_mut(nonzero) {
+-                *slot = i;
+-            } else {
+-                if heap_order.is_empty() {
+-                    heap_order.extend_from_slice(&stack_order);
+-                }
+-                heap_order.push(i);
+-            }
+-            nonzero += 1;
+-        }
+-    }
+-    if nonzero == 0 {
+-        return;
+-    }
+-
+-    let order: &mut [usize] = if heap_order.is_empty() { &mut stack_order[..nonzero] } else { &mut heap_order[..] };
+-    // LPT schedule (longest chains first): depends solely on public `steps`,
+-    // keeping SIMD lanes balanced until the final few steps of the wave.
+-    order.sort_unstable_by(|&a, &b| steps[b].cmp(&steps[a]));
+-
+-    let width = varlen_lane_width(platform, nonzero, total_work);
+-
+-    let mut active_buf = [[0u8; CHAIN_IN_LEN]; 18];
+-    let mut active_out = [[0u8; CHAIN_OUT_LEN]; 18];
+-    let mut active_rem = [0u32; 18];
+-    let mut active_idx = [0usize; 18];
+-    let mut active_len = width.min(order.len());
+-    let mut pending = order[active_len..].iter().copied();
+-
+-    for (slot, &idx) in order[..active_len].iter().enumerate() {
+-        active_buf[slot] = init[idx];
+-        active_rem[slot] = steps[idx];
+-        active_idx[slot] = idx;
+-    }
+-
+-    // Keep lanes packed into fused multi-step SIMD bursts while at least
+-    // `arch::PAD_SIMD_MIN` chains remain active; drain any smaller tail
+-    // serially after the loop.
+-    while active_len >= arch::PAD_SIMD_MIN {
+-        let d = active_rem[..active_len].iter().copied().min().expect("active_len >= PAD_SIMD_MIN");
+-
+-        hash_chains_32_trunc16_on(&active_buf[..active_len], d, key, flags, &mut active_out[..active_len], platform);
+-
+-        // Scan in reverse so swap-removing a finished slot moves an already-
+-        // updated slot into `j` without re-visiting it.
+-        for j in (0..active_len).rev() {
+-            let left = active_rem[j].checked_sub(d).expect("d is min of active_rem");
+-            if left == 0 {
+-                out[active_idx[j]] = active_out[j];
+-                if let Some(idx) = pending.next() {
+-                    active_buf[j] = init[idx];
+-                    active_rem[j] = steps[idx];
+-                    active_idx[j] = idx;
+-                } else {
+-                    active_len = active_len.checked_sub(1).expect("j < active_len");
+-                    active_buf[j] = active_buf[active_len];
+-                    active_rem[j] = active_rem[active_len];
+-                    active_idx[j] = active_idx[active_len];
+-                }
+-            } else {
+-                active_buf[j][16..32].copy_from_slice(&active_out[j]);
+-                advance_step_in_slot(&mut active_buf[j], d);
+-                active_rem[j] = left;
+-            }
+-        }
+-    }
+-
+-    for j in 0..active_len {
+-        out[active_idx[j]] = hash_chain_serial_one(&active_buf[j], active_rem[j], key, flags, platform);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ pub(crate) static PLANTED_WRONG_CHAIN: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+ 
+ const SELF_TEST_COUNT: usize = 40;
+ const SELF_TEST_STEPS: u32 = 5;
+ const SELF_TEST_KEY: [u8; 32] = [

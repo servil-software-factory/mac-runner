@@ -1,0 +1,33 @@
+--- src/ffi_chain_aarch64.rs
++++ replace neon_p11_chain_padded with ()
+@@ -17,29 +17,17 @@
+ 
+ /// Minimum chain remainder padded into one 11-lane NEON call instead of serial
+ /// loops (on Apple M6, 3 serial chains of 59 steps take ~8.5 us vs ~6.9 us for
+ /// an 11-lane fused NEON burst).
+ pub(super) const PAD_SIMD_MIN: usize = 3;
+ 
+ #[inline(never)]
+ fn neon_p11_chain_padded(init: &[[u8; CHAIN_IN_LEN]], steps: u32, key: &CVWords, rflags: u32, out: &mut [[u8; CHAIN_OUT_LEN]]) {
+-    assert!((1..11).contains(&init.len()), "NEON padded chain count must be in 1..11");
+-    assert_eq!(init.len(), out.len());
+-    let mut pad_in = [[0u8; CHAIN_IN_LEN]; 11];
+-    pad_in[..init.len()].copy_from_slice(init);
+-    let mut pad_out = [[0u8; CHAIN_OUT_LEN]; 11];
+-    crate::ran_kernel(ffi_neon::blake3_servil_neon_p11_chain32_trunc16 as *const ());
+-    // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`; `pad_in`
+-    // holds 11 initialized 32-byte chain slots, `key` holds 8 `u32` words, and
+-    // `pad_out` holds 11 writable 16-byte output slots.
+-    unsafe {
+-        ffi_neon::blake3_servil_neon_p11_chain32_trunc16(pad_in.as_ptr().cast(), 1, key.as_ptr(), rflags, pad_out.as_mut_ptr().cast(), steps);
+-    }
+-    out.copy_from_slice(&pad_out[..out.len()]);
++    () /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[inline]
+ pub(super) fn varlen_lane_width(platform: Platform, active_count: usize, total_work: u64) -> usize {
+     match platform {
+         Platform::SME2 { .. } if active_count >= SME2_CHAIN_MIN && total_work >= SME2_VARLEN_MIN_WORK => 18,
+         Platform::SME2 { .. } | Platform::NEON { .. } => 11,
+     }

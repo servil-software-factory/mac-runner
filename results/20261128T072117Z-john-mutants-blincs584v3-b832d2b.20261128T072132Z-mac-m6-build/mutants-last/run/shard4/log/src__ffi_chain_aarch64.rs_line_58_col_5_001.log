@@ -1,0 +1,345 @@
+
+*** src/ffi_chain_aarch64.rs:58:5: replace hash_chain_groups -> usize with 1
+
+*** mutation diff:
+--- src/ffi_chain_aarch64.rs
++++ replace hash_chain_groups -> usize with 1
+@@ -50,65 +50,17 @@
+ pub(super) fn hash_chain_groups(
+     init: &[[u8; CHAIN_IN_LEN]],
+     steps: u32,
+     key: &CVWords,
+     rflags: u32,
+     out: &mut [[u8; CHAIN_OUT_LEN]],
+     platform: Platform,
+ ) -> usize {
+-    let mut done = 0usize;
+-
+-    if matches!(platform, Platform::SME2 { .. }) {
+-        let groups = init.len() / 18;
+-        if groups != 0 {
+-            let turn = crate::platform::Sme2Turn::take(platform, true);
+-            if matches!(turn.platform(), Platform::SME2 { .. }) {
+-                let kernel = ffi_sme2::blake3_servil_sme2_chain32_trunc16;
+-                // Sound: `Platform::SME2` verified SME2 support and caller
+-                // guarantees `steps > 0`; `init` holds at least `18 * groups`
+-                // readable 32-byte slots, `key` holds 8 `u32` words, and `out`
+-                // holds at least `18 * groups` writable 16-byte slots. The
+-                // kernel checks SVL == 16 and `TPIDR2_EL0` reserved bytes
+-                // before touching ZA/streaming state and returns 16 when work
+-                // ran and all `18 * groups` outputs were written.
+-                let svl = unsafe { kernel(init.as_ptr().cast(), key.as_ptr(), rflags, steps, out.as_mut_ptr().cast(), groups as u64) };
+-                if svl == 16 {
+-                    crate::ran_kernel(kernel as *const ());
+-                    done += groups * 18;
+-                }
+-            }
+-            // Drop `turn` before NEON or serial tail runs so concurrent callers
+-            // are never blocked on SME2 while this call drains a scalar tail.
+-        }
+-    }
+-
+-    if matches!(platform, Platform::NEON { .. } | Platform::SME2 { .. }) {
+-        let rem = init.len() - done;
+-        let groups = rem / 11;
+-        if groups != 0 {
+-            let kernel = ffi_neon::blake3_servil_neon_p11_chain32_trunc16;
+-            crate::ran_kernel(kernel as *const ());
+-            // Sound: AArch64 NEON is mandatory on `Platform::NEON`/`SME2`;
+-            // `init[done..]` holds at least `11 * groups` readable 32-byte
+-            // slots, `key` holds 8 `u32` words, and `out[done..]` holds at
+-            // least `11 * groups` writable 16-byte slots.
+-            unsafe {
+-                kernel(init[done..].as_ptr().cast(), groups as u64, key.as_ptr(), rflags, out[done..].as_mut_ptr().cast(), steps);
+-            }
+-            done += groups * 11;
+-        }
+-        let rem = init.len() - done;
+-        if rem >= PAD_SIMD_MIN {
+-            neon_p11_chain_padded(&init[done..], steps, key, rflags, &mut out[done..]);
+-            done += rem;
+-        }
+-    }
+-
+-    done
++    1 /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ pub(crate) fn entries_neon() -> [(&'static str, *const ()); 1] {
+     [("neon_p11_chain32_trunc16", ffi_neon::blake3_servil_neon_p11_chain32_trunc16 as *const ())]
+ }
+ 
+ #[cfg(test)]
+
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --no-run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.11.0+dev
+warning: ignoring --test-threads because --no-run is specified
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[73352]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[73376]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+   Compiling blake3-servil-version v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants-502/run-4/version)
+   Compiling blake3-servil-core v0.11.0+dev (/Users/benchrunner/tmp/blake3-servil-mutants-502/run-4)
+warning: unused variable: `init`
+  --> src/ffi_chain_aarch64.rs:51:5
+   |
+51 |     init: &[[u8; CHAIN_IN_LEN]],
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_init`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `steps`
+  --> src/ffi_chain_aarch64.rs:52:5
+   |
+52 |     steps: u32,
+   |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_steps`
+
+warning: unused variable: `key`
+  --> src/ffi_chain_aarch64.rs:53:5
+   |
+53 |     key: &CVWords,
+   |     ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+
+warning: unused variable: `rflags`
+  --> src/ffi_chain_aarch64.rs:54:5
+   |
+54 |     rflags: u32,
+   |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rflags`
+
+warning: unused variable: `out`
+  --> src/ffi_chain_aarch64.rs:55:5
+   |
+55 |     out: &mut [[u8; CHAIN_OUT_LEN]],
+   |     ^^^ help: if this is intentional, prefix it with an underscore: `_out`
+
+warning: unused variable: `platform`
+  --> src/ffi_chain_aarch64.rs:56:5
+   |
+56 |     platform: Platform,
+   |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_platform`
+
+warning: function `neon_p11_chain_padded` is never used
+  --> src/ffi_chain_aarch64.rs:24:4
+   |
+24 | fn neon_p11_chain_padded(init: &[[u8; CHAIN_IN_LEN]], steps: u32, key: &CVWords, rflags: u32, out: &mut [[u8; CHAIN_OUT_LEN]]) {
+   |    ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `blake3_servil_sme2_chain32_trunc16` is never used
+  --> src/ffi_chain_aarch64.rs:81:16
+   |
+81 | ...   pub fn blake3_servil_sme2_chain32_trunc16(init: *const u8, key: *const u32, flags: u32, steps: u32, out: *mut u8, groups: u64)...
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `blake3_servil_neon_p11_chain32_trunc16` is never used
+  --> src/ffi_chain_aarch64.rs:87:16
+   |
+87 | ...   pub fn blake3_servil_neon_p11_chain32_trunc16(init: *const u8, groups: u64, key: *const u32, flags: u32, out: *mut u8, steps: ...
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `blake3-servil-core` (lib) generated 9 warnings (run `cargo fix --lib -p blake3-servil-core` to apply 6 suggestions)
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21644]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21646]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "initialize_stack") generated 1 warning
+warning: `blake3-servil-core` (test "after_initialize") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21648]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "self_test_init") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21652]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "initialize_contract") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21653]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "batch_equals_single") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21656]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21657]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "guard_alloc") generated 1 warning
+warning: `blake3-servil-core` (test "lifecycle") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21663]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "tree_shape") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21664]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (test "build_version") generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21740]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (lib test) generated 8 warnings (7 duplicates)
+    Finished `mutants` profile [optimized] target(s) in 1.44s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+
+*** result: Success
+
+*** /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/bin/cargo nextest run --cargo-profile=mutants --verbose --package=blake3-servil-core@0.11.0+dev --lib --tests
+warning: failed to connect to jobserver from environment variable `CARGO_MAKEFLAGS="-j --jobserver-fds=10,12 --jobserver-auth=10,12"`: cannot open file descriptor 10 from the jobserver environment variable value: Bad file descriptor (os error 9)
+warning: failed to connect to jobserver from environment variable `CARGO_MAKEFLAGS="-j --jobserver-fds=10,12 --jobserver-auth=10,12"`: cannot open file descriptor 10 from the jobserver environment variable value: Bad file descriptor (os error 9)
+warning: Cargo.toml: version requirement `=0.11.0+dev` for dependency `blake3-servil-version` includes semver metadata which will be ignored, removing the metadata is recommended to avoid confusion
+warning: `blake3-servil-core` (manifest) generated 1 warning
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[73352]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[73376]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-version` (build script) generated 1 warning
+warning: `blake3-servil-core` (build script) generated 1 warning
+warning: unused variable: `init`
+  --> src/ffi_chain_aarch64.rs:51:5
+   |
+51 |     init: &[[u8; CHAIN_IN_LEN]],
+   |     ^^^^ help: if this is intentional, prefix it with an underscore: `_init`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `steps`
+  --> src/ffi_chain_aarch64.rs:52:5
+   |
+52 |     steps: u32,
+   |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_steps`
+
+warning: unused variable: `key`
+  --> src/ffi_chain_aarch64.rs:53:5
+   |
+53 |     key: &CVWords,
+   |     ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+
+warning: unused variable: `rflags`
+  --> src/ffi_chain_aarch64.rs:54:5
+   |
+54 |     rflags: u32,
+   |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_rflags`
+
+warning: unused variable: `out`
+  --> src/ffi_chain_aarch64.rs:55:5
+   |
+55 |     out: &mut [[u8; CHAIN_OUT_LEN]],
+   |     ^^^ help: if this is intentional, prefix it with an underscore: `_out`
+
+warning: unused variable: `platform`
+  --> src/ffi_chain_aarch64.rs:56:5
+   |
+56 |     platform: Platform,
+   |     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_platform`
+
+warning: function `neon_p11_chain_padded` is never used
+  --> src/ffi_chain_aarch64.rs:24:4
+   |
+24 | fn neon_p11_chain_padded(init: &[[u8; CHAIN_IN_LEN]], steps: u32, key: &CVWords, rflags: u32, out: &mut [[u8; CHAIN_OUT_LEN]]) {
+   |    ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: stripping debug info with `rust-objcopy` failed: signal: 6 (SIGABRT)
+  |
+  = note: dyld[21740]: Library not loaded: @rpath/libLLVM.dylib
+            Referenced from: <D6B3C499-A2AF-3E42-8F77-C42BD658AAB5> /Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/rust-objcopy
+            Reason: tried: '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/.rustup/toolchains/nightly-2026-09-24-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin/../lib/libLLVM.dylib' (no such file), '/Users/benchrunner/lib/libLLVM.dylib' (no such file), '/usr/local/lib/libLLVM.dylib' (no such file), '/usr/lib/libLLVM.dylib' (no such file, not in dyld cache)
+          
+
+warning: `blake3-servil-core` (lib test) generated 8 warnings (run `cargo fix --lib -p blake3-servil-core --tests` to apply 6 suggestions)
+    Finished `mutants` profile [optimized] target(s) in 0.01s
+info: using target runner `sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner` defined by environment variable `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER`
+────────────
+ Nextest run ID a4bf7054-b5f5-4a6a-b3a4-2783aaf9f7f6 with nextest profile: mutants
+    Starting 237 tests across 1 binary
+       START [         ] (  1/237) blake3-servil-core block::packed_test::borrowed_array_slices_hash_as_packed
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-4/mutants/build/blake3-servil-core/9c328f8a1b6bee03/out/blake3_servil_core-9c328f8a1b6bee03 --exact block::packed_test::borrowed_array_slices_hash_as_packed --nocapture
+       START [         ] (  1/237) blake3-servil-core block::packed_test::packed_capacity_rejects_wrapping_message_counts
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-4/mutants/build/blake3-servil-core/9c328f8a1b6bee03/out/blake3_servil_core-9c328f8a1b6bee03 --exact block::packed_test::packed_capacity_rejects_wrapping_message_counts --nocapture
+        PASS [   0.025s] (  1/237) blake3-servil-core block::packed_test::packed_capacity_rejects_wrapping_message_counts
+       START [         ] (  2/237) blake3-servil-core block::packed_test::packed_messages_hash_as_each_message_alone
+             command: sh /Users/benchrunner/checkouts/fork/tools/mutants/test-runner /Users/benchrunner/checkouts/fork/target/mutants/run-4/mutants/build/blake3-servil-core/9c328f8a1b6bee03/out/blake3_servil_core-9c328f8a1b6bee03 --exact block::packed_test::packed_messages_hash_as_each_message_alone --nocapture
+     SIGABRT [   0.027s] (  2/237) blake3-servil-core block::packed_test::borrowed_array_slices_hash_as_packed
+  stdout ───
+
+    running 1 test
+  stderr ───
+    blake3-servil startup self-test failed: hash_chains_32_trunc16 (platform SME2): expected 0x6abaf1babf9a20a9, got 0xc7a024cd4b64cfd7
+
+    (test aborted with signal 6: SIGABRT)
+
+  Cancelling due to test failure: immediately terminating 1 test still running
+     SIGTERM [   0.009s] (  3/237) blake3-servil-core block::packed_test::packed_messages_hash_as_each_message_alone
+────────────
+     Summary [   0.035s] 3/237 tests run: 1 passed, 2 failed, 0 skipped
+warning: 234/237 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+
+*** result: Failure(100)
