@@ -1,0 +1,79 @@
+--- src/self_test.rs
++++ replace run_checks -> (Platform, usize) with (Default::default(), 1)
+@@ -413,75 +413,17 @@
+ 
+ /// Run every case for the detected platform and stop on the first that differs
+ /// from the reference, returning `(platform, checked)` without publishing.
+ /// Separating verification from `platform.record()` guarantees every kernel
+ /// self-test completes before publication.
+ fn run_checks() -> (Platform, usize) {
+     // A kernel's panic, as a test plants it: the guard in ensure_slow
+     // stops the process for it.
+-    #[cfg(test)]
+-    if PLANTED_FAILURE.load(core::sync::atomic::Ordering::Relaxed) {
+-        panic!("a kernel's panic, planted by a test");
+-    }
+-    compiled_features_present();
+-    let platform = Platform::detect_unchecked();
+-    let mut checked = 0;
+-    #[cfg(test)]
+-    let mut index = 0;
+-    let previous = chain(
+-        |case, input, previous, out| {
+-            let written = outputs(platform, case, input, previous, out);
+-            // A wrong digest a test plants in one case, as a CPU or build
+-            // that computes one would give.
+-            #[cfg(test)]
+-            {
+-                if index == PLANTED_WRONG_CASE.load(core::sync::atomic::Ordering::Relaxed) {
+-                    out[written - 1] ^= 1;
+-                }
+-                index += 1;
+-            }
+-            written
+-        },
+-        |index, folded| {
+-            checked += 1;
+-            if folded != EXPECTED[index] {
+-                stop(format_args!(
+-                    "blake3-servil startup self-test failed: case {index}, {} (platform {}): this build or this CPU \
+-                     computes wrong BLAKE3 digests on that path",
+-                    CASES[index].1,
+-                    platform.name(),
+-                ));
+-            }
+-        },
+-    );
+-    #[cfg(target_arch = "x86_64")]
+-    if crate::platform::wide_avx512() {
+-        // Sound: `wide_avx512()` requires AVX-512, so `platform` is AVX-512
+-        // and hash_many dispatches to these kernels. Their wrapper checks
+-        // bounds on stack.
+-        checked += unsafe { crate::avx512_32::self_test(&previous) };
+-    }
+-    checked += crate::ffi_output::self_test(platform);
+-    #[cfg(target_arch = "x86_64")]
+-    {
+-        checked += crate::ffi_partial::self_test(platform);
+-    }
+-    checked += crate::ffi_packed::self_test(platform);
+-    #[cfg(test)]
+-    if HOLD_RUN.load(core::sync::atomic::Ordering::Relaxed) {
+-        IN_RUN.store(true, core::sync::atomic::Ordering::Release);
+-        while HOLD_RUN.load(core::sync::atomic::Ordering::Acquire) {
+-            std::thread::yield_now();
+-        }
+-    }
+-    checked += crate::ffi_counter::self_test(platform);
+-    checked += crate::ffi_chain::self_test(platform);
+-    let _ = previous;
+-    (platform, checked)
++    (Default::default(), 1) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Run every startup self-test case and publish the verified platform once.
+ fn run() -> usize {
+     let (platform, checked) = run_checks();
+     platform.record();
+     checked
+ }
