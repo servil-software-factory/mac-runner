@@ -1,0 +1,162 @@
+[
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::finish_multi_slot -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) with (Box::leak(Box::new(Default::default())), Default::default(), None)\n@@ -1012,36 +1012,17 @@\n                     unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n                 }\n                 (core::ptr::addr_of!(self.tasks_left[slot].0), false)\n             }\n         }\n     }\n \n     fn finish_multi_slot(&self, slot: usize, is_batch: bool, custom: bool) -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) {\n-        let mut loan_mark = None;\n-        if !is_batch {\n-            // Sound: this is the slot's last task (`tasks_left` reached zero),\n-            // so every piece's value is written and no one else reads or\n-            // writes the slot's values or hash until `slot_done` below.\n-            let desc = unsafe { *self.multi[slot].get() };\n-            let MultiKind::Slice { total_len, loan_epoch, .. } = desc.kind else {\n-                unreachable!(\"finish_multi_slot called with !is_batch on a batch descriptor\");\n-            };\n-            // Sound: last task of `slot` holds exclusive mutable access to `cvs[slot]` until `slot_done` below.\n-            let values = unsafe { &mut *self.cvs[slot].get() };\n-            let last = values.last.take().expect(\"the last piece supplied its value\");\n-            let hash = fold_multi_cvs(self.tree_for(slot, custom), &values.whole[..desc.pieces - 1], last, total_len as u64);\n-            // Sound: last task of `slot` holds exclusive write access to `hashes[slot]` until `slot_done` below.\n-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };\n-            if loan_epoch != 0 {\n-                loan_mark = Some((&self.slot.get().loan_completed[slot].0, loan_epoch));\n-            }\n-        }\n-        (&self.slot.get().waker, core::ptr::addr_of!(self.slot_done[slot].0), loan_mark)\n+        (Box::leak(Box::new(Default::default())), Default::default(), None) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     let merges = used.saturating_sub(count.count_ones() as usize);\n     for _ in 0..merges {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::finish_multi_slot",
+      "return_type": "-> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1040
+        },
+        "start": {
+          "column": 5,
+          "line": 1019
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1020:9: replace PipeStorage::finish_multi_slot -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) with (Box::leak(Box::new(Default::default())), Default::default(), None)",
+    "package": "blake3-servil",
+    "replacement": "(Box::leak(Box::new(Default::default())), Default::default(), None)",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 1039
+      },
+      "start": {
+        "column": 9,
+        "line": 1020
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::finish_multi_slot -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) with (Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 0)))\n@@ -1012,36 +1012,17 @@\n                     unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n                 }\n                 (core::ptr::addr_of!(self.tasks_left[slot].0), false)\n             }\n         }\n     }\n \n     fn finish_multi_slot(&self, slot: usize, is_batch: bool, custom: bool) -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) {\n-        let mut loan_mark = None;\n-        if !is_batch {\n-            // Sound: this is the slot's last task (`tasks_left` reached zero),\n-            // so every piece's value is written and no one else reads or\n-            // writes the slot's values or hash until `slot_done` below.\n-            let desc = unsafe { *self.multi[slot].get() };\n-            let MultiKind::Slice { total_len, loan_epoch, .. } = desc.kind else {\n-                unreachable!(\"finish_multi_slot called with !is_batch on a batch descriptor\");\n-            };\n-            // Sound: last task of `slot` holds exclusive mutable access to `cvs[slot]` until `slot_done` below.\n-            let values = unsafe { &mut *self.cvs[slot].get() };\n-            let last = values.last.take().expect(\"the last piece supplied its value\");\n-            let hash = fold_multi_cvs(self.tree_for(slot, custom), &values.whole[..desc.pieces - 1], last, total_len as u64);\n-            // Sound: last task of `slot` holds exclusive write access to `hashes[slot]` until `slot_done` below.\n-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };\n-            if loan_epoch != 0 {\n-                loan_mark = Some((&self.slot.get().loan_completed[slot].0, loan_epoch));\n-            }\n-        }\n-        (&self.slot.get().waker, core::ptr::addr_of!(self.slot_done[slot].0), loan_mark)\n+        (Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 0))) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     let merges = used.saturating_sub(count.count_ones() as usize);\n     for _ in 0..merges {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::finish_multi_slot",
+      "return_type": "-> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1040
+        },
+        "start": {
+          "column": 5,
+          "line": 1019
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1020:9: replace PipeStorage::finish_multi_slot -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) with (Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 0)))",
+    "package": "blake3-servil",
+    "replacement": "(Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 0)))",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 1039
+      },
+      "start": {
+        "column": 9,
+        "line": 1020
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace PipeStorage::finish_multi_slot -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) with (Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 1)))\n@@ -1012,36 +1012,17 @@\n                     unsafe { core::ptr::addr_of_mut!((*values).whole).cast::<Cv>().add(piece_idx).write(value) };\n                 }\n                 (core::ptr::addr_of!(self.tasks_left[slot].0), false)\n             }\n         }\n     }\n \n     fn finish_multi_slot(&self, slot: usize, is_batch: bool, custom: bool) -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) {\n-        let mut loan_mark = None;\n-        if !is_batch {\n-            // Sound: this is the slot's last task (`tasks_left` reached zero),\n-            // so every piece's value is written and no one else reads or\n-            // writes the slot's values or hash until `slot_done` below.\n-            let desc = unsafe { *self.multi[slot].get() };\n-            let MultiKind::Slice { total_len, loan_epoch, .. } = desc.kind else {\n-                unreachable!(\"finish_multi_slot called with !is_batch on a batch descriptor\");\n-            };\n-            // Sound: last task of `slot` holds exclusive mutable access to `cvs[slot]` until `slot_done` below.\n-            let values = unsafe { &mut *self.cvs[slot].get() };\n-            let last = values.last.take().expect(\"the last piece supplied its value\");\n-            let hash = fold_multi_cvs(self.tree_for(slot, custom), &values.whole[..desc.pieces - 1], last, total_len as u64);\n-            // Sound: last task of `slot` holds exclusive write access to `hashes[slot]` until `slot_done` below.\n-            unsafe { *self.hashes[slot].get() = *hash.as_bytes() };\n-            if loan_epoch != 0 {\n-                loan_mark = Some((&self.slot.get().loan_completed[slot].0, loan_epoch));\n-            }\n-        }\n-        (&self.slot.get().waker, core::ptr::addr_of!(self.slot_done[slot].0), loan_mark)\n+        (Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 1))) /* ~ changed by cargo-mutants ~ */\n     }\n }\n \n /// Settle the lazy merges of `count` equal-size pieces. The 1-bits of\n /// `count` name the whole subtrees left on the stack, largest first.\n fn merge_pieces(tree: &TreeHasher, stack: &mut [Cv], mut used: usize, count: u64) -> usize {\n     let merges = used.saturating_sub(count.count_ones() as usize);\n     for _ in 0..merges {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "PipeStorage::finish_multi_slot",
+      "return_type": "-> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>)",
+      "span": {
+        "end": {
+          "column": 6,
+          "line": 1040
+        },
+        "start": {
+          "column": 5,
+          "line": 1019
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:1020:9: replace PipeStorage::finish_multi_slot -> (&'static WakerSlot, *const AtomicBool, Option<(&'static AtomicU64, u64)>) with (Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 1)))",
+    "package": "blake3-servil",
+    "replacement": "(Box::leak(Box::new(Default::default())), Default::default(), Some((Box::leak(Box::new(Default::default())), 1)))",
+    "span": {
+      "end": {
+        "column": 89,
+        "line": 1039
+      },
+      "start": {
+        "column": 9,
+        "line": 1020
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace test::PrivateTempDir::create_exclusive -> (std::path::PathBuf, std::fs::File) with (Default::default(), Default::default())\n@@ -4710,19 +4710,17 @@\n                     Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,\n                     Err(e) => panic!(\"create private tempdir {path:?}: {e}\"),\n                 }\n             }\n             panic!(\"could not create unique private tempdir for {tag}\");\n         }\n \n         fn create_exclusive(&self, name: &str) -> (std::path::PathBuf, std::fs::File) {\n-            let path = self.0.join(name);\n-            let file = std::fs::OpenOptions::new().read(true).write(true).create_new(true).open(&path).unwrap();\n-            (path, file)\n+            (Default::default(), Default::default()) /* ~ changed by cargo-mutants ~ */\n         }\n     }\n \n     #[cfg(not(shuttle))]\n     #[cfg(any(target_os = \"linux\", target_os = \"macos\"))]\n     impl Drop for PrivateTempDir {\n         fn drop(&mut self) {\n             let _ = std::fs::remove_dir_all(&self.0);\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "test::PrivateTempDir::create_exclusive",
+      "return_type": "-> (std::path::PathBuf, std::fs::File)",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 4721
+        },
+        "start": {
+          "column": 9,
+          "line": 4717
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:4718:13: replace test::PrivateTempDir::create_exclusive -> (std::path::PathBuf, std::fs::File) with (Default::default(), Default::default())",
+    "package": "blake3-servil",
+    "replacement": "(Default::default(), Default::default())",
+    "span": {
+      "end": {
+        "column": 25,
+        "line": 4720
+      },
+      "start": {
+        "column": 13,
+        "line": 4718
+      }
+    }
+  },
+  {
+    "diff": "--- src/pipeline.rs\n+++ replace test::<impl Drop for PrivateTempDir>::drop with ()\n@@ -4720,17 +4720,17 @@\n             (path, file)\n         }\n     }\n \n     #[cfg(not(shuttle))]\n     #[cfg(any(target_os = \"linux\", target_os = \"macos\"))]\n     impl Drop for PrivateTempDir {\n         fn drop(&mut self) {\n-            let _ = std::fs::remove_dir_all(&self.0);\n+            () /* ~ changed by cargo-mutants ~ */\n         }\n     }\n \n     #[test]\n     fn active_loan_drop_and_active_pipeline_drop_abort_the_process() {\n         use std::os::unix::process::ExitStatusExt as _;\n         const ENV: &str = \"BLAKE3_PIPELINE_ABORT_CASE\";\n         if let Ok(which) = std::env::var(ENV) {\n",
+    "file": "src/pipeline.rs",
+    "function": {
+      "function_name": "test::<impl Drop for PrivateTempDir>::drop",
+      "return_type": "",
+      "span": {
+        "end": {
+          "column": 10,
+          "line": 4729
+        },
+        "start": {
+          "column": 9,
+          "line": 4727
+        }
+      }
+    },
+    "genre": "FnValue",
+    "name": "src/pipeline.rs:4728:13: replace test::<impl Drop for PrivateTempDir>::drop with ()",
+    "package": "blake3-servil",
+    "replacement": "()",
+    "span": {
+      "end": {
+        "column": 54,
+        "line": 4728
+      },
+      "start": {
+        "column": 13,
+        "line": 4728
+      }
+    }
+  }
+]
