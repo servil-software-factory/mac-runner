@@ -1,0 +1,21 @@
+--- src/pipeline.rs
++++ replace * with + in PipeStorage::run_multi_piece
+@@ -974,17 +974,17 @@
+         match desc.kind {
+             MultiKind::Batch { message_len, slot_len, per_part, count: total_count, digests: digests_ptr } => {
+                 let first = piece_idx * per_part;
+                 let count = (total_count - first).min(per_part);
+                 // Sound: the batch and its digests stay in the slot (`batches[s]`)
+                 // until the slot's event, which waits for `slot_done`; this task's
+                 // messages and digests are its own range of them (`first`,
+                 // `count`).
+-                let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first * slot_len), count * slot_len) };
++                let bytes = unsafe { core::slice::from_raw_parts(desc.input.add(first + /* ~ changed by cargo-mutants ~ */ slot_len), count * slot_len) };
+                 let digests = unsafe { core::slice::from_raw_parts_mut(digests_ptr.as_ptr().add(first), count) };
+                 // Sound: `MultiKind::Batch` came from a validated `Prepared` batch
+                 // (including zero-length messages padded to `BLOCK_LEN`) held alive
+                 // in `Pipeline::batches[slot]` until `slot_done`.
+                 let part = unsafe { crate::throughput::Part::from_checked_slots(bytes, message_len, slot_len) };
+                 tree.hash_many_on(platform, &part, digests);
+                 (core::ptr::addr_of!(self.tasks_left[slot].0), true)
+             }
